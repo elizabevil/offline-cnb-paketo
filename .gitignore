@@ -1,0 +1,50 @@
+/project/offline-paketo/bundle/
+/project/offline-paketo/run-cache/
+/project/offline-paketo-bk/run-cache/
+/project/offline-paketo-bk/bundle/
+/project/offline-paketo-bk/build/
+/project/offline-heroku-bk/bundle/
+/project/offline-heroku-bk/build/
+/project/offline-heroku-bk/run-cache/
+
+# ── 根基座 ───────────────────────────────────────────────
+# 物料体积大且可重建；目录由 `just fetch` 按需创建
+/bundle/*
+!/bundle/.gitkeep
+/.env
+
+# python 字节码
+__pycache__/
+*.pyc
+
+# Go 构建产物与缓存
+/script/bin/
+/.cache/
+
+# ── 运行态与构建产物（不入库，可由构建重建）──────────────
+.omo/
+.opencode/
+/project/offline-heroku-bk/build-default/
+/project/offline-heroku-bk/apps/*/main/bin/main
+/project/offline-paketo-bk/apps/release-arm64/main/bin/cmdb_webserver
+/project/offline-paketo-bk/apps/release-arm64/main/bin/envsubst
+
+# ── 案例目录（不进版本库）──────────────────────────────
+/project/offline-paketo-bk/examples/
+
+# ── 案例目录（不进版本库）──────────────────────────────
+/project/project/offline-paketo/examples/
+/project/project/offline-heroku-bk/examples/
+
+# 临时验证项目（外来代码，不入库）
+/test/external/*
+!/test/external/.gitkeep
+
+# 测试日志
+/test/.logs/
+
+# 测试工作目录
+/test/.work/
+
+# IDE
+.idea/

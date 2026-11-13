@@ -1,0 +1,19 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: 结构 + 配置校验
+        run: script/ci.sh
+      - name: 物料校验（需要网络）
+        if: false   # 离线仓库默认跳过；有制品库时改为 script/ci.sh --fetch
+        run: script/ci.sh --fetch
