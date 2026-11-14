@@ -23,7 +23,7 @@ for f in config/projects/*.toml; do
 done
 
 echo "── buildpack 结构检查 ──"
-script/bin/cnb buildpack lint
+script/bin/cnb buildpack lint buildpacks/*/*
 
 echo "── Dockerfile 静态检查 ──"
 for f in config/projects/*.toml; do

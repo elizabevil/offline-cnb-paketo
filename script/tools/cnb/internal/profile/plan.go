@@ -2,6 +2,7 @@ package profile
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -28,18 +29,19 @@ type Plan struct {
 
 // PlanStage 是计划中的一步。
 type PlanStage struct {
-	Kind       string            `json:"kind" yaml:"kind"` // fetch | image | command
-	Name       string            `json:"name" yaml:"name"`
-	Desc       string            `json:"desc,omitempty" yaml:"desc,omitempty"`
-	Base       string            `json:"base,omitempty" yaml:"base,omitempty"`
-	Context    string            `json:"context,omitempty" yaml:"context,omitempty"`
-	BundleCtx  string            `json:"bundle_context,omitempty" yaml:"bundle_context,omitempty"`
-	Dockerfile string            `json:"dockerfile,omitempty" yaml:"dockerfile,omitempty"`
-	Tag        string            `json:"tag,omitempty" yaml:"tag,omitempty"`
-	Args       map[string]string `json:"args,omitempty" yaml:"args,omitempty"`
-	Run        string            `json:"run,omitempty" yaml:"run,omitempty"`
-	Workdir    string            `json:"workdir,omitempty" yaml:"workdir,omitempty"`
-	Env        map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
+	Kind          string            `json:"kind" yaml:"kind"` // fetch | image | command
+	Name          string            `json:"name" yaml:"name"`
+	Desc          string            `json:"desc,omitempty" yaml:"desc,omitempty"`
+	Base          string            `json:"base,omitempty" yaml:"base,omitempty"`
+	Context       string            `json:"context,omitempty" yaml:"context,omitempty"`
+	BundleCtx     string            `json:"bundle_context,omitempty" yaml:"bundle_context,omitempty"`
+	BuildpacksCtx string            `json:"buildpacks_context,omitempty" yaml:"buildpacks_context,omitempty"`
+	Dockerfile    string            `json:"dockerfile,omitempty" yaml:"dockerfile,omitempty"`
+	Tag           string            `json:"tag,omitempty" yaml:"tag,omitempty"`
+	Args          map[string]string `json:"args,omitempty" yaml:"args,omitempty"`
+	Run           string            `json:"run,omitempty" yaml:"run,omitempty"`
+	Workdir       string            `json:"workdir,omitempty" yaml:"workdir,omitempty"`
+	Env           map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 }
 
 // BuildPlan 校验配置并生成计划。
@@ -66,6 +68,10 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 		BuildpacksDir: func() string {
 			if p.Docker.BuildpacksDir != "" {
 				return abs(p.Docker.BuildpacksDir)
+			}
+			// 仓库级共享 buildpacks，按格式分组（paketo / heroku / …）
+			if dir := abs(mustDefault(p.Docker.BuildpacksContext, "buildpacks")); dirExists(dir) {
+				return dir
 			}
 			return filepath.Join(abs(p.Project.Dir), "docker", "buildpacks")
 		}(),
@@ -110,7 +116,8 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 			plan.Stages = append(plan.Stages, PlanStage{
 				Kind: "image", Name: st.Image, Desc: img.Desc, Base: img.Base,
 				Context: plan.Context, BundleCtx: plan.BundleDir,
-				Dockerfile: filepath.Join(plan.Context, img.Dockerfile), Tag: tag, Args: merged,
+				BuildpacksCtx: abs(mustDefault(p.Docker.BuildpacksContext, "buildpacks")),
+				Dockerfile:    filepath.Join(plan.Context, img.Dockerfile), Tag: tag, Args: merged,
 			})
 			continue
 		}
@@ -220,4 +227,10 @@ func detectRuntime() string {
 		return "docker"
 	}
 	return "none"
+}
+
+// dirExists 判断目录是否存在。
+func dirExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }

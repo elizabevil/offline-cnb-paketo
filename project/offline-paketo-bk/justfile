@@ -27,3 +27,7 @@ fetch *ids:
 # 校验本流程物料（范围与规则来自配置）
 verify:
     @{{_dir}}/../../script/bin/cnb profile verify {{_profile}}
+
+# 夹具构建与打包（BK 结构）
+fixtures *args:
+    @just --justfile {{_dir}}/fixtures/justfile {{args}}

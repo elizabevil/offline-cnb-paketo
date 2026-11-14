@@ -45,7 +45,8 @@ func newDockerfileCmd() *cobra.Command {
 					switch base {
 					case "":
 						target = filepath.Join(st.Context, path)
-					case "bundle":
+					case "buildpacks":
+						target = filepath.Join(plan.RepoRoot, st.BuildpacksCtx, path)
 						target = filepath.Join(plan.BundleDir, path)
 					default:
 						continue // 其他镜像阶段，跳过

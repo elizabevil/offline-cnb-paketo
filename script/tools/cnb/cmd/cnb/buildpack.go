@@ -51,21 +51,19 @@ func newBuildpackCmd() *cobra.Command {
 }
 
 func lintBuildpack(cmd *cobra.Command, dir string, res *lintResult) {
-	// 支持官方布局：<id>/<version>/buildpack.toml
+	// 两种布局：扁平 <id>/buildpack.toml 与官方 <id>/<version>/buildpack.toml
+	origDir := dir
+	leaf := filepath.Base(origDir)
 	if !exists(filepath.Join(dir, "buildpack.toml")) {
 		if subs, err := os.ReadDir(dir); err == nil {
 			for _, sub := range subs {
 				cand := filepath.Join(dir, sub.Name())
 				if sub.IsDir() && exists(filepath.Join(cand, "buildpack.toml")) {
-					dir = cand
+					dir = cand // 进入版本目录；id 这一级仍是 origDir
 					break
 				}
 			}
 		}
-	}
-	leaf := filepath.Base(filepath.Dir(dir))
-	if leaf == "." || leaf == "" {
-		leaf = filepath.Base(dir)
 	}
 	report := func(ok bool, msg string) {
 		if ok {
@@ -132,8 +130,22 @@ func lintBuildpack(cmd *cobra.Command, dir string, res *lintResult) {
 			report(false, filepath.Base(f)+" 缺少可执行权限")
 		}
 	}
-	warn(sbomRe.MatchString(text), "未声明 sbom-formats")
-	warn(depsRe.MatchString(text), "未声明 [[metadata.dependencies]]")
+	// 只有真正产出 SBOM 的组件才要求声明 sbom-formats
+	writesSBOM := false
+	for _, f := range []string{detectPath, buildPath} {
+		if data, err := os.ReadFile(f); err == nil && strings.Contains(string(data), ".sbom.") {
+			writesSBOM = true
+		}
+	}
+	if writesSBOM {
+		warn(sbomRe.MatchString(text), "写出了 SBOM 但未声明 sbom-formats")
+	}
+
+	// 只有"提供外部 SDK/工具链"的组件才要求声明 dependencies
+	providers := map[string]bool{"node-engine": true, "cpython": true, "go-dist": true}
+	if providers[leaf] {
+		warn(depsRe.MatchString(text), "未声明 [[metadata.dependencies]]")
+	}
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }

@@ -164,3 +164,13 @@ Dockerfile 里同时 `COPY --from=bundle …/order.toml` 和 `COPY docker/order.
 
 e2e 的新鲜度断言写死了路径，组件拆分后仍检查旧路径 → 误报。
 断言应指向**当前结构**，与组件拆分同步更新。
+
+### 18. buildpacks 双份副本会漂移
+
+两个项目各存一份 `docker/buildpacks/` 时，改一处忘一处几乎必然发生
+（`docker/layers` 的残留 COPY 就是痕迹）。
+
+现在 `buildpacks/` 位于仓库根并按格式分组（`paketo/`、`heroku/`，后续可加），
+项目用 `[docker] buildpacks_context` 声明用哪一组；Dockerfile 通过
+`COPY --from=buildpacks /<component>/ …` 引用，`cnb run` 传
+`--build-context buildpacks=<repo>/buildpacks`。

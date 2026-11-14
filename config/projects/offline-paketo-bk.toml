@@ -8,6 +8,7 @@ dir      = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
 [docker]
+buildpacks_context = "buildpacks/paketo"
 context       = "project/offline-paketo-bk"   # docker build 上下文（项目目录）
 bundle_layout = "arch-first"
 

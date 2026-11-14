@@ -50,7 +50,10 @@ type Docker struct {
 	BundleLayout string `toml:"bundle_layout"`
 	// BuildpacksDir 用于生成 builder metadata 的 buildpacks 来源目录
 	// （相对仓库根；默认 <project>/docker/buildpacks）
-	BuildpacksDir string `toml:"buildpacks_dir"` // arch-first | kind-first
+	BuildpacksDir string `toml:"buildpacks_dir"`
+	// BuildpacksContext 是 buildpack 资产所在目录（仓库根相对），
+	// 构建时以命名上下文 buildpacks 注入
+	BuildpacksContext string `toml:"buildpacks_context"` // arch-first | kind-first
 }
 
 // AssetSpec 是对某个物料的引用。

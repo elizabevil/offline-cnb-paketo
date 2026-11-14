@@ -1,7 +1,0 @@
-#!/bin/sh
-set -e
-app_dir="${CNB_APP_DIR:-$(pwd)}"
-[ -f "${app_dir}/requirements.txt" ] || [ -f "${app_dir}/pyproject.toml" ] || exit 100
-echo 'provides = [{ name = "site-packages" }]'
-echo 'requires = [{ name = "python" }]'
-exit 0

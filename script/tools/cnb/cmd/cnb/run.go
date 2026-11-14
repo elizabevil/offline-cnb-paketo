@@ -153,6 +153,9 @@ func executePlan(log *slog.Logger, plan *profile.Plan, only string, noCommands b
 			}
 			sort.Strings(keys)
 			args := []string{ctx, st.Dockerfile, st.Tag, "--build-context", "bundle=" + st.BundleCtx}
+			if st.BuildpacksCtx != "" {
+				args = append(args, "--build-context", "buildpacks="+st.BuildpacksCtx)
+			}
 			// builder 镜像：用生成的 metadata/stack 覆盖 Dockerfile 里的静态标签
 			if strings.Contains(st.Name, "builder") {
 				if m, err := buildmeta.Generate(plan); err == nil {

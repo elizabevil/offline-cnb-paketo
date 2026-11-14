@@ -15,7 +15,7 @@ api = "0.12"
 [metadata]
   [[metadata.dependencies]]
     id = "go"
-    version = "1.24.0"
+    version = "1.27.4"
     uri = "https://go.dev/dl/"
 
 [[targets]]

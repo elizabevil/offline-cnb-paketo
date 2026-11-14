@@ -7,7 +7,9 @@
 ## 一、目标结构
 
 ```
-project/<p>/docker/buildpacks/
+buildpacks/            # 仓库级共享，按格式分组
+├── paketo/            # 自研组件（node-engine / cpython / go-dist …）
+└── heroku/            # BK/Heroku 风格（bk-buildpack-*，上游预编译）
 ├── go/
 │   ├── go-dist/          # 提供 Go SDK（本地优先）
 │   ├── go-build/         # 编译
@@ -115,8 +117,11 @@ requires = [{ name = "node" }]
 | `bin/detect`、`bin/build` 存在且可执行 | error |
 | meta buildpack 只有 `[[order]]`，无 `bin/` | error |
 | order 的 group 引用的组件在本仓库存在 | error |
-| `[[metadata.dependencies]]` 有 id/version/sha256 | warn |
-| SBOM 声明（`sbom-formats`）与实际写出的一致 | warn |
+| `[[metadata.dependencies]]` 齐全（**仅**提供外部 SDK 的组件：node-engine / cpython / go-dist） | warn |
+| SBOM 声明与实际写出的一致（**仅**写出 `*.sbom.*` 的组件） | warn |
+
+> 规则只约束"真正提供外部依赖/SBOM"的组件，避免对 meta 与纯安装类组件
+> 产生无意义告警。
 
 ## 七、迁移进度（已完成）
 

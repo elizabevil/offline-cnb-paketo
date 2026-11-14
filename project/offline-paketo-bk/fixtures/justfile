@@ -1,0 +1,50 @@
+# ─── fixtures/justfile — BK 结构夹具的构建与打包 ───────────────────────────
+# 前置：已构建 builder 镜像（just build），且 bksmartpacker 已编译（just bps）
+
+set shell := ["bash", "-uc"]
+
+_root := source_directory()
+_repo := _root / "../.."
+_bps  := _repo / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
+_out  := "/tmp/bk-fixtures"
+
+builder := env_var_or_default("BUILDER_IMAGE", "localhost/offline-builder-build-bk:latest")
+
+# 默认列出用法
+default:
+    @just --justfile {{_root}}/justfile --list
+
+# 构建三个镜像（base/run/builder），跳过打包阶段
+build:
+    @{{_repo}}/script/bin/cnb run {{_repo}}/config/projects/offline-paketo-bk.toml --no-commands
+
+# 编译 bksmartpacker（源码不在仓库内，需本地存在）
+bps:
+    @cd {{_repo}}/script/tools/bksmartpacker_v3 && make build-cli
+    @echo "  ✓ {{_bps}}"
+
+# 打包单个夹具：just pack single | multi
+pack case:
+    @mkdir -p {{_out}}
+    @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker，先跑 just bps"; exit 1; }
+    @{{_bps}} --src {{_root}}/{{case}} --builder-image {{builder}} --dest {{_out}}/s-mart-{{case}}.tgz
+
+# 打包全部夹具
+pack-all: (pack "single") (pack "multi")
+
+# 查看产物内容与 .Version 标记
+inspect case:
+    @tar -tzf {{_out}}/s-mart-{{case}}.tgz | sed 's/^/  /'
+    @echo "--- .Version ---"
+    @tar -xzOf {{_out}}/s-mart-{{case}}.tgz .Version 2>/dev/null | sed 's/^/  /' || echo "  （缺失 .Version）"
+
+# 检查层包是否只含应用层（列出镜像内路径，不应出现 debian/ubuntu 根层标记）
+layers case:
+    @tmp="$$(mktemp -d)"; tar -xzf {{_out}}/s-mart-{{case}}.tgz -C "$$tmp"
+    @for f in "$$tmp"/*.tgz; do echo "== $$(basename "$$f")"; tar -tzf "$$f" | head -8 | sed 's/^/  /'; done
+    @rm -rf "$$tmp"
+
+# 清理产物
+clean:
+    @rm -rf {{_out}}
+    @echo "  ✓ 已清理 {{_out}}"

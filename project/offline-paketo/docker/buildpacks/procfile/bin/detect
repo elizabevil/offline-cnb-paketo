@@ -1,7 +1,0 @@
-#!/bin/sh
-# detect — 官方 Paketo Procfile buildpack (5.13.4)
-# 此文件在 Docker 构建时通过 multi-stage COPY 替换为
-# paketobuildpacks/procfile:5.13.4 中的原始文件 —— 详见 Dockerfile。
-
-echo "detect: use official Paketo Procfile buildpack image"
-exit 0

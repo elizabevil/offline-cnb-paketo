@@ -36,16 +36,16 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb
 # ═══════════════════════════════════════════════════════════
 # Buildpacks（完全离线，本地打包）
 # ═══════════════════════════════════════════════════════════
-COPY docker/buildpacks/go-dist/   /cnb/buildpacks/paketo-buildpacks_go-dist/2.11.2/
-COPY docker/buildpacks/go-build/  /cnb/buildpacks/paketo-buildpacks_go-build/2.4.48/
-COPY docker/buildpacks/go/        /cnb/buildpacks/paketo-buildpacks_go/4.23.3/
-COPY docker/buildpacks/node-engine/  /cnb/buildpacks/paketo-buildpacks_node-engine/8.12.0/
-COPY docker/buildpacks/npm-install/  /cnb/buildpacks/paketo-buildpacks_npm-install/2.3.36/
-COPY docker/buildpacks/npm-start/    /cnb/buildpacks/paketo-buildpacks_npm-start/2.5.13/
-COPY docker/buildpacks/nodejs/       /cnb/buildpacks/paketo-buildpacks_nodejs/10.15.0/
-COPY docker/buildpacks/cpython/      /cnb/buildpacks/paketo-buildpacks_cpython/1.18.51/
-COPY docker/buildpacks/pip-install/  /cnb/buildpacks/paketo-buildpacks_pip-install/0.7.51/
-COPY docker/buildpacks/python/       /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
+COPY --from=buildpacks /go-dist/ /cnb/buildpacks/paketo-buildpacks_go-dist/2.11.2/
+COPY --from=buildpacks /go-build/ /cnb/buildpacks/paketo-buildpacks_go-build/2.4.48/
+COPY --from=buildpacks /go/ /cnb/buildpacks/paketo-buildpacks_go/4.23.3/
+COPY --from=buildpacks /node-engine/ /cnb/buildpacks/paketo-buildpacks_node-engine/8.12.0/
+COPY --from=buildpacks /npm-install/ /cnb/buildpacks/paketo-buildpacks_npm-install/2.3.36/
+COPY --from=buildpacks /npm-start/ /cnb/buildpacks/paketo-buildpacks_npm-start/2.5.13/
+COPY --from=buildpacks /nodejs/ /cnb/buildpacks/paketo-buildpacks_nodejs/10.15.0/
+COPY --from=buildpacks /cpython/ /cnb/buildpacks/paketo-buildpacks_cpython/1.18.51/
+COPY --from=buildpacks /pip-install/ /cnb/buildpacks/paketo-buildpacks_pip-install/0.7.51/
+COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 RUN chmod +x /cnb/buildpacks/*/*/bin/* 2>/dev/null || true
 
 COPY --from=procfile-bp /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/ \
@@ -79,7 +79,6 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/pack/${PACK_VERSION}/pack  /usr/loca
 # ═══════════════════════════════════════════════════════════
 COPY docker/lifecycle-entrypoint.sh /cnb/lifecycle/entrypoint.sh
 RUN chmod +x /cnb/lifecycle/entrypoint.sh
-COPY docker/layers/ /cnb/layers/
 RUN mkdir -p /platform/env
 
 # ═══════════════════════════════════════════════════════════
