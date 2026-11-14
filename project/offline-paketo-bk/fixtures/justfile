@@ -27,7 +27,7 @@ bps:
 pack case:
     @mkdir -p {{_out}}
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker，先跑 just bps"; exit 1; }
-    @{{_bps}} --src {{_root}}/{{case}} --builder-image {{builder}} --dest {{_out}}/s-mart-{{case}}.tgz
+    @BKS_CONTAINER_CLI=podman {{_bps}} --src {{_root}}/{{case}} --builder-image {{builder}} --dest {{_out}}/s-mart-{{case}}.tgz
 
 # 打包全部夹具
 pack-all: (pack "single") (pack "multi")

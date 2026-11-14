@@ -15,6 +15,10 @@ modules:
       build:
         buildpacks:
           - name: bk-buildpack-go
+      configuration:
+        env:
+          - name: BP_GO_MIRROR
+            value: "http://192.168.11.4:5000/"
   - name: worker
     language: "Go"
     sourceDir: "worker"
@@ -25,3 +29,7 @@ modules:
       build:
         buildpacks:
           - name: bk-buildpack-go
+      configuration:
+        env:
+          - name: BP_GO_MIRROR
+            value: "http://192.168.11.4:5000/"

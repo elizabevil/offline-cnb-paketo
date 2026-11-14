@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/pelletier/go-toml/v2"
 
 	"learn-cnb-paketo/tools/cnb/internal/shell"
 )
@@ -42,6 +42,12 @@ type Meta struct {
 }
 
 // Asset 是一条物料。
+// Local 表示该物料由本地构建产生，不走下载。
+type Local struct {
+	Source string `toml:"source"` // 相对仓库根的产物路径
+	SHA256 string `toml:"sha256"` // 发布后回填
+}
+
 type Asset struct {
 	ID      string `toml:"id"`
 	Version string `toml:"version"`
@@ -50,6 +56,7 @@ type Asset struct {
 	Info     Info              `toml:"info"`
 	Unpack   Unpack            `toml:"unpack"`
 	Platform map[string]Source `toml:"platform"`
+	Local    *Local            `toml:"local"`
 }
 
 // Info 是元信息，不参与构建。
@@ -108,8 +115,14 @@ func (a Asset) URL(platform string) (string, bool) {
 	return strings.ReplaceAll(src.URL, "{version}", a.Version), true
 }
 
-// SHA256 返回该平台固定的哈希（可能为空）。
+// IsLocal 表示物料来自本地构建（[asset.local]）。
+func (a Asset) IsLocal() bool { return a.Local != nil }
+
+// SHA256 返回该平台固定的哈希（可能为空）；本地物料取 [asset.local].sha256。
 func (a Asset) SHA256(platform string) string {
+	if a.Local != nil {
+		return a.Local.SHA256
+	}
 	return a.Platform[platform].SHA256
 }
 
@@ -119,7 +132,11 @@ func Load(path string) (*File, error) {
 		return nil, fmt.Errorf("未找到 lock 文件: %s", path)
 	}
 	var f File
-	if _, err := toml.DecodeFile(path, &f); err != nil {
+	data, readErr := os.ReadFile(path)
+	if readErr != nil {
+		return nil, readErr
+	}
+	if err := toml.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("TOML 解析失败: %w", err)
 	}
 	return &f, nil
@@ -139,7 +156,7 @@ func (f *File) Get(w io.Writer, ref, platform string) error {
 		return err
 	}
 	url, ok := asset.URL(platform)
-	if !ok {
+	if !ok && !asset.IsLocal() {
 		return fmt.Errorf("物料 '%s' 不支持平台 '%s'（支持: %s）", ref, platform, strings.Join(sortedKeys(asset.Platform), ", "))
 	}
 	dir := asset.Dir()
@@ -201,6 +218,13 @@ func (f *File) Validate() int {
 		}
 		if len(a.Unpack.Expect) == 0 {
 			errs = append(errs, a.ID+": unpack.expect 不能为空（至少声明一个产物）")
+		}
+		if a.Local != nil {
+			if a.Local.Source == "" {
+				errs = append(errs, a.ID+": [asset.local] 缺少 source")
+			}
+			// 本地物料不要求 platform 表
+			continue
 		}
 		if len(a.Platform) == 0 {
 			errs = append(errs, a.ID+": 缺少 [asset.platform.<platform>] 表")

@@ -192,3 +192,47 @@ default = true
   [asset.platform.linux-arm64]
   url = "https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux-arm64.tgz"
   sha256 = ""
+
+[[asset]]
+id = "go-sdk"
+version = "1.27.4"
+default = true
+
+  [asset.info]
+  name     = "Go SDK tarball（BK 离线构建用）"
+  homepage = "https://go.dev/dl/"
+  license  = "BSD-3-Clause"
+
+  [asset.unpack]
+  kind   = "bin"
+  strip  = 0
+  dir    = "go-sdk/{version}"
+  expect = ["go-sdk"]
+
+  [asset.platform.linux-amd64]
+  url    = "https://mirrors.aliyun.com/golang/go{version}.linux-amd64.tar.gz"
+  sha256 = "e330e5d977bf4f3bdc157bc46cf41afa5b13d66c914e12fd6b694ccda65fcf92"
+
+  [asset.platform.linux-arm64]
+  url    = "https://mirrors.aliyun.com/golang/go{version}.linux-arm64.tar.gz"
+  sha256 = ""
+
+[[asset]]
+id = "cnb"
+version = "3.0.0"
+default = true
+
+  [asset.info]
+  name     = "cnb CLI（本地构建）"
+  homepage = "https://github.com/debi/learn-cnb-paketo"
+  license  = "MIT"
+
+  [asset.local]
+  source = "script/bin/cnb"
+  sha256 = "a3c90c10705446397756e9787891ff3f8c81bb16ecc6fae93d3385893799f0c0"
+
+  [asset.unpack]
+  kind   = "bin"
+  strip  = 0
+  dir    = "cnb/{version}"
+  expect = ["cnb"]

@@ -1,7 +1,20 @@
 #!/bin/sh
+
+# 应用目录：优先 CNB_APP_DIR，其次常见挂载点（/workspace 或 /app）
+resolve_app_dir() {
+  if [ -n "${CNB_APP_DIR:-}" ]; then echo "${CNB_APP_DIR}"; return; fi
+  # lifecycle 执行 buildpack 时 cwd 就是应用目录（/cnb/* 除外）
+  case "$(pwd)" in
+    /cnb/*) ;;
+    *) echo "$(pwd)"; return ;;
+  esac
+  for d in /workspace /app; do [ -d "$d" ] && { echo "$d"; return; }; done
+  echo /workspace
+}
+
 set -euo pipefail
 layers_dir="${1:?missing layers dir}"
-app_dir="${CNB_APP_DIR:-/workspace}"
+app_dir="$(resolve_app_dir)"
 # 版本优先级：BP_GO_VERSION > go.mod 的 go 指令（补齐为 x.y.0）> 默认
 version="${BP_GO_VERSION:-}"
 if [ -z "${version}" ] && [ -f "${app_dir:-/workspace}/go.mod" ]; then
@@ -19,15 +32,32 @@ download="${cache}/download"; sdk="${cache}/sdk"
 mkdir -p "${layer}/bin" "${layer}/env" "${download}" "${sdk}"
 
 # 1) 挂载的本地运行时 2) 缓存里的 SDK 3) 下载
+# 挂载目录名允许是 1.21 或 1.21.0：按 major.minor 前缀匹配
+major_minor="$(echo "${version}" | cut -d. -f1-2)"
 go_root=""
-for cand in "${CNB_RUNTIME_DIR:-/cnb/runtimes}/go/${version}" \
+runtime_root="${CNB_RUNTIME_DIR:-/cnb/runtimes}/go"
+for cand in "${runtime_root}/${version}" \
+            "$(ls -d "${runtime_root}/${major_minor}"* 2>/dev/null | sort -V | tail -1)" \
             "$(ls -d "${sdk}"/go* 2>/dev/null | sort -V | tail -1)"; do
-  [ -x "${cand}/bin/go" ] && { go_root="${cand}"; break; }
+  [ -n "${cand}" ] || continue
+  if [ -x "${cand}/bin/go" ]; then
+    go_root="${cand}"
+    case "${cand}" in
+      "${runtime_root}"/*) echo "  📦 使用挂载的 Go SDK: ${cand}" >&2 ;;
+      *)                   echo "  ⏭️  使用缓存的 Go SDK: ${cand}" >&2 ;;
+    esac
+    break
+  fi
 done
 if [ -z "${go_root}" ]; then
   arch="$(uname -m)"; case "${arch}" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
   # 下载源可配置：BP_GO_MIRROR（默认阿里云）→ 官方 go.dev 兜底
-  mirrors="${BP_GO_MIRROR:-https://mirrors.aliyun.com/golang/} https://go.dev/dl/"
+  mirror="${BP_GO_MIRROR:-}"
+  if [ -z "${mirror}" ] && [ -f /cnb/go-mirror ]; then
+    mirror="$(cat /cnb/go-mirror 2>/dev/null || true)"
+  fi
+  mirror="${mirror:-https://mirrors.aliyun.com/golang/}"
+  mirrors="${mirror} https://go.dev/dl/"
   ok=""
   for base in ${mirrors}; do
     url="${base%/}/go${version}.linux-${arch}.tar.gz"

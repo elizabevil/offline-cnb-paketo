@@ -97,6 +97,19 @@ func Verify(l *lock.File, bundleDir, platform string, ids []string, strict, quie
 		a := &assets[i]
 		var problems []string
 
+		if a.IsLocal() {
+			if !localPublished(bundleDir, platform, a) {
+				problems = append(problems, "未发布（先运行 cnb publish "+a.ID+"）")
+			}
+			if len(problems) > 0 {
+				failures++
+				fmt.Printf("  ✗  %s: %s\n", a.Ref(), strings.Join(problems, "; "))
+			} else if !quiet {
+				fmt.Printf("  ✓  %s\n", a.Ref())
+			}
+			continue
+		}
+
 		archive := archivePath(bundleDir, platform, a)
 		if _, statErr := os.Stat(archive); statErr != nil {
 			problems = append(problems, "归档缺失")
@@ -181,4 +194,15 @@ func Pin(l *lock.File, bundleDir, platform string, ids []string) error {
 func mustURL(a *lock.Asset, platform string) string {
 	u, _ := a.URL(platform)
 	return u
+}
+
+// localPublished 判断本地物料的产物是否已发布到 bundle。
+func localPublished(bundleDir, platform string, a *lock.Asset) bool {
+	base := filepath.Join(bundleDir, platform, "binaries")
+	for _, rel := range a.ExpectedPaths() {
+		if _, err := os.Stat(filepath.Join(base, rel)); err != nil {
+			return false
+		}
+	}
+	return true
 }

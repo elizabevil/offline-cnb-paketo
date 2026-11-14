@@ -174,3 +174,17 @@ e2e 的新鲜度断言写死了路径，组件拆分后仍检查旧路径 → �
 项目用 `[docker] buildpacks_context` 声明用哪一组；Dockerfile 通过
 `COPY --from=buildpacks /<component>/ …` 引用，`cnb run` 传
 `--build-context buildpacks=<repo>/buildpacks`。
+
+### 19. 本地构建产物也要走物料，别硬编码路径
+
+`cnb` 这类由本仓库编译的工具，同样按物料管理：
+
+```toml
+[asset.local]
+source = "script/bin/cnb"   # 构建产物路径（相对仓库根）
+sha256 = ""                 # 发布后自动回填
+```
+
+- `just tools` 编译后自动执行 `cnb publish cnb`，复制到
+  `bundle/<platform>/binaries/cnb/<version>/cnb` 并回填哈希
+- 本地物料的哈希是**构建指纹**，每次发布覆盖（不是下载物的校验语义）

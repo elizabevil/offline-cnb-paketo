@@ -15,3 +15,8 @@ modules:
       build:
         buildpacks:
           - name: bk-buildpack-go
+      configuration:
+        env:
+          # Go SDK 下载源：内网镜像优先（组件读取 BP_GO_MIRROR）
+          - name: BP_GO_MIRROR
+            value: "http://192.168.11.4:5000/"

@@ -41,6 +41,27 @@ s-mart.tgz
 
 验收：`<module>.tgz` 中**不含 OS 根层**。
 
+## 四·五、SDK 不内置，只能挂载
+
+Go / Node / Python 的 SDK **禁止打进 builder 镜像**（体积与升级成本），
+只允许运行时挂载：
+
+```bash
+CNB_RUNTIMES=/opt/cnb-runtimes just smart
+```
+
+宿主机目录结构：
+
+```
+/opt/cnb-runtimes/
+├── go/1.21.0/bin/go
+├── node/20.20.2/bin/node
+└── python/3.12.7/bin/python3
+```
+
+容器内挂到 `/cnb/runtimes`（只读），组件按
+挂载 → `/layers/cache` → 镜像源 的优先级取用。
+
 ## 五、流水线
 
 ```

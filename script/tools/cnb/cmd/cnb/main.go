@@ -23,9 +23,10 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/repack"
+	"learn-cnb-paketo/tools/cnb/internal/version"
 )
 
-const toolVersion = "3.0.0"
+// 版本由 internal/version 的 buildinfo 提供
 
 type options struct {
 	lockPath  string
@@ -74,7 +75,7 @@ func newRootCmd() *cobra.Command {
 			"提供物料解析、流水线渲染与 SmartPackage 规范化能力。",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       toolVersion,
+		Version:       version.Get().Short(),
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := resolveRepo()
 			if err != nil {
@@ -98,7 +99,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		newListCmd(), newGetCmd(), newValidateCmd(), newPlatformsCmd(),
 		newVerifyCmd(), newPinCmd(), newRepackCmd(), newProfileCmd(), newLockCmd(),
-		newPlanCmd(), newRunCmd(), newDockerfileCmd(), newBuilderCmd(), newDoctorCmd(), newBuildpackCmd(), newVersionCmd(),
+		newPlanCmd(), newRunCmd(), newDockerfileCmd(), newBuilderCmd(), newDoctorCmd(), newBuildpackCmd(), newPublishCmd(), newLifecycleCmd(), newVersionCmd(),
 	)
 	return root
 }
@@ -405,7 +406,7 @@ func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use: "version", Short: "版本信息", Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "cnb %s (%s/%s)\n", toolVersion, runtime.GOOS, runtime.GOARCH)
+			fmt.Fprintln(cmd.OutOrStdout(), version.Get().String())
 		},
 	}
 }

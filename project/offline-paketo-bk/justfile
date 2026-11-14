@@ -31,3 +31,54 @@ verify:
 # 夹具构建与打包（BK 结构）
 fixtures *args:
     @just --justfile {{_dir}}/fixtures/justfile {{args}}
+
+# ── bksmartpacker 全链路（一条命令）────────────────────────────────────────
+
+_root := _dir / ".." / ".."
+_bps  := _root / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
+_fx   := _dir / "fixtures/single"
+_out  := "/tmp/bk-paketo-smart"
+smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:latest")
+# 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：
+#   CNB_RUNTIMES=/opt/cnb-runtimes just smart
+# 宿主机目录需按 <lang>/<version>/... 组织，容器内挂到 /cnb/runtimes
+runtimes := env_var_or_default("CNB_RUNTIMES", "")
+# 跨构建缓存：宿主目录挂到 /layers/cache，首次下载、后续命中
+cache_dir := env_var_or_default("CNB_CACHE_DIR", _root / ".cache/bk-cache")
+runtimes_mount := if runtimes != "" { "--mount type=bind,source=" + runtimes + ",target=/cnb/runtimes,readonly " } else { "" }
+cache_mount := "--mount type=bind,source=" + cache_dir + ",target=/layers/cache"
+mounts := runtimes_mount + cache_mount
+
+# 构建三个镜像（跳过打包阶段）
+smart-builder *args:
+    @{{_root}}/script/bin/cnb run {{_profile}} --no-commands {{args}}
+
+# 编译 bksmartpacker（源码不入库，需本地存在）
+smart-bps:
+    @cd {{_root}}/script/tools/bksmartpacker_v3 && make build-cli
+    @echo "  ✓ {{_bps}}"
+
+# 全链路：构建镜像 → 编译工具 → 打包夹具 → 校验产物
+smart: smart-builder smart-bps
+    @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
+        echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
+    @mkdir -p {{cache_dir}} {{_out}}
+    @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
+    @BKS_CONTAINER_CLI=podman BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
+        --builder-image "{{smart_builder}}" \
+        --dest {{_out}}/s-mart.tgz
+    @echo
+    @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
+    @echo "== 产物内容 =="
+    @tar -tzf {{_out}}/s-mart.tgz | sed 's/^/  /'
+    @echo "== .Version =="
+    @tar -xzOf {{_out}}/s-mart.tgz .Version 2>/dev/null | sed 's/^/  /' || echo "  ✗ 缺少 .Version"
+    @echo "== 层包（应只含应用层）=="
+    @tmp="$$(mktemp -d)"; tar -xzf {{_out}}/s-mart.tgz -C "$$tmp"; \
+      for f in "$$tmp"/*.tgz; do echo "  $$(basename "$$f")"; tar -tzf "$$f" | head -6 | sed 's/^/    /'; done; \
+      rm -rf "$$tmp"
+
+# 清理打包产物
+smart-clean:
+    @rm -rf {{_out}}
+    @echo "  ✓ 已清理 {{_out}}"

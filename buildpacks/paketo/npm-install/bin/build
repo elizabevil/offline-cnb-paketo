@@ -1,7 +1,20 @@
 #!/bin/sh
+
+# 应用目录：优先 CNB_APP_DIR，其次常见挂载点（/workspace 或 /app）
+resolve_app_dir() {
+  if [ -n "${CNB_APP_DIR:-}" ]; then echo "${CNB_APP_DIR}"; return; fi
+  # lifecycle 执行 buildpack 时 cwd 就是应用目录（/cnb/* 除外）
+  case "$(pwd)" in
+    /cnb/*) ;;
+    *) echo "$(pwd)"; return ;;
+  esac
+  for d in /workspace /app; do [ -d "$d" ] && { echo "$d"; return; }; done
+  echo /workspace
+}
+
 set -euo pipefail
 layers_dir="${1:?missing layers dir}"
-app_dir="${CNB_APP_DIR:-/workspace}"
+app_dir="$(resolve_app_dir)"
 layer="${layers_dir}/node_modules"
 cache="${CNB_CACHE_DIR:-/layers/cache}/npm-cache"
 mkdir -p "${layer}" "${cache}"

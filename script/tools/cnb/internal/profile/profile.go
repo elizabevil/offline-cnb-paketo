@@ -19,10 +19,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/shell"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 // File 是流水线配置的根结构。
@@ -104,7 +104,7 @@ func Load(path string) (*File, error) {
 		return nil, err
 	}
 	var p File
-	if _, err := toml.Decode(string(data), &p); err != nil {
+	if err := toml.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("TOML 解析失败: %w", err)
 	}
 	return &p, nil

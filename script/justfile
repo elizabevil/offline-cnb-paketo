@@ -21,6 +21,9 @@ proxy := env_var_or_default("PROXY_URL", "")
 
 _script := source_directory()
 
+# cnb 的手动版本号（发版时改这一处；git/架构信息由 buildinfo 自动采集）
+_cnb_version := "3.0.0"
+
 # go 可能只存在于交互式 shell 的 PATH（just 用非交互 bash），这里显式探测。
 # 也可用环境变量覆盖：GO=/path/to/go just tools
 _go := env_var_or_default("GO", shell(_script + "/lib/go.sh"))
@@ -41,7 +44,8 @@ tools:
     @mkdir -p {{_script}}/bin
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" CGO_ENABLED=0 \
-      {{_go}} build -trimpath -ldflags "-s -w" -o ../../bin/cnb ./cmd/cnb
+      {{_go}} build -trimpath -ldflags "-X learn-cnb-paketo/tools/cnb/internal/version.Version={{_cnb_version}} -s -w" -o ../../bin/cnb ./cmd/cnb && \
+      ../../bin/cnb publish cnb >/dev/null
     @echo "  ✓ {{_script}}/bin/cnb → $({{_script}}/bin/cnb version)"
 
 # 基座结构自检：lock 结构 + shell 语法 + go 静态检查

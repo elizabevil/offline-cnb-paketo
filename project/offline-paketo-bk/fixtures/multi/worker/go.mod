@@ -1,3 +1,3 @@
 module example.com/fixture-worker
 
-go 1.21
+go 1.27.4

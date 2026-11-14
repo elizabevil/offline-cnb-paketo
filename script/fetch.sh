@@ -219,6 +219,14 @@ cmd_fetch() {
   while read -r id; do
     [ -n "${id}" ] || continue
     load_asset "${id}"
+    if [ -z "${ASSET_URL}" ]; then
+      # 本地物料（[asset.local]）：由 `cnb publish` 放入 bundle，这里只校验
+      expect_first="${ASSET_EXPECT%%,*}"   # 已是相对 binaries 的完整路径
+      target="$(binaries_dir "${PLATFORM}")/${expect_first}"
+      [ -e "${target}" ] || die "本地物料 ${ASSET_REF} 尚未发布：先运行 cnb publish ${ASSET_ID}"
+      printf "  ✓  本地物料就绪: %s\n" "${ASSET_REF}"
+      continue
+    fi
     ensure_archive
     # 哈希自动固定：为空则写入，已有则校验（不一致直接失败）
     sha_actual="$(sha256_of "$(archive_path)")"

@@ -33,6 +33,16 @@ ARG APP_DIR=/app
 # ═══════════════════════════════════════════════════════════
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb/lifecycle/
 
+# Go SDK 下载源（内网镜像；可用 --build-arg BP_GO_MIRROR 覆盖）
+ARG BP_GO_MIRROR=http://192.168.11.4:5000/
+ENV BP_GO_MIRROR=${BP_GO_MIRROR}
+RUN echo "${BP_GO_MIRROR}" > /cnb/go-mirror
+
+# cnb CLI（本地构建物料）：作为 lifecycle 执行器
+ARG CNB_VERSION
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/cnb/${CNB_VERSION}/cnb /cnb/tools/cnb
+RUN chmod +x /cnb/tools/cnb
+
 # ═══════════════════════════════════════════════════════════
 # Buildpacks（完全离线，本地打包）
 # ═══════════════════════════════════════════════════════════
