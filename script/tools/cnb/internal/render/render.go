@@ -302,3 +302,23 @@ func shortPath(root, path string) string {
 	}
 	return path
 }
+
+// FormatStruct 把任意结构体按 yaml / json 输出。
+func FormatStruct(v any, format string) (string, error) {
+	switch format {
+	case "json":
+		b, err := json.MarshalIndent(v, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		return string(b) + "\n", nil
+	case "yaml", "":
+		b, err := yaml.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	default:
+		return "", fmt.Errorf("unsupported format %q (yaml|json)", format)
+	}
+}

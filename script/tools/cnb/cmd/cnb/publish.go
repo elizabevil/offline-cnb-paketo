@@ -48,7 +48,7 @@ func newPublishCmd() *cobra.Command {
 			}
 			platform := opts.platform
 			if platform == "" {
-				platform = workspace.HostPlatform()
+				platform = string(workspace.HostPlatform())
 			}
 			dst := filepath.Join(root, bundleDir, platform, "binaries", a.Dir(), name)
 			if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {

@@ -22,7 +22,7 @@ func newDockerfileCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			rep := dockerfile.Check(plan, platform)
+			rep := dockerfile.Check(plan, string(platform))
 			for _, m := range rep.Missing {
 				logr.Error("missing COPY source", "stage", m.Stage, "source", m.Source, "resolved", m.Target)
 			}

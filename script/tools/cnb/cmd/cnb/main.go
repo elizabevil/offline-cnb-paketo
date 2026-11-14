@@ -64,7 +64,7 @@ func main() {
 
 func open() (*lock.File, lock.Platform, string, error) {
 	ctx, err := workspace.Open(workspace.Options{
-		Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: opts.platform,
+		Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
 	})
 	if err != nil {
 		return nil, "", "", err
@@ -73,7 +73,7 @@ func open() (*lock.File, lock.Platform, string, error) {
 }
 
 // openProfile 载入 profile 与 lock，并解析平台。
-func openProfile(file string) (*profile.File, *lock.File, string, error) {
+func openProfile(file string) (*profile.File, *lock.File, lock.Platform, error) {
 	l, platform, _, err := open()
 	if err != nil {
 		return nil, nil, "", err
@@ -83,7 +83,7 @@ func openProfile(file string) (*profile.File, *lock.File, string, error) {
 		return nil, nil, "", err
 	}
 	if opts.platform == "" && p.DefaultPlatform() != "" {
-		platform = p.DefaultPlatform()
+		platform = lock.Platform(p.DefaultPlatform())
 	}
 	return p, l, platform, nil
 }

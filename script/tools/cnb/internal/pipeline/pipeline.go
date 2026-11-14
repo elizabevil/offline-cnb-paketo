@@ -2,10 +2,12 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -167,7 +169,7 @@ func (r *Runner) runCommand(st profile.PlanStage) error {
 // exec 运行外部命令并转发输出。
 func (r *Runner) exec(dir string, env []string, name string, args []string) error {
 	r.log.Debug("exec", "cmd", name, "args", args, "dir", dir)
-	c := execCommand(name, args...)
+	c := exec.CommandContext(context.Background(), name, args...)
 	c.Dir = dir
 	c.Env = env
 	c.Stdout, c.Stderr, c.Stdin = os.Stdout, os.Stderr, os.Stdin

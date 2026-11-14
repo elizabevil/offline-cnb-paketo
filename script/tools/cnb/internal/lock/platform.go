@@ -6,6 +6,9 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 )
 
+// Platform 是目标平台名，形如 <os>-<arch>。
+type Platform string
+
 // 支持的 OS 与架构（清单协议的一部分）。
 const (
 	OSLinux   = "linux"
@@ -37,20 +40,20 @@ func ParsePlatform(s string) (Platform, error) {
 	return Platform(s), nil
 }
 
-// PlatformOS 返回平台的操作系统部分。
-func PlatformOS(p Platform) string {
-	osName, _, _ := strings.Cut(p, "-")
+// OS 返回平台的操作系统部分。
+func (p Platform) OS() string {
+	osName, _, _ := strings.Cut(string(p), "-")
 	return osName
 }
 
 // IsLinux 判断平台是否为 Linux。
-func IsLinux(p Platform) bool { return PlatformOS(p) == OSLinux }
+func (p Platform) IsLinux() bool { return p.OS() == OSLinux }
 
 // IsDarwin 判断平台是否为 macOS。
-func IsDarwin(p Platform) bool { return PlatformOS(p) == OSDarwin }
+func (p Platform) IsDarwin() bool { return p.OS() == OSDarwin }
 
 // IsWindows 判断平台是否为 Windows。
-func IsWindows(p Platform) bool { return PlatformOS(p) == OSWindows }
+func (p Platform) IsWindows() bool { return p.OS() == OSWindows }
 
 // SupportedPlatforms 返回受支持的平台列表（用于错误提示与文档）。
 func SupportedPlatforms() []string {

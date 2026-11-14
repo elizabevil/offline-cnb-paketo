@@ -18,7 +18,7 @@ func TestParsePlatform(t *testing.T) {
 }
 
 func TestPlatformParts(t *testing.T) {
-	if !IsLinux("linux-amd64") || !IsDarwin("darwin-arm64") || !IsWindows("windows-amd64") {
+	if !Platform("linux-amd64").IsLinux() || !Platform("darwin-arm64").IsDarwin() || !Platform("windows-amd64").IsWindows() {
 		t.Fatal("OS 判定错误")
 	}
 	if ArchOf("darwin-arm64") != "arm64" {

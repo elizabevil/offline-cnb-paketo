@@ -10,23 +10,40 @@ import (
 	"sync"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/ref"
 )
 
 // Options 是同步参数。
 type Options struct {
 	BundleDir string
-	Platform  string
+	Platform  lock.Platform
 	Jobs      int
 	Offline   bool
 	Check     bool
 	Logger    *slog.Logger
 }
 
+// Action 描述一次同步的动作结果。
+type Action string
+
+// 同步动作的取值。
+const (
+	// ActionSkipped 表示已是最新，无需处理。
+	ActionSkipped Action = "skipped"
+	// ActionDownloaded 表示已下载归档但未解包（保留给分段流程）。
+	ActionDownloaded Action = "downloaded"
+	// ActionExtracted 表示已下载并解包。
+	ActionExtracted Action = "extracted"
+	// ActionFailed 表示处理失败。
+	ActionFailed Action = "failed"
+)
+
+// String 便于日志与输出。
+func (a Action) String() string { return string(a) }
+
 // Result 是单个物料的同步结果。
 type Result struct {
 	Ref    lock.Ref
-	Action string // downloaded | extracted | skipped | failed
+	Action Action
 	Err    error
 }
 
@@ -73,8 +90,8 @@ func Sync(l *lock.File, ids []string, opts Options) ([]Result, error) {
 
 // syncOne 同步单个物料。
 func syncOne(a *lock.Asset, opts Options) Result {
-	parsed, _ := ref.Parse(a.Ref())
-	res := Result{Ref: a.Ref(), Action: "skipped"}
+	parsed, _ := lock.ParseRef(a.Ref())
+	res := Result{Ref: a.Ref(), Action: ActionSkipped}
 	archive := archivePath(opts.BundleDir, opts.Platform, a)
 	binDir := binariesDir(opts.BundleDir, opts.Platform)
 
@@ -84,6 +101,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	// 兼容旧标记（fetch.sh 的 .sha256）：产物齐全且归档校验通过时补写 marker
 	if m := readMarker(binDir, parsed); m == nil && isExtracted(binDir, a) {
 		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
+			_ = writeLegacyMarker(binDir, a.Ref(), a.SHA256(opts.Platform))
 			_ = writeMarker(binDir, Marker{
 				ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
 				Size: fsutil.Size(archive), Extractor: extractorID(a),
@@ -100,16 +118,19 @@ func syncOne(a *lock.Asset, opts Options) Result {
 
 	if err := ensureArchive(a, archive, opts); err != nil {
 		res.Err = err
-		res.Action = "failed"
+		res.Action = ActionFailed
 		return res
 	}
 	files, err := extractAsset(a, archive, binDir)
 	if err != nil {
 		res.Err = err
-		res.Action = "failed"
+		res.Action = ActionFailed
 		return res
 	}
-	res.Action = "extracted"
+	res.Action = ActionExtracted
+	if err := writeLegacyMarker(binDir, a.Ref(), a.SHA256(opts.Platform)); err != nil {
+		res.Err = err
+	}
 
 	size := fsutil.Size(archive)
 	if err := writeMarker(binDir, Marker{
@@ -126,15 +147,15 @@ func extractorID(a *lock.Asset) string {
 	return string(a.Unpack.Kind) + "/v2"
 }
 
-func archivesDir(bundleDir, platform string) string {
-	return filepath.Join(bundleDir, platform, "archives")
+func archivesDir(bundleDir string, platform lock.Platform) string {
+	return filepath.Join(bundleDir, string(platform), "archives")
 }
 
-func binariesDir(bundleDir, platform string) string {
-	return filepath.Join(bundleDir, platform, "binaries")
+func binariesDir(bundleDir string, platform lock.Platform) string {
+	return filepath.Join(bundleDir, string(platform), "binaries")
 }
 
-func archivePath(bundleDir, platform string, a *lock.Asset) string {
+func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string {
 	url, _ := a.URL(platform)
 	return filepath.Join(archivesDir(bundleDir, platform), a.ID, a.Version, filepath.Base(url))
 }

@@ -22,7 +22,7 @@ const (
 
 // PlatformSection 返回平台段名，例如 [asset.platform.linux-amd64]。
 func PlatformSection(platform Platform) string {
-	return SectionPlatformPrefix + platform + SectionPlatformSuffix
+	return SectionPlatformPrefix + string(platform) + SectionPlatformSuffix
 }
 
 // LocalSection 返回本地物料段名。
@@ -31,8 +31,8 @@ func LocalSection() string { return SectionLocal }
 // ArchOf 从平台名取架构（linux-amd64 / darwin-arm64 → amd64 / arm64）。
 // 格式不合法时原样返回。
 func ArchOf(platform Platform) string {
-	if _, arch, ok := strings.Cut(platform, "-"); ok {
+	if _, arch, ok := strings.Cut(string(platform), "-"); ok {
 		return arch
 	}
-	return platform
+	return string(platform)
 }

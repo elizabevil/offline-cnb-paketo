@@ -9,7 +9,7 @@ import (
 
 // Check 校验物料并返回结构化结果（不打印）。
 func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string) (Report, error) {
-	if !lock.KnownPlatforms[platform] {
+	if !lock.KnownPlatforms[string(platform)] {
 		return Report{}, fmt.Errorf("unsupported platform: %s", platform)
 	}
 	assets, err := l.Select(ids)
@@ -17,7 +17,7 @@ func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string)
 		return Report{}, err
 	}
 
-	report := Report{Platform: platform}
+	report := Report{Platform: string(platform)}
 	for i := range assets {
 		a := &assets[i]
 		report.Results = append(report.Results, checkOne(bundleDir, platform, a))

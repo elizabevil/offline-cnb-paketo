@@ -7,8 +7,6 @@ type (
 	ID = string
 	// Version 是物料版本（如 0.21.29）。
 	Version = string
-	// Platform 是平台名（如 linux-amd64）。
-	Platform = string
 	// Ref 是 id@version 形式的引用。
 	Ref = string
 )

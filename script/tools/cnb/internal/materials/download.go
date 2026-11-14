@@ -50,7 +50,7 @@ func ensureArchive(a *lock.Asset, dest string, opts Options) error {
 }
 
 // sources 返回候选下载地址（环境变量镜像优先）。
-func sources(a *lock.Asset, platform string) []string {
+func sources(a *lock.Asset, platform lock.Platform) []string {
 	base, _ := a.URL(platform)
 	if base == "" {
 		return nil

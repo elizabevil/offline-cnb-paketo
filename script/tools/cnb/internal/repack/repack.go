@@ -32,7 +32,13 @@ import (
 	"strings"
 )
 
-// ── OCI / docker 载荷结构（字段顺序即 JSON 键顺序，不能随意调整）─────────────
+// ── OCI / docker 载荷结构 ───────────────────────────────────────────────────
+//
+// 这里的 JSON 键名由规范固定，不是本仓库的 snake_case 约定：
+//   OCI image-spec → mediaType / digest / size / schemaVersion / config / layers
+//   docker-archive → Config / RepoTags / Layers（见其他文件）
+// 改名会导致 skopeo / containerd / lifecycle 无法解析，故保持原样。
+// 字段顺序即输出键顺序，也不要随意调整。
 
 type blobDescriptor struct {
 	MediaType string `json:"mediaType"`

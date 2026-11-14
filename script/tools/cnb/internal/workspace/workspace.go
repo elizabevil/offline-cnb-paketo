@@ -32,7 +32,7 @@ type Options struct {
 	Repo     string
 	LockPath string
 	Bundle   string
-	Platform string
+	Platform lock.Platform
 }
 
 // Context 是一次命令执行所需的路径上下文。
@@ -88,11 +88,11 @@ func resolveRepo(explicit string) (string, error) {
 }
 
 // HostPlatform 返回当前主机的物料平台名。
-func HostPlatform() string {
+func HostPlatform() lock.Platform {
 	if runtime.GOARCH == "arm64" {
-		return PlatformARM64
+		return lock.Platform(PlatformARM64)
 	}
-	return PlatformAMD64
+	return lock.Platform(PlatformAMD64)
 }
 
 // ProfilePath 返回 config/projects/<name>.toml 的绝对路径。

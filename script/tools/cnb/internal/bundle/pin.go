@@ -8,7 +8,7 @@ import (
 
 // Suggestions 反推本地归档的 sha256（不写回 lock）。
 func Suggestions(l *lock.File, bundleDir string, platform lock.Platform, ids []string) ([]Suggestion, error) {
-	if !lock.KnownPlatforms[platform] {
+	if !lock.KnownPlatforms[string(platform)] {
 		return nil, fmt.Errorf("unsupported platform: %s", platform)
 	}
 	assets, err := l.Select(ids)

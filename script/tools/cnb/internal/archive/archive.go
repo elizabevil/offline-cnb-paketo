@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	refutil "learn-cnb-paketo/tools/cnb/internal/ref"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
 // 解包时的权限（与 fsutil 保持一致）。
@@ -151,7 +151,7 @@ func selected(name string, include []string) bool {
 		return true
 	}
 	for _, pat := range include {
-		if refutil.Match(pat, name) {
+		if strutil.Match(pat, name) {
 			return true
 		}
 	}

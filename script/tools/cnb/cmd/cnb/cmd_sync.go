@@ -30,7 +30,7 @@ func newSyncCmd() *cobra.Command {
 				Logger:    logr,
 			})
 			for _, r := range results {
-				logr.Info("material", "ref", r.Ref, "action", r.Action)
+				logr.Info("material", "ref", r.Ref, "action", r.Action.String())
 			}
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}

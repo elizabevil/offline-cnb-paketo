@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -75,8 +74,8 @@ type PlanStage struct {
 }
 
 // BuildPlan 校验配置并生成计划。
-func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
-	if errs := p.Validate(platform, l); len(errs) > 0 {
+func (p *File) BuildPlan(platform lock.Platform, l *lock.File) (*Plan, error) {
+	if errs := p.Validate(string(platform), l); len(errs) > 0 {
 		return nil, fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 
@@ -90,7 +89,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 		Project:      p.Project.Name,
 		RepoRoot:     repoRoot(),
 		Dir:          abs(p.Project.Dir),
-		Platform:     platform,
+		Platform:     string(platform),
 		Context:      abs(mustDefault(p.Docker.Context, ".")),
 		BundleDir:    abs(mustDefault(p.Docker.BundleDir, lock.DefaultBundleDir)),
 		BundleLayout: mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst),
@@ -105,7 +104,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 			}
 			return filepath.Join(abs(p.Project.Dir), "docker", "buildpacks")
 		}(),
-		Assets: p.Refs(platform),
+		Assets: p.Refs(string(platform)),
 	}
 
 	// 物料版本 → <ID>_VERSION，供 Dockerfile 拼路径
@@ -166,7 +165,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 }
 
 // buildAssetDetails 汇总物料的解析信息与落盘状态。
-func buildAssetDetails(l *lock.File, pl *Plan, platform string) []AssetInfo {
+func buildAssetDetails(l *lock.File, pl *Plan, platform lock.Platform) []AssetInfo {
 	out := make([]AssetInfo, 0, len(pl.Assets))
 	for _, ref := range pl.Assets {
 		a, err := lock.Find(l, ref)
@@ -188,19 +187,33 @@ func buildAssetDetails(l *lock.File, pl *Plan, platform string) []AssetInfo {
 }
 
 // bundleState 判断物料产物是否已落盘，并返回归档大小。
-func bundleState(bundleDir, platform string, a *lock.Asset) (bool, int64) {
-	base := filepath.Join(bundleDir, platform, "binaries")
+func bundleState(bundleDir string, platform lock.Platform, a *lock.Asset) (bool, int64) {
+	base := filepath.Join(bundleDir, string(platform), "binaries")
 	for _, rel := range a.ExpectedPaths() {
 		if _, err := os.Stat(filepath.Join(base, rel)); err != nil {
 			return false, 0
 		}
 	}
 	url, _ := a.URL(platform)
-	archive := filepath.Join(bundleDir, platform, "archives", a.ID, a.Version, filepath.Base(url))
+	archive := filepath.Join(bundleDir, string(platform), "archives", a.ID, a.Version, filepath.Base(url))
 	if st, err := os.Stat(archive); err == nil {
 		return true, st.Size()
 	}
 	return true, 0
+}
+
+// assetPlatforms 返回物料的平台列表。
+// 本地构建物同样与架构相关：它是为当前平台编译的，声明为单平台。
+func assetPlatforms(a *lock.Asset, platform lock.Platform) []string {
+	if a.IsLocal() {
+		return []string{string(platform)}
+	}
+	out := make([]string, 0, len(a.Platform))
+	for k := range a.Platform {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Shell 渲染为 run.sh 兼容的 shell 片段（保持既有契约）。
@@ -245,61 +258,4 @@ func (pl *Plan) Shell() string {
 		}
 	}
 	return b.String()
-}
-
-// Text 渲染为人类可读的摘要（dry-run 默认输出）。
-func (pl *Plan) Text() string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "流水线：%s（%s）\n", pl.Project, pl.Platform)
-	fmt.Fprintf(&b, "目录：%s  上下文：%s\n", pl.Dir, pl.Context)
-
-	fmt.Fprintf(&b, "\n物料（%d）\n", len(pl.Assets))
-	if len(pl.Assets) == 0 {
-		b.WriteString("  （无）\n")
-	}
-	for _, a := range pl.Assets {
-		fmt.Fprintf(&b, "  · %s\n", a)
-	}
-
-	fmt.Fprintf(&b, "\n阶段（%d）\n", len(pl.Stages))
-	for i, st := range pl.Stages {
-		switch st.Kind {
-		case StageImage:
-			fmt.Fprintf(&b, "  %d. image   %-10s → %s\n", i+1, st.Name, st.Tag)
-		case StageCommand:
-			fmt.Fprintf(&b, "  %d. command %-10s cd %s && %s\n", i+1, st.Name, st.Workdir, st.Run)
-		}
-	}
-	return b.String()
-}
-
-// detectRuntime 探测可用的容器运行时（与 image-build.sh 的优先级一致）。
-func detectRuntime() string {
-	if _, err := exec.LookPath("podman"); err == nil {
-		return "podman"
-	}
-	if _, err := exec.LookPath("docker"); err == nil {
-		return "docker"
-	}
-	return "none"
-}
-
-// dirExists 判断目录是否存在。
-func dirExists(p string) bool {
-	info, err := os.Stat(p)
-	return err == nil && info.IsDir()
-}
-
-// assetPlatforms 返回物料的平台列表。
-// 本地构建物同样与架构相关：它是为当前平台编译的，声明为单平台。
-func assetPlatforms(a *lock.Asset, platform string) []string {
-	if a.IsLocal() {
-		return []string{platform}
-	}
-	out := make([]string, 0, len(a.Platform))
-	for k := range a.Platform {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

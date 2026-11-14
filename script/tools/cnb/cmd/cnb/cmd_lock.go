@@ -15,7 +15,7 @@ func newLockCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			changed, err := lock.SetSHA(path, args[0], args[1], args[2])
+			changed, err := lock.SetSHA(path, args[0], lock.Platform(args[1]), args[2])
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

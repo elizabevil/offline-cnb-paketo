@@ -47,7 +47,7 @@ func (a Asset) ExpectedPaths() []string {
 
 // URL 返回平台下载地址；本地物料返回空。
 func (a Asset) URL(platform Platform) (string, bool) {
-	src, ok := a.Platform[platform]
+	src, ok := a.Platform[string(platform)]
 	if !ok {
 		return "", false
 	}
@@ -66,7 +66,7 @@ func (a Asset) SHA256(platform Platform) string {
 	if a.Local != nil {
 		return a.Local.SHA256
 	}
-	return a.Platform[platform].SHA256
+	return a.Platform[string(platform)].SHA256
 }
 
 // Load 读取并解析 lock。
@@ -98,5 +98,5 @@ func (a Asset) Size(platform Platform) int64 {
 	if a.Local != nil {
 		return 0
 	}
-	return a.Platform[platform].Size
+	return a.Platform[string(platform)].Size
 }

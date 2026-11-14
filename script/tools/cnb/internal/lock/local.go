@@ -1,13 +1,12 @@
 package lock
 
 import (
-	"learn-cnb-paketo/tools/cnb/internal/ref"
 	"learn-cnb-paketo/tools/cnb/internal/tomledit"
 )
 
 // SetLocalSHA 回填本地物料的 sha256（[asset.local] 段）。
 func SetLocalSHA(path, refStr, actual string) (bool, error) {
-	r, err := ref.Parse(refStr)
+	r, err := ParseRef(refStr)
 	if err != nil {
 		return false, err
 	}

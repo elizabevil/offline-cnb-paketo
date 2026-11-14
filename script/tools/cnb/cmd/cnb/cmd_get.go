@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 func newGetCmd() *cobra.Command {
@@ -13,7 +14,7 @@ func newGetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := l.WriteShell(cmd.OutOrStdout(), args[0], args[1]); err != nil {
+			if err := l.WriteShell(cmd.OutOrStdout(), args[0], lock.Platform(args[1])); err != nil {
 				return &exitError{code: 2, msg: err.Error()}
 			}
 			return nil
