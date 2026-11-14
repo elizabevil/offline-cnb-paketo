@@ -1,4 +1,3 @@
-// Package repack 的兼容性测试。
 package repack
 
 // 内部测试：解析、有序 map 与紧凑 JSON 的行为。

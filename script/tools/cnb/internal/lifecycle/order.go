@@ -13,19 +13,17 @@ type OrderDoc struct {
 	Order []OrderEntry `toml:"order"`
 }
 
-// OrderEntry 是一个 order 块（可含多个 group）。
 type OrderEntry struct {
 	Group []Group `toml:"group"`
 }
 
-// Group 是 order 中的一个 buildpack 引用。
 type Group struct {
 	ID       string `toml:"id"`
 	Version  string `toml:"version,omitempty"`
 	Optional bool   `toml:"optional,omitempty"`
 }
 
-// Aliases 把外部平台（BK）的 buildpack 名映射到本项目 order 里的 id。
+// Aliases：外部平台（BK）的 buildpack 名 → 本项目 order 里的 id。
 // 命中判定会同时尝试原名与别名，因此 heroku（order 用 bk-buildpack-*）
 // 与 paketo（order 用 paketo-buildpacks/*）都能匹配。
 var Aliases = map[string]string{
@@ -41,7 +39,7 @@ func normalize(s string) string {
 
 // FilterOrder 读取 src，只保留被 required 命中的 order 块。
 // required 形如 "type name ... ver;type name ... ver"；为空则原样返回。
-func FilterOrder(src, required string, aliases map[string]string) ([]byte, error) {
+func FilterOrder(src string, required string) ([]byte, error) {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return nil, err
@@ -56,14 +54,14 @@ func FilterOrder(src, required string, aliases map[string]string) ([]byte, error
 	}
 
 	want := map[string]bool{}
-	for entry := range strings.SplitSeq(required, ";") {
+	for _, entry := range strings.Split(required, ";") {
 		fields := strings.Fields(entry)
 		if len(fields) < 2 {
 			continue
 		}
 		name := fields[1]
 		want[normalize(name)] = true
-		if alias, ok := aliases[name]; ok {
+		if alias, ok := Aliases[name]; ok {
 			want[normalize(alias)] = true
 		}
 	}

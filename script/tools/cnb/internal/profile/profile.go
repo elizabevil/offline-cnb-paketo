@@ -13,16 +13,13 @@ package profile
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/reporoot"
 	"learn-cnb-paketo/tools/cnb/internal/shell"
 
 	"github.com/pelletier/go-toml/v2"
@@ -318,7 +315,9 @@ func (p *File) render(l *lock.File, platform string) string {
 					merged[versionVar(id)] = v
 				}
 			}
-			maps.Copy(merged, img.Args)
+			for k, v := range img.Args {
+				merged[k] = v
+			}
 			if img.Base != "" {
 				if _, ok := merged["BASE_IMAGE"]; !ok {
 					merged["BASE_IMAGE"] = img.Base
@@ -359,7 +358,12 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 func containsStr(list []string, v string) bool {
-	return slices.Contains(list, v)
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveRefs(s string, tags map[string]string) string {
@@ -400,13 +404,11 @@ func repoRoot() string {
 	if repoRootOverride != "" {
 		return repoRootOverride
 	}
-	if root, err := reporoot.FindFromExecutable(); err == nil {
-		return root
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
 	}
-	if root, err := reporoot.FindFromWorkingDir(); err == nil {
-		return root
-	}
-	return "."
+	return filepath.Dir(filepath.Dir(filepath.Dir(exe)))
 }
 
 // tagRefNames 返回字符串里引用的镜像名（${image.<name>.tag}）。

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -37,16 +36,17 @@ func newDockerfileCmd() *cobra.Command {
 					continue
 				}
 				env := map[string]string{"BUNDLE_ARCH": platform, "ARCH": strings.TrimPrefix(platform, "linux-")}
-				maps.Copy(env, st.Args)
+				for k, v := range st.Args {
+					env[k] = v
+				}
 				for _, src := range copySources(st.Dockerfile, env) {
 					base, path := splitFrom(src)
 					var target string
 					switch base {
 					case "":
 						target = filepath.Join(st.Context, path)
-					case BuildpacksContext:
+					case "buildpacks":
 						target = filepath.Join(plan.RepoRoot, st.BuildpacksCtx, path)
-					case BundleContext:
 						target = filepath.Join(plan.BundleDir, path)
 					default:
 						continue // 其他镜像阶段，跳过
@@ -74,7 +74,7 @@ func copySources(dockerfile string, env map[string]string) []string {
 		return nil
 	}
 	var out []string
-	for line := range strings.SplitSeq(string(data), "\n") {
+	for _, line := range strings.Split(string(data), "\n") {
 		m := copyRe.FindStringSubmatch(strings.TrimSpace(line))
 		if m == nil {
 			continue
@@ -83,8 +83,8 @@ func copySources(dockerfile string, env map[string]string) []string {
 		var from string
 		var srcs []string
 		for _, f := range fields {
-			if after, ok := strings.CutPrefix(f, "--from="); ok {
-				from = after
+			if strings.HasPrefix(f, "--from=") {
+				from = strings.TrimPrefix(f, "--from=")
 				continue
 			}
 			if strings.HasPrefix(f, "--") {

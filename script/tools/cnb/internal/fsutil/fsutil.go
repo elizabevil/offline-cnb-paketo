@@ -23,13 +23,13 @@ func Copy(src, dst string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = in.Close() }()
+	defer in.Close()
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = out.Close() }()
+	defer out.Close()
 
 	n, err := io.Copy(out, in)
 	if err != nil {
@@ -52,7 +52,7 @@ func SHA256(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = f.Close() }()
+	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {

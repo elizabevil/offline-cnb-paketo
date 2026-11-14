@@ -25,14 +25,11 @@ type descriptor struct {
 	Size      int64  `json:"size"`
 }
 
-// manifest 的字段名由 OCI 规范决定，不适用仓库的 snake_case 约定。
 type manifest struct {
 	Config descriptor   `json:"config"`
 	Layers []descriptor `json:"layers"`
 }
 
-// dockerManifest 的字段名由 docker-archive 格式决定（docker load 依赖），
-// 不适用仓库的 snake_case 约定。
 type dockerManifest struct {
 	Config   string   `json:"Config"`
 	RepoTags []string `json:"RepoTags"`
@@ -72,9 +69,9 @@ func ToDockerArchive(layoutDir, repoTag, outTar string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = out.Close() }()
+	defer out.Close()
 	tw := tar.NewWriter(out)
-	defer func() { _ = tw.Close() }()
+	defer tw.Close()
 
 	cfgData, err := os.ReadFile(blobPath(layoutDir, man.Config.Digest))
 	if err != nil {
@@ -115,7 +112,7 @@ func writeLayer(tw *tar.Writer, src, name string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
+	defer f.Close()
 
 	var r io.Reader = f
 	if b, err := readMagic(f); err != nil {
@@ -128,7 +125,7 @@ func writeLayer(tw *tar.Writer, src, name string) error {
 		if err != nil {
 			return err
 		}
-		defer func() { _ = gz.Close() }()
+		defer gz.Close()
 		r = gz
 	}
 

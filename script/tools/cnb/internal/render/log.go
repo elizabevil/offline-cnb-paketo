@@ -15,15 +15,12 @@ type CompactHandler struct {
 	attrs []slog.Attr
 }
 
-// NewCompactHandler 创建紧凑日志处理器。
 func NewCompactHandler(w io.Writer, level slog.Level) *CompactHandler {
 	return &CompactHandler{w: w, level: level}
 }
 
-// Enabled 报告该级别是否输出。
 func (h *CompactHandler) Enabled(_ context.Context, l slog.Level) bool { return l >= h.level }
 
-// Handle 输出一条日志。
 func (h *CompactHandler) Handle(_ context.Context, r slog.Record) error {
 	var b strings.Builder
 	b.WriteString("• ")
@@ -46,10 +43,8 @@ func (h *CompactHandler) Handle(_ context.Context, r slog.Record) error {
 	return err
 }
 
-// WithAttrs 返回带附加属性的处理器。
 func (h *CompactHandler) WithAttrs(as []slog.Attr) slog.Handler {
 	return &CompactHandler{w: h.w, level: h.level, attrs: append(append([]slog.Attr{}, h.attrs...), as...)}
 }
 
-// WithGroup 返回带分组的处理器。
 func (h *CompactHandler) WithGroup(string) slog.Handler { return h }

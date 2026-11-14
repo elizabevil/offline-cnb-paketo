@@ -1,20 +1,34 @@
-// Package lifecycle 执行 CNB 四阶段（detect/build/analyze/export）。
-// 本包不假设任何目录布局：路径、二进制位置、平台与用户全部由调用方给出。
 package lifecycle
 
-// 阶段名与文件约定（与 CNB 规范一致，不是本项目特有）。
+// 生命周期阶段与路径常量。
 const (
+	// 应用与工作目录默认值。
+	DefaultAppDir      = "/app"
+	DefaultLayersDir   = "/layers"
+	DefaultPlatformDir = "/platform"
+	DefaultOrderPath   = "/cnb/order.toml"
+
+	// 输出与缓存。
+	DefaultLayoutDir   = "/layers/oci"
+	DefaultRunImage    = "fake-cnb-runner:latest"
+	DefaultPlatformAPI = "0.15"
+	DefaultRunUser     = "cnb"
+
+	// lifecycle 二进制路径。
+	BinDetector = "/cnb/lifecycle/detector"
+	BinBuilder  = "/cnb/lifecycle/builder"
+	BinAnalyzer = "/cnb/lifecycle/analyzer"
+	BinExporter = "/cnb/lifecycle/exporter"
+
+	// OrderFileName 是过滤后 order 的文件名。
+	OrderFileName = "order.toml"
+
+	// UserDatabase 是用户信息文件。
+	UserDatabase = "/etc/passwd"
+
+	// EchoTag 是错误信息前缀，用于区分阶段输出。
 	PhaseDetect  = "detect"
 	PhaseBuild   = "build"
 	PhaseAnalyze = "analyze"
 	PhaseExport  = "export"
-
-	// OrderFileName 是 lifecycle 读取的 order 文件名。
-	OrderFileName = "order.toml"
-
-	// UserDatabase 是查询用户 uid/gid 的文件。
-	UserDatabase = "/etc/passwd"
-
-	// FileURLScheme 是本地源码的 URL 前缀。
-	FileURLScheme = "file://"
 )

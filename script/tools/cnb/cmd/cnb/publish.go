@@ -17,7 +17,7 @@ func newPublishCmd() *cobra.Command {
 		Use:   "publish <id[@version]>",
 		Short: "把 [asset.local] 的构建产物发布到 bundle 并回填哈希",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := resolveLockPath(opts.lockPath)
 			if err != nil {
 				return err

@@ -22,11 +22,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/bundle"
-	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/repack"
-	"learn-cnb-paketo/tools/cnb/internal/reporoot"
 	"learn-cnb-paketo/tools/cnb/internal/version"
 )
 
@@ -59,7 +57,8 @@ var opts options
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		if ee, ok := errors.AsType[*exitError](err); ok {
+		var ee *exitError
+		if errors.As(err, &ee) {
 			if ee.msg != "" {
 				fmt.Fprintf(os.Stderr, "cnb: %s\n", ee.msg)
 			}
@@ -79,7 +78,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.Get().Short(),
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := resolveRepo()
 			if err != nil {
 				return err
@@ -200,11 +199,7 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rep, err := bundle.Check(l, bundleDir, platform, ids)
-			if err != nil {
-				return &exitError{code: 1, msg: err.Error()}
-			}
-			if !printReport(rep, opts.strict, opts.quiet) {
+			if err := bundle.Verify(l, bundleDir, platform, ids, opts.strict, opts.quiet); err != nil {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -220,11 +215,7 @@ func newPinCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			suggests, err := bundle.Suggestions(l, bundleDir, platform, ids)
-			if err != nil {
-				return &exitError{code: 1, msg: err.Error()}
-			}
-			if !printSuggestions(suggests) {
+			if err := bundle.Pin(l, bundleDir, platform, ids); err != nil {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -340,11 +331,7 @@ func newProfileCmd() *cobra.Command {
 				return &exitError{code: 1}
 			}
 			_, _, bundleDir, _ := open()
-			rep, err := bundle.Check(l, bundleDir, platform, p.Refs(platform))
-			if err != nil {
-				return &exitError{code: 1, msg: err.Error()}
-			}
-			if !printReport(rep, opts.strict, opts.quiet) {
+			if err := bundle.Verify(l, bundleDir, platform, p.Refs(platform), opts.strict, opts.quiet); err != nil {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -452,14 +439,11 @@ func resolveRepo() (string, error) {
 	if env := os.Getenv("CNB_REPO_ROOT"); env != "" {
 		return filepath.Abs(env)
 	}
-	if root, err := reporoot.FindFromExecutable(); err == nil {
-		return root, nil
-	}
-	root, err := reporoot.FindFromWorkingDir()
+	exe, err := os.Executable()
 	if err != nil {
-		return "", errs.Wrap("定位仓库根", err)
+		return "", fmt.Errorf("无法定位可执行文件: %w", err)
 	}
-	return root, nil
+	return filepath.Dir(filepath.Dir(filepath.Dir(exe))), nil
 }
 
 func resolveLockPath(explicit string) (string, error) {
