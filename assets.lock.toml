@@ -1,0 +1,194 @@
+# =============================================================================
+# assets.lock.toml — 物料清单（唯一事实源）
+# -----------------------------------------------------------------------------
+# 每条物料按作用域分区：
+#
+#   [[asset]]                     身份：id / version / default
+#     [asset.info]                元信息：name / homepage / license（不参与构建）
+#     [asset.unpack]              解包：kind / strip / dir / expect
+#                                 dir 支持 {version}；expect 相对 dir
+#     [asset.platform.<platform>] 下载源：url / sha256
+#                                 url 支持 {version}，架构命名保持字面量
+#
+# 约定：
+#   - 同一 id 可有多版本；default = true 表示省略版本时的选择
+#   - 不同版本的 unpack.dir 必须不同，否则解压会互相覆盖（validate 会报错）
+#   - sha256 为空表示"未固定"，verify 会提示；对外分发前应回填上游官方值
+# =============================================================================
+
+schema = 1
+
+[meta]
+name = "learn-cnb-paketo"
+description = "CNB / Paketo 离线构建物料基座"
+provenance = "local-capture"
+captured_at = "2026-11-12"
+platforms = ["linux-amd64", "linux-arm64"]
+
+[[asset]]
+id = "lifecycle"
+version = "0.21.29"
+default = true
+
+  [asset.info]
+  name = "CNB Lifecycle"
+  homepage = "https://github.com/buildpacks/lifecycle"
+  license = "Apache-2.0"
+
+  [asset.unpack]
+  kind = "tgz"
+  strip = 1
+  dir = "lifecycle/{version}"
+  expect = ["detector", "analyzer", "builder", "exporter", "launcher"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.x86-64.tgz"
+  sha256 = "d261ccc62f8b00f4c63d7d137b371f369eb706e3ab6aedb3ff67eda4aa7d1ac2"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.arm64.tgz"
+  sha256 = ""
+
+[[asset]]
+id = "fnm"
+version = "1.39.0"
+default = true
+
+  [asset.info]
+  name = "fnm"
+  homepage = "https://github.com/Schniz/fnm"
+  license = "GPL-3.0"
+
+  [asset.unpack]
+  kind = "zip"
+  strip = 0
+  dir = "fnm/{version}"
+  expect = ["fnm"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/Schniz/fnm/releases/download/v{version}/fnm-linux.zip"
+  sha256 = "7807664f39d39fc518da1c35ba0181e4b3267603c4b1dedeb4b5fc6ae440a224"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/Schniz/fnm/releases/download/v{version}/fnm-arm64.zip"
+  sha256 = ""
+
+[[asset]]
+id = "uv"
+version = "0.13.8"
+default = true
+
+  [asset.info]
+  name = "uv"
+  homepage = "https://github.com/astral-sh/uv"
+  license = "Apache-2.0"
+
+  [asset.unpack]
+  kind = "tgz"
+  strip = 1
+  dir = "uv/{version}"
+  expect = ["uv", "uvx"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-musl.tar.gz"
+  sha256 = "61fb26dabc4f0cf1d050fc6c67d40e43e4fae2994af21ebc1e050b233bf2b5ed"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/astral-sh/uv/releases/download/{version}/uv-aarch64-unknown-linux-musl.tar.gz"
+  sha256 = ""
+
+[[asset]]
+id = "docker"
+version = "27.0.3"
+default = true
+
+  [asset.info]
+  name = "Docker CLI"
+  homepage = "https://docs.docker.com/engine/install/binaries/"
+  license = "Apache-2.0"
+
+  [asset.unpack]
+  kind = "tgz"
+  strip = 0
+  dir = "docker/{version}"
+  expect = ["docker/dockerd"]
+
+  [asset.platform.linux-amd64]
+  url = "https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-{version}.tgz"
+  sha256 = "f6299aeada422d527cba35061fe56df5e2294776f6d39b7830d699335054b1e6"
+
+  [asset.platform.linux-arm64]
+  url = "https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/aarch64/docker-{version}.tgz"
+  sha256 = ""
+
+[[asset]]
+id = "jq"
+version = "1.8.2"
+default = true
+
+  [asset.info]
+  name = "jq"
+  homepage = "https://github.com/jqlang/jq"
+  license = "MIT"
+
+  [asset.unpack]
+  kind = "bin"
+  strip = 0
+  dir = "jq/{version}"
+  expect = ["jq"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-amd64"
+  sha256 = "b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-arm64"
+  sha256 = ""
+
+[[asset]]
+id = "yq"
+version = "4.54.3"
+default = true
+
+  [asset.info]
+  name = "yq"
+  homepage = "https://github.com/mikefarah/yq"
+  license = "MIT"
+
+  [asset.unpack]
+  kind = "bin"
+  strip = 0
+  dir = "yq/{version}"
+  expect = ["yq"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_amd64"
+  sha256 = "129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_arm64"
+  sha256 = ""
+
+[[asset]]
+id = "pack"
+version = "0.40.11"
+default = true
+
+  [asset.info]
+  name = "pack CLI"
+  homepage = "https://github.com/buildpacks/pack"
+  license = "Apache-2.0"
+
+  [asset.unpack]
+  kind = "tgz"
+  strip = 0
+  dir = "pack/{version}"
+  expect = ["pack"]
+
+  [asset.platform.linux-amd64]
+  url = "https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux.tgz"
+  sha256 = "280a53ff6526f1aa26cc903b5c5aab515afef25e3d7abac977fe193331d3b301"
+
+  [asset.platform.linux-arm64]
+  url = "https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux-arm64.tgz"
+  sha256 = ""
