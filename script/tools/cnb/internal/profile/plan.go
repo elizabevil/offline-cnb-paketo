@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
@@ -13,21 +14,38 @@ import (
 
 // Plan 是校验后的可执行计划，可序列化为 shell / JSON。
 type Plan struct {
-	Project       string      `json:"project" yaml:"project"`
-	RepoRoot      string      `json:"repo_root" yaml:"repo_root"`
-	ConfigPath    string      `json:"config" yaml:"config"`
-	Dir           string      `json:"dir" yaml:"dir"`
-	Platform      string      `json:"platform" yaml:"platform"`
-	Context       string      `json:"context" yaml:"context"`
-	BundleDir     string      `json:"bundle_dir" yaml:"bundle_dir"`
-	BundleLayout  string      `json:"bundle_layout" yaml:"bundle_layout"`
-	BuildpacksDir string      `json:"buildpacks_dir,omitempty" yaml:"buildpacks_dir,omitempty"`
-	Runtime       string      `json:"runtime" yaml:"runtime"`
-	Assets        []string    `json:"assets" yaml:"assets"`
-	Stages        []PlanStage `json:"stages" yaml:"stages"`
+	Project       string   `json:"project" yaml:"project"`
+	RepoRoot      string   `json:"repo_root" yaml:"repo_root"`
+	ConfigPath    string   `json:"config" yaml:"config"`
+	Dir           string   `json:"dir" yaml:"dir"`
+	Platform      string   `json:"platform" yaml:"platform"`
+	Context       string   `json:"context" yaml:"context"`
+	BundleDir     string   `json:"bundle_dir" yaml:"bundle_dir"`
+	BundleLayout  string   `json:"bundle_layout" yaml:"bundle_layout"`
+	BuildpacksDir string   `json:"buildpacks_dir,omitempty" yaml:"buildpacks_dir,omitempty"`
+	Runtime       string   `json:"runtime" yaml:"runtime"`
+	Assets        []string `json:"assets" yaml:"assets"`
+	// AssetDetails 是每个物料的详细信息（供描述输出与分析系统接入）。
+	AssetDetails []AssetInfo `json:"asset_details,omitempty" yaml:"asset_details,omitempty"`
+	Stages       []PlanStage `json:"stages" yaml:"stages"`
 }
 
-// PlanStage 是计划中的一步。
+// AssetInfo 描述单个物料的解析结果与落盘状态。
+type AssetInfo struct {
+	Ref       string   `json:"ref" yaml:"ref"`
+	ID        string   `json:"id" yaml:"id"`
+	Version   string   `json:"version" yaml:"version"`
+	Kind      string   `json:"kind" yaml:"kind"`
+	Platforms []string `json:"platforms" yaml:"platforms"`
+	SHA256    string   `json:"sha256,omitempty" yaml:"sha256,omitempty"`
+	URL       string   `json:"url,omitempty" yaml:"url,omitempty"`
+	Local     bool     `json:"local,omitempty" yaml:"local,omitempty"`
+	Present   bool     `json:"present" yaml:"present"`
+	Size      int64    `json:"size,omitempty" yaml:"size,omitempty"`
+}
+
+// PlanStage 是计划中的一个执行阶段（镜像或命令）。
+// PlanStage 是计划中的一个执行阶段（镜像或命令）。
 type PlanStage struct {
 	Kind          string            `json:"kind" yaml:"kind"` // fetch | image | command
 	Name          string            `json:"name" yaml:"name"`
@@ -131,7 +149,46 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 			Workdir: abs(mustDefault(c.Workdir, p.Project.Dir)), Env: env,
 		})
 	}
+	plan.AssetDetails = buildAssetDetails(l, plan, platform)
 	return plan, nil
+}
+
+// buildAssetDetails 汇总物料的解析信息与落盘状态。
+func buildAssetDetails(l *lock.File, pl *Plan, platform string) []AssetInfo {
+	out := make([]AssetInfo, 0, len(pl.Assets))
+	for _, ref := range pl.Assets {
+		a, err := lock.Find(l, ref)
+		if err != nil {
+			out = append(out, AssetInfo{Ref: ref})
+			continue
+		}
+		info := AssetInfo{
+			Ref: a.Ref(), ID: a.ID, Version: a.Version, Kind: a.Unpack.Kind,
+			Platforms: assetPlatforms(a, platform), SHA256: a.SHA256(platform), Local: a.IsLocal(),
+		}
+		if u, ok := a.URL(platform); ok {
+			info.URL = u
+		}
+		info.Present, info.Size = bundleState(pl.BundleDir, platform, a)
+		out = append(out, info)
+	}
+	return out
+}
+
+// bundleState 判断物料产物是否已落盘，并返回归档大小。
+func bundleState(bundleDir, platform string, a *lock.Asset) (bool, int64) {
+	base := filepath.Join(bundleDir, platform, "binaries")
+	for _, rel := range a.ExpectedPaths() {
+		if _, err := os.Stat(filepath.Join(base, rel)); err != nil {
+			return false, 0
+		}
+	}
+	url, _ := a.URL(platform)
+	archive := filepath.Join(bundleDir, platform, "archives", a.ID, a.Version, filepath.Base(url))
+	if st, err := os.Stat(archive); err == nil {
+		return true, st.Size()
+	}
+	return true, 0
 }
 
 // Shell 渲染为 run.sh 兼容的 shell 片段（保持既有契约）。
@@ -233,4 +290,18 @@ func detectRuntime() string {
 func dirExists(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.IsDir()
+}
+
+// assetPlatforms 返回物料的平台列表。
+// 本地构建物同样与架构相关：它是为当前平台编译的，声明为单平台。
+func assetPlatforms(a *lock.Asset, platform string) []string {
+	if a.IsLocal() {
+		return []string{platform}
+	}
+	out := make([]string, 0, len(a.Platform))
+	for k := range a.Platform {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -1,13 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/bpcheck"
-	"learn-cnb-paketo/tools/cnb/internal/render"
 )
 
 // newLintCmd 检查 buildpack 结构是否符合官方约定。
@@ -15,7 +13,7 @@ func newLintCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lint [dir…]",
 		Short: "check buildpack layout against official conventions",
-		RunE: func(cmd *cobra.Command, dirs []string) error {
+		RunE: func(_ *cobra.Command, dirs []string) error {
 			if len(dirs) == 0 {
 				root, err := resolveRepo()
 				if err != nil {
@@ -23,21 +21,20 @@ func newLintCmd() *cobra.Command {
 				}
 				dirs, _ = filepath.Glob(filepath.Join(root, "buildpacks", "*", "*"))
 			}
-			out := cmd.OutOrStdout()
 			var errs, warns int
 			for _, dir := range dirs {
 				rep := bpcheck.Check(dir)
 				for _, f := range rep.Findings {
-					mark := render.Warn("")
 					if f.IsError {
-						mark = render.Failure("")
+						logr.Error("buildpack lint", "buildpack", f.Name, "problem", f.Message)
+						continue
 					}
-					fmt.Fprintf(out, "  %s %s: %s\n", mark, f.Name, f.Message)
+					logr.Warn("buildpack lint", "buildpack", f.Name, "problem", f.Message)
 				}
 				errs += rep.Errors()
 				warns += rep.Warnings()
 			}
-			fmt.Fprintf(out, "\n  %d error, %d warning\n", errs, warns)
+			logr.Info("buildpack lint summary", "errors", errs, "warnings", warns)
 			if errs > 0 {
 				return &exitError{code: ExitFailure}
 			}

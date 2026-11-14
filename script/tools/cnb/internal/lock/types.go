@@ -56,16 +56,19 @@ type Info struct {
 
 // Unpack 描述如何解包；Dir 支持 {version}。
 type Unpack struct {
-	Kind   string   `toml:"kind"`
-	Strip  int      `toml:"strip"`
-	Dir    string   `toml:"dir"`
-	Expect []string `toml:"expect"`
+	// Include 是解压白名单（通配符）；为空表示全部。
+	Include []string `toml:"include,omitempty"`
+	Kind    string   `toml:"kind"`
+	Strip   int      `toml:"strip"`
+	Dir     string   `toml:"dir"`
+	Expect  []string `toml:"expect"`
 }
 
 // Source 是某平台的下载源。
 type Source struct {
 	URL    string `toml:"url"`
 	SHA256 string `toml:"sha256"`
+	Size   int64  `toml:"size,omitempty"`
 }
 
 // Ref 返回 "id@version"。

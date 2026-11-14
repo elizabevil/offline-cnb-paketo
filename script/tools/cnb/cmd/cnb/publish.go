@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -66,9 +65,9 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
-			fmt.Printf("  ✓ %s → %s\n", a.Ref(), dst)
+			logr.Info("published", "ref", a.Ref(), "dest", dst)
 			if changed {
-				fmt.Printf("  + 已固定 [asset.local].sha256 = %s\n", sum[:12])
+				logr.Info("pinned local sha256", "ref", a.Ref(), "sha256", sum)
 			}
 			return nil
 		},

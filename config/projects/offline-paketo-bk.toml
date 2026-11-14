@@ -55,10 +55,6 @@ dockerfile = "docker/builder-build.dockerfile"
 tag        = "offline-builder-build-bk:latest"
 args       = { BP_GO_MIRROR = "http://192.168.11.4:5000/", BASE_IMAGE_TAG = "${image.base.tag}", BUNDLE_ARCH = "${platform}" }
 
-# ── 命令：打包（scripts/build.sh 由使用方提供，不入库）────────────────────────────────
-[commands.package]
-run   = "scripts/build.sh"
-workdir = "project/offline-paketo-bk"
 
 # ── 流程：顺序即数组顺序 ──────────────────────────────────────────────────
 
@@ -71,5 +67,3 @@ image = "run"
 [[stage]]
 image = "builder"
 
-[[stage]]
-command = "package"

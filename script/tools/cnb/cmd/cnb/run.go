@@ -15,7 +15,10 @@ import (
 
 // newPlanCmd 生成执行计划而不执行。
 func newPlanCmd() *cobra.Command {
-	var format string
+	var (
+		format string
+		full   bool
+	)
 	cmd := &cobra.Command{
 		Use:   "plan <profile>",
 		Short: "print the execution plan (shell / json / yaml)",
@@ -25,6 +28,14 @@ func newPlanCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !full {
+				out, err := render.CompactPlan(plan, format)
+				if err != nil {
+					return &exitError{code: ExitUsage, msg: err.Error()}
+				}
+				fmt.Fprint(cmd.OutOrStdout(), out)
+				return nil
+			}
 			out, err := render.Format(plan, format)
 			if err != nil {
 				return &exitError{code: ExitUsage, msg: err.Error()}
@@ -33,7 +44,8 @@ func newPlanCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&format, "format", "shell", "output format: text | shell | json | yaml")
+	cmd.Flags().StringVar(&format, "format", "yaml", "output format: yaml | json | table | text | shell")
+	cmd.Flags().BoolVar(&full, "full", false, "print the full plan (assets, build args, stages detail)")
 	return cmd
 }
 
@@ -56,14 +68,12 @@ func newRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if abs, err := filepath.Abs(args[0]); err == nil {
-				plan.ConfigPath = abs
-			}
 			if dryRun {
 				return printDryRun(cmd, plan, format, noCommands)
 			}
-			if text, err := render.Text(plan); err == nil {
-				fmt.Print(text)
+			// 执行前打印精简计划（yaml/json），比单行属性更好读
+			if out, err := render.CompactPlan(plan, format); err == nil {
+				fmt.Fprint(cmd.OutOrStdout(), out)
 			}
 			root, err := resolveRepo()
 			if err != nil {
@@ -73,7 +83,6 @@ func newRunCmd() *cobra.Command {
 				Root:       root,
 				Only:       only,
 				NoCommands: noCommands,
-				Out:        cmd.OutOrStdout(),
 			}, logger)
 			if err := runner.Run(plan); err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
@@ -82,7 +91,7 @@ func newRunCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the plan only")
-	cmd.Flags().StringVar(&format, "format", "text", "dry-run output format: text | shell | json | yaml")
+	cmd.Flags().StringVar(&format, "format", "yaml", "dry-run output format: table | yaml | json | text | shell")
 	cmd.Flags().StringVar(&only, "only", "", "run a single stage")
 	cmd.Flags().StringVar(&level, "log-level", "info", "log level: debug|info|warn|error")
 	cmd.Flags().BoolVar(&noCommands, "no-commands", false, "skip command stages")
@@ -98,6 +107,9 @@ func loadPlan(profilePath string) (*profile.Plan, error) {
 	plan, err := p.BuildPlan(platform, l)
 	if err != nil {
 		return nil, &exitError{code: ExitFailure, msg: err.Error()}
+	}
+	if abs, err := filepath.Abs(profilePath); err == nil {
+		plan.ConfigPath = abs
 	}
 	return plan, nil
 }

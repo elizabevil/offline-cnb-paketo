@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/lifecycle"
+	"learn-cnb-paketo/tools/cnb/internal/render"
 )
 
 // newLifecycleCmd — 按 CNB / BK 环境变量执行一次构建（四阶段）
@@ -24,6 +25,7 @@ func newLifecycleCmd() *cobra.Command {
 		orderPath    string
 		exportMode   string
 		lifecycleDir string
+		loglevel     string
 		layerArch    string
 	)
 	run := &cobra.Command{
@@ -32,34 +34,34 @@ func newLifecycleCmd() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			cfg = configFromEnv()
 			if app != "" {
-				cfg.App = app
+				cfg.Paths.App = app
 			}
 			if layers != "" {
-				cfg.Layers = layers
+				cfg.Paths.Layers = layers
 			}
 			if platform != "" {
-				cfg.Platform = platform
+				cfg.Paths.Platform = platform
 			}
 			if output != "" {
-				cfg.OutputImage = output
+				cfg.Export.OutputImage = output
 			}
 			if runImage != "" {
-				cfg.RunImage = runImage
+				cfg.Export.RunImage = runImage
 			}
 			if cacheImage != "" {
-				cfg.CacheImage = cacheImage
+				cfg.Export.CacheImage = cacheImage
 			}
 			if required != "" {
-				cfg.Required = required
+				cfg.Build.Required = required
 			}
 			if orderPath != "" {
-				cfg.Order = orderPath
+				cfg.Build.Order = orderPath
 			}
 			if exportMode != "" {
-				cfg.ExportLayout = exportMode == "layout"
+				cfg.Export.Layout = exportMode == "layout"
 			}
 			if layerArch != "" {
-				cfg.LayerArchive = layerArch
+				cfg.Export.LayerArchive = layerArch
 			}
 			if lifecycleDir != "" {
 				cfg.Bins = lifecycle.Bins{
@@ -74,7 +76,7 @@ func newLifecycleCmd() *cobra.Command {
 			if err := cfg.Prepare(); err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
-			cfg.Out = os.Stdout
+			cfg.Log = render.NewLogger(os.Stderr, loglevel)
 			if err := cfg.Run(); err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
@@ -89,6 +91,7 @@ func newLifecycleCmd() *cobra.Command {
 	run.Flags().StringVar(&cacheImage, "cache-image", "", "缓存镜像（默认 CACHE_IMAGE）")
 	run.Flags().StringVar(&required, "required-buildpacks", "", "限定 buildpack（默认 REQUIRED_BUILDPACKS）")
 	run.Flags().StringVar(&lifecycleDir, "lifecycle-dir", "", "lifecycle 二进制目录（默认 /cnb/lifecycle）")
+	run.Flags().StringVar(&loglevel, "log-level", "info", "log level: debug|info|warn|error")
 	run.Flags().StringVar(&orderPath, "order", "", "order.toml 路径（默认 /cnb/order.toml）")
 	run.Flags().StringVar(&exportMode, "export-mode", "layout", "导出方式：layout（不依赖 daemon）| daemon")
 	run.Flags().StringVar(&layerArch, "layer-archive", "", "把 layout 转成 docker-archive 写到此路径")

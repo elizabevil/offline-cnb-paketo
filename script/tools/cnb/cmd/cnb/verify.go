@@ -1,50 +1,46 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"strings"
-
-	"learn-cnb-paketo/tools/cnb/internal/render"
 
 	"learn-cnb-paketo/tools/cnb/internal/bundle"
 )
 
 // printReport 输出校验报告并返回是否通过。
 func printReport(rep bundle.Report, strict, quiet bool) bool {
-	fmt.Printf("\n━━━  %s (%s)\n", render.Heading("verify assets"), rep.Platform)
+	logr.Info("verify assets", "platform", rep.Platform)
 	for _, r := range rep.Results {
 		switch r.Status {
 		case bundle.StatusOK:
 			if !quiet {
-				fmt.Printf("  %s\n", render.Success(r.Ref))
+				logr.Info("asset ok", "ref", r.Ref)
 			}
 		case bundle.StatusUnpinned:
-			fmt.Printf("  %s\n", render.Warn(r.Ref+": "+strings.Join(r.Problems, "; ")))
+			logr.Warn("asset unpinned", "ref", r.Ref, "problems", strings.Join(r.Problems, "; "))
 		default:
-			fmt.Printf("  %s\n", render.Failure(r.Ref+": "+strings.Join(r.Problems, "; ")))
+			logr.Error("asset broken", "ref", r.Ref, "problems", strings.Join(r.Problems, "; "))
 		}
 	}
 	if rep.OK(strict) {
-		fmt.Printf("\n━━━  %s (%d unpinned)\n", render.Paint(render.ColorGreen, "verify passed"), rep.Unpinned())
+		logr.Info("verify passed", "unpinned", rep.Unpinned())
 		return true
 	}
 	if rep.Unpinned() > 0 && !strict {
-		fmt.Fprintf(os.Stderr, "  !  %d asset(s) without pinned sha256\n", rep.Unpinned())
+		logr.Warn("assets without pinned sha256", "count", rep.Unpinned())
 	}
-	fmt.Fprintf(os.Stderr, "\n━━━  %s: %d broken\n", render.Paint(render.ColorRed, "verify failed"), rep.Failures())
+	logr.Error("verify failed", "broken", rep.Failures())
 	return false
 }
 
 // printSuggestions 输出 sha256 回填建议。
 func printSuggestions(suggests []bundle.Suggestion) bool {
 	if len(suggests) == 0 {
-		fmt.Fprintln(os.Stderr, "  !  no archives to pin")
+		logr.Warn("no archives to pin")
 		return false
 	}
-	fmt.Println("      review the snippets below before writing assets.lock.toml")
+	logr.Info("review snippets before writing assets.lock.toml")
 	for _, s := range suggests {
-		fmt.Printf("\n# ---- %s ([asset.platform.%s])\n  sha256 = %q\n", s.Ref, s.Platform, s.SHA256)
+		logr.Info("sha256 suggestion", "ref", s.Ref, "platform", s.Platform, "sha256", s.SHA256)
 	}
 	return true
 }

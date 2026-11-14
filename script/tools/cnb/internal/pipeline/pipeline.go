@@ -3,7 +3,6 @@ package pipeline
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -42,24 +41,17 @@ type Options struct {
 	Root       string
 	Only       string
 	NoCommands bool
-	Verbose    bool
-	Out        io.Writer
 }
 
 // Runner 执行计划。
 type Runner struct {
 	opts Options
 	log  *slog.Logger
-	out  io.Writer
 }
 
 // New 创建执行器。
 func New(opts Options, log *slog.Logger) *Runner {
-	out := opts.Out
-	if out == nil {
-		out = os.Stdout
-	}
-	return &Runner{opts: opts, log: log, out: out}
+	return &Runner{opts: opts, log: log}
 }
 
 // Run 执行整个计划。
@@ -74,7 +66,7 @@ func (r *Runner) Run(plan *profile.Plan) error {
 			return err
 		}
 	}
-	fmt.Fprintf(r.out, "\n✓ pipeline done: %s\n", plan.Project)
+	r.log.Info("pipeline done", "project", plan.Project)
 	return nil
 }
 
@@ -86,13 +78,13 @@ func (r *Runner) selected(name string) bool {
 // fetch 拉取计划用到的物料。
 func (r *Runner) fetch(plan *profile.Plan) error {
 	start := time.Now()
-	fmt.Fprintf(r.out, "\n[fetch] materials (%d)\n", len(plan.Assets))
+	r.log.Info("fetch materials", "count", len(plan.Assets))
 	args := append([]string{"fetch", "--platform", plan.Platform}, plan.Assets...)
 	if err := r.exec(r.opts.Root, os.Environ(), filepath.Join(r.opts.Root, scriptFetch), args); err != nil {
-		fmt.Fprintf(r.out, "        ✗ fetch (%v)\n", err)
+		r.log.Error("fetch failed", "err", err)
 		return fmt.Errorf("material fetch failed: %w", err)
 	}
-	fmt.Fprintf(r.out, "        ✓ fetch  %s\n", time.Since(start).Round(time.Millisecond))
+	r.log.Info("fetch done", "took", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -100,23 +92,23 @@ func (r *Runner) fetch(plan *profile.Plan) error {
 func (r *Runner) runStage(plan *profile.Plan, idx int, st profile.PlanStage) error {
 	total := len(plan.Stages)
 	if r.opts.NoCommands && st.Kind == KindCommand {
-		fmt.Fprintf(r.out, "\n[%d/%d] %-7s %s  – skipped (--no-commands)\n", idx+1, total, st.Kind, st.Name)
+		r.log.Info("stage skipped", "stage", st.Name, "kind", st.Kind, "reason", "no-commands", "index", idx+1, "total", total)
 		return nil
 	}
 	if !r.selected(st.Name) {
-		fmt.Fprintf(r.out, "\n[%d/%d] %-7s %s  – skipped\n", idx+1, total, st.Kind, st.Name)
+		r.log.Info("stage skipped", "stage", st.Name, "kind", st.Kind, "index", idx+1, "total", total)
 		return nil
 	}
-	fmt.Fprintf(r.out, "\n[%d/%d] %-7s %s\n", idx+1, total, st.Kind, st.Name)
+	r.log.Info("stage start", "stage", st.Name, "kind", st.Kind, "index", idx+1, "total", total)
 
 	start := time.Now()
 	err := r.dispatch(plan, st)
 	if err != nil {
-		fmt.Fprintf(r.out, "        ✗ %s  %s\n", st.Name, time.Since(start).Round(time.Millisecond))
-		fmt.Fprintf(r.out, "        retry: cnb run %s --only %s\n", plan.ConfigPath, st.Name)
+		r.log.Error("stage failed", "stage", st.Name, "took", time.Since(start).Round(time.Millisecond))
+		r.log.Info("retry hint", "cmd", "cnb pipeline run "+plan.ConfigPath+" --only "+st.Name)
 		return fmt.Errorf("stage failed: %s: %w", st.Name, err)
 	}
-	fmt.Fprintf(r.out, "        ✓ %s  %s\n", st.Name, time.Since(start).Round(time.Millisecond))
+	r.log.Info("stage done", "stage", st.Name, "took", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 

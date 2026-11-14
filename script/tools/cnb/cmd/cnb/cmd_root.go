@@ -7,6 +7,7 @@ import (
 )
 
 func newRootCmd() *cobra.Command {
+	logLevel := "info"
 	root := &cobra.Command{
 		Use:   "cnb",
 		Short: "基座小工具：lock / profile / verify / pin / repack",
@@ -18,6 +19,7 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			// 容器内（如 lifecycle 执行器）没有仓库标记，不应因此失败；
 			// 需要仓库根的子命令会自行报错。
+			setupLogger(logLevel)
 			if root, err := resolveRepo(); err == nil {
 				profile.SetRepoRoot(root)
 			}
@@ -27,6 +29,7 @@ func newRootCmd() *cobra.Command {
 	root.SetVersionTemplate("cnb {{.Version}}\n")
 
 	pf := root.PersistentFlags()
+	pf.StringVar(&logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	pf.StringVar(&opts.lockPath, "file", "", "lock 文件路径（默认 <exe>/../../assets.lock.toml 或 LOCK_FILE）")
 	pf.StringVar(&opts.bundle, "bundle", "", "物料目录（默认 <lock 所在目录>/bundle）")
 	pf.StringVar(&opts.platform, "platform", "", "目标平台：linux-amd64 | linux-arm64")

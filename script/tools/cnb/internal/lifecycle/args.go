@@ -28,18 +28,18 @@ func (a *args) positional(value string) {
 // common 是 detect/build 共用的目录参数。
 func (c Config) common() args {
 	var a args
-	a.flag("layers", c.Layers)
-	a.flag("app", c.App)
-	a.flag("platform", c.Platform)
+	a.flag("layers", c.Paths.Layers)
+	a.flag("app", c.Paths.App)
+	a.flag("platform", c.Paths.Platform)
 	return a
 }
 
 // detectArgs 生成 detector 参数。
 func (c Config) detectArgs() []string {
 	a := c.common()
-	order := c.Order
-	if c.Required != "" {
-		order = c.Layers + "/" + OrderFileName
+	order := c.Build.Order
+	if c.Build.Required != "" {
+		order = c.Paths.Layers + "/" + OrderFileName
 	}
 	a.flag("order", order)
 	return a
@@ -53,17 +53,17 @@ func (c Config) buildArgs() []string { return c.common() }
 // 而 layout 模式下 analyzer 只会在 layout 目录里找镜像（尚未导入时必然失败）。
 func (c Config) analyzeArgs() []string {
 	var a args
-	a.flag("layers", c.Layers)
-	a.flag("run-image", c.RunImage)
+	a.flag("layers", c.Paths.Layers)
+	a.flag("run-image", c.Export.RunImage)
 	a.boolFlag("daemon", true)
-	a.positional(c.OutputImage)
+	a.positional(c.Export.OutputImage)
 	return a
 }
 
 // layoutDir 返回 OCI layout 输出目录。
 func (c Config) layoutDir() string {
-	if c.LayoutDir != "" {
-		return c.LayoutDir
+	if c.Export.LayoutDir != "" {
+		return c.Export.LayoutDir
 	}
 	return defaultLayoutDir
 }
@@ -71,16 +71,16 @@ func (c Config) layoutDir() string {
 // exportArgs 生成 exporter 参数。
 func (c Config) exportArgs() []string {
 	var a args
-	a.flag("layers", c.Layers)
-	a.flag("app", c.App)
-	if c.ExportLayout {
+	a.flag("layers", c.Paths.Layers)
+	a.flag("app", c.Paths.App)
+	if c.Export.Layout {
 		a.boolFlag("layout", true)
 		a.flag("layout-dir", c.layoutDir())
 	} else {
 		a.boolFlag("daemon", true)
 	}
-	a.flag("run-image", c.RunImage)
-	a.flag("cache-image", c.CacheImage)
-	a.positional(c.OutputImage)
+	a.flag("run-image", c.Export.RunImage)
+	a.flag("cache-image", c.Export.CacheImage)
+	a.positional(c.Export.OutputImage)
 	return a
 }

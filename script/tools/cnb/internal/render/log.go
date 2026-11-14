@@ -26,7 +26,7 @@ func (h *CompactHandler) Enabled(_ context.Context, l slog.Level) bool { return 
 // Handle 输出一条日志。
 func (h *CompactHandler) Handle(_ context.Context, r slog.Record) error {
 	var b strings.Builder
-	b.WriteString("• ")
+	b.WriteString(levelMarker(r.Level))
 	b.WriteString(r.Message)
 	write := func(k string, v slog.Value) {
 		b.WriteString(" ")
@@ -38,10 +38,6 @@ func (h *CompactHandler) Handle(_ context.Context, r slog.Record) error {
 		write(a.Key, a.Value)
 	}
 	r.Attrs(func(a slog.Attr) bool { write(a.Key, a.Value); return true })
-	if r.Level >= slog.LevelWarn {
-		b.WriteString(" level=")
-		b.WriteString(r.Level.String())
-	}
 	_, err := fmt.Fprintln(h.w, b.String())
 	return err
 }
@@ -53,3 +49,15 @@ func (h *CompactHandler) WithAttrs(as []slog.Attr) slog.Handler {
 
 // WithGroup 返回带分组的处理器。
 func (h *CompactHandler) WithGroup(string) slog.Handler { return h }
+
+// levelMarker 返回级别前缀：info 用 •，warn 用 !，error 用 ✗。
+func levelMarker(l slog.Level) string {
+	switch {
+	case l >= slog.LevelError:
+		return "✗ "
+	case l >= slog.LevelWarn:
+		return "! "
+	default:
+		return "• "
+	}
+}

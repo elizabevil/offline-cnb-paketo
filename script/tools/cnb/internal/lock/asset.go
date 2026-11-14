@@ -102,3 +102,11 @@ func isHex64(s string) bool {
 	}
 	return true
 }
+
+// Size 返回该平台声明的大小（未声明时为 0）。
+func (a Asset) Size(platform Platform) int64 {
+	if a.Local != nil {
+		return 0
+	}
+	return a.Platform[platform].Size
+}
