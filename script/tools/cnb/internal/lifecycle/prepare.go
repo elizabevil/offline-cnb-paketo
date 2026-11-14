@@ -1,7 +1,6 @@
 package lifecycle
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +24,7 @@ func (c Config) extractSource() error {
 	}
 	src := strings.TrimPrefix(c.Build.SourceURL, FileURLScheme)
 	if src == c.Build.SourceURL {
-		return fmt.Errorf("暂不支持的 SOURCE_GET_URL: %s", c.Build.SourceURL)
+		return &errs.Invalid{Field: "SOURCE_GET_URL", Value: c.Build.SourceURL, Reason: "only file:// is supported"}
 	}
 	if err := os.MkdirAll(c.Paths.App, fsutil.DirMode); err != nil {
 		return err

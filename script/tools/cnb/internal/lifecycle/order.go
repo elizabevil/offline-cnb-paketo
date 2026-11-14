@@ -2,6 +2,8 @@ package lifecycle
 
 import (
 	"fmt"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"os"
 	"strings"
 
@@ -52,7 +54,7 @@ func FilterOrder(src, required string, aliases map[string]string) ([]byte, error
 
 	var doc OrderDoc
 	if err := toml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("解析 %s: %w", src, err)
+		return nil, errs.Wrap("parse "+src, err)
 	}
 
 	want := map[string]bool{}
@@ -84,7 +86,7 @@ func FilterOrder(src, required string, aliases map[string]string) ([]byte, error
 				ids = append(ids, g.ID)
 			}
 		}
-		return nil, fmt.Errorf("REQUIRED_BUILDPACKS 与 %s 无交集（需要 %v，实际 %v）", src, keys(want), ids)
+		return nil, &errs.Invalid{Field: "REQUIRED_BUILDPACKS", Value: fmt.Sprint(keys(want)), Reason: fmt.Sprintf("no match in %s (available: %v)", src, ids)}
 	}
 	return toml.Marshal(kept)
 }

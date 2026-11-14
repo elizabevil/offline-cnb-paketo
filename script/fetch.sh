@@ -214,26 +214,13 @@ cmd_list() {
 }
 
 cmd_fetch() {
+  # 下载 / 校验 / 解包已收编到 cnb materials sync（见 docs/ai/materials-sync.md）
   log_step "拉取物料 (${PLATFORM}${PROXY:+, proxy=${PROXY}})"
-  local id
-  while read -r id; do
-    [ -n "${id}" ] || continue
-    load_asset "${id}"
-    if [ -z "${ASSET_URL}" ]; then
-      # 本地物料（[asset.local]）：由 `cnb materials publish` 放入 bundle，这里只校验
-      expect_first="${ASSET_EXPECT%%,*}"   # 已是相对 binaries 的完整路径
-      target="$(binaries_dir "${PLATFORM}")/${expect_first}"
-      [ -e "${target}" ] || die "本地物料 ${ASSET_REF} 尚未发布：先运行 cnb materials publish ${ASSET_ID}"
-      printf "  ✓  本地物料就绪: %s\n" "${ASSET_REF}"
-      continue
-    fi
-    ensure_archive
-    # 哈希自动固定：为空则写入，已有则校验（不一致直接失败）
-    sha_actual="$(sha256_of "$(archive_path)")"
-    cnb_query materials lock set-sha "${ASSET_REF}" "${PLATFORM}" "${sha_actual}" \
-      || die "${ASSET_REF}: 哈希与 lock 不一致或写入失败"
-    ensure_extract
-  done < <(selected_ids)
+  local -a args=(materials sync --platform "${PLATFORM}" --bundle "${BUNDLE_DIR}")
+  if [ ${#IDS[@]} -gt 0 ]; then
+    args+=("${IDS[@]}")
+  fi
+  cnb_query "${args[@]}"
   log_step "完成"
 }
 

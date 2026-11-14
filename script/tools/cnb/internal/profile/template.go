@@ -2,6 +2,8 @@ package profile
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
@@ -75,7 +77,7 @@ func (p *File) Show() string {
 	}
 
 	add("\n物料（%d）\n", len(p.Assets))
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		a := p.Assets[id]
 		ver := mustDefault(a.Version, "(default)")
 		if len(a.Platforms) > 0 {
@@ -86,7 +88,7 @@ func (p *File) Show() string {
 	}
 
 	add("\n镜像（%d）\n", len(p.Images))
-	for _, name := range sortedKeys(p.Images) {
+	for _, name := range slices.Sorted(maps.Keys(p.Images)) {
 		img := p.Images[name]
 		if img.Desc != "" {
 			add("  %-12s %s\n", name, img.Desc)
@@ -97,7 +99,7 @@ func (p *File) Show() string {
 	}
 
 	add("\n命令（%d）\n", len(p.Commands))
-	for _, name := range sortedKeys(p.Commands) {
+	for _, name := range slices.Sorted(maps.Keys(p.Commands)) {
 		c := p.Commands[name]
 		add("  %-12s cd %s && %s\n", name, mustDefault(c.Workdir, p.Project.Dir), c.Run)
 	}

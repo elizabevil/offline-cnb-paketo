@@ -4,8 +4,9 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -78,24 +79,15 @@ func toView(p *profile.Plan) view {
 			Dockerfile: st.Dockerfile, Base: st.Base, Context: st.Context, BundleCtx: st.BundleCtx,
 			Tag: st.Tag, Workdir: st.Workdir, Run: st.Run,
 		}
-		for _, k := range sortedKeys(st.Args) {
+		for _, k := range slices.Sorted(maps.Keys(st.Args)) {
 			r.ArgList = append(r.ArgList, k+"="+st.Args[k])
 		}
-		for _, k := range sortedKeys(st.Env) {
+		for _, k := range slices.Sorted(maps.Keys(st.Env)) {
 			r.EnvList = append(r.EnvList, k+"="+st.Env[k])
 		}
 		v.Stages = append(v.Stages, r)
 	}
 	return v
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // Shell 交给执行器的片段。

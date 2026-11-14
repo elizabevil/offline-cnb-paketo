@@ -4,9 +4,10 @@ package pipeline
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -131,7 +132,7 @@ func (r *Runner) buildImage(plan *profile.Plan, st profile.PlanStage) error {
 		args = append(args, flagBuildContext, contextBuildpacks+"="+st.BuildpacksCtx)
 	}
 	args = append(args, r.builderLabels(plan, st)...)
-	for _, k := range sortedKeys(st.Args) {
+	for _, k := range slices.Sorted(maps.Keys(st.Args)) {
 		args = append(args, flagBuildArg, k+"="+st.Args[k])
 	}
 	return r.exec(r.opts.Root, os.Environ(), filepath.Join(r.opts.Root, scriptImage), args)
@@ -171,14 +172,4 @@ func (r *Runner) exec(dir string, env []string, name string, args []string) erro
 	c.Env = env
 	c.Stdout, c.Stderr, c.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return c.Run()
-}
-
-// sortedKeys 返回排序后的 map 键。
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

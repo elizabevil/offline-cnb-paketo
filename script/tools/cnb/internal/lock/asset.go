@@ -2,7 +2,6 @@
 package lock
 
 import (
-	"sort"
 	"strings"
 )
 
@@ -81,15 +80,6 @@ func (f *File) Platforms() []string {
 }
 
 // Select 返回指定 id 的物料；ids 为空返回全部。
-
-func sortedKeys(m map[string]Source) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
 
 func isHex64(s string) bool {
 	if len(s) != 64 {

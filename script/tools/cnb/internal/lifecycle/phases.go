@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ func (c Config) Phases() []Phase {
 // Run 依次执行四阶段，并在 layout 模式下转换为 docker-archive。
 func (c Config) Run() error {
 	if c.Export.OutputImage == "" {
-		return fmt.Errorf("缺少输出镜像名")
+		return &errs.Missing{What: "output image"}
 	}
 	if err := c.prepareWorkDirs(); err != nil {
 		return err
@@ -109,7 +110,7 @@ func (c Config) runPhase(p Phase) error {
 		}
 	}
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s 失败: %w", p.Name, err)
+		return errs.Wrap(p.Name+" failed", err)
 	}
 	return nil
 }
@@ -184,7 +185,7 @@ func (c Config) exportAppLayer() error {
 		arch = strings.TrimPrefix(c.Paths.Platform, "linux-")
 	}
 	if err := apparchive.Build(c.Paths.App, c.Paths.Layers, c.Export.OutputImage, arch, c.Export.LayerArchive, c.Export.IncludeSource); err != nil {
-		return fmt.Errorf("生成应用层归档: %w", err)
+		return errs.Wrap("build app layer archive", err)
 	}
 	return nil
 }

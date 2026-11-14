@@ -2,7 +2,7 @@
 package reporoot
 
 import (
-	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"os"
 	"path/filepath"
 )
@@ -24,7 +24,7 @@ func Find(start string) (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("从 %s 向上未找到仓库根（标记: %v）", start, Markers)
+			return "", &errs.NotFound{Kind: "repo root", Ref: start, Known: Markers}
 		}
 		dir = parent
 	}

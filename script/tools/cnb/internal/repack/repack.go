@@ -21,7 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 
 	"io"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
@@ -123,7 +123,7 @@ func Run(target string) error {
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
-		return fmt.Errorf("目标不存在: %s", target)
+		return &errs.NotFound{Kind: "target", Ref: target}
 	}
 	if info.IsDir() {
 		return normalizePackageDir(abs)
@@ -131,13 +131,13 @@ func Run(target string) error {
 	if info.Mode().IsRegular() && strings.HasSuffix(abs, ".tar.gz") {
 		return normalizePackageTarball(abs)
 	}
-	return fmt.Errorf("不支持的目标: %s（只接受目录或 *.tar.gz）", target)
+	return &errs.Invalid{Field: "target", Value: target, Reason: "expect a directory or *.tar.gz"}
 }
 
 func normalizePackageDir(dir string) error {
 	webTar := filepath.Join(dir, "web.tgz")
 	if _, err := os.Stat(webTar); err != nil {
-		return fmt.Errorf("未在 %s 找到 web.tgz", dir)
+		return &errs.NotFound{Kind: "web.tgz", Ref: dir}
 	}
 	return normalizeWebTar(webTar)
 }
@@ -154,7 +154,7 @@ func normalizePackageTarball(pkgTar string) error {
 		return err
 	}
 	if err := extractTar(pkgTar, pkgDir); err != nil {
-		return fmt.Errorf("解包 %s: %w", filepath.Base(pkgTar), err)
+		return errs.Wrap("extract "+filepath.Base(pkgTar), err)
 	}
 	if err := normalizePackageDir(pkgDir); err != nil {
 		return err
@@ -187,7 +187,7 @@ func normalizeWebTar(webTar string) error {
 		return err
 	}
 	if err := extractTar(webTar, legacyDir); err != nil {
-		return fmt.Errorf("解包 web.tgz: %w", err)
+		return errs.Wrap("extract web.tgz", err)
 	}
 
 	// 已是 OCI layout → 幂等返回
@@ -197,14 +197,14 @@ func normalizeWebTar(webTar string) error {
 
 	manifestBytes, err := os.ReadFile(filepath.Join(legacyDir, "manifest.json"))
 	if err != nil {
-		return fmt.Errorf("缺少 manifest.json: %w", err)
+		return errs.Wrap("missing manifest.json", err)
 	}
 	var legacy []dockerManifestEntry
 	if err := json.Unmarshal(manifestBytes, &legacy); err != nil {
-		return fmt.Errorf("解析 manifest.json: %w", err)
+		return errs.Wrap("parse manifest.json", err)
 	}
 	if len(legacy) == 0 || len(legacy[0].RepoTags) == 0 {
-		return fmt.Errorf("manifest.json 缺少 RepoTags")
+		return &errs.Missing{What: "manifest.json RepoTags"}
 	}
 
 	entry := legacy[0]
@@ -222,7 +222,7 @@ func normalizeWebTar(webTar string) error {
 	}
 
 	if err := copyFile(configSrc, filepath.Join(blobsDir, configDigest)); err != nil {
-		return fmt.Errorf("复制 config: %w", err)
+		return errs.Wrap("copy config", err)
 	}
 	configSize, err := fileSizeOf(configSrc)
 	if err != nil {
@@ -246,7 +246,7 @@ func normalizeWebTar(webTar string) error {
 
 		layerSrc := filepath.Join(legacyDir, layerName)
 		if err := copyFile(layerSrc, filepath.Join(blobsDir, layerDigest)); err != nil {
-			return fmt.Errorf("复制层 %s: %w", layerName, err)
+			return errs.Wrap("copy layer "+layerName, err)
 		}
 		size, err := fileSizeOf(layerSrc)
 		if err != nil {
@@ -363,7 +363,7 @@ func extractTar(archive, dest string) error {
 
 		target := filepath.Join(dest, filepath.FromSlash(hdr.Name))
 		if !strings.HasPrefix(filepath.Clean(target)+string(os.PathSeparator), cleanDest) {
-			return fmt.Errorf("非法路径（疑似路径穿越）: %s", hdr.Name)
+			return &errs.Invalid{Field: "path", Value: hdr.Name, Reason: "path traversal"}
 		}
 
 		switch hdr.Typeflag {

@@ -12,7 +12,7 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			l.List(cmd.OutOrStdout())
+			l.WriteList(cmd.OutOrStdout())
 			return nil
 		},
 	}

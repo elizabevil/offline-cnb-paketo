@@ -2,9 +2,11 @@ package profile
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -98,7 +100,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 
 	// 物料版本 → <ID>_VERSION，供 Dockerfile 拼路径
 	assetArgs := map[string]string{}
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		ver := p.Assets[id].Version
 		if ver == "" {
 			if a, err := lock.Find(l, id); err == nil {
@@ -212,7 +214,7 @@ func (pl *Plan) Shell() string {
 		switch st.Kind {
 		case "image":
 			args := make([]string, 0, len(st.Args))
-			for _, k := range sortedKeysStr(st.Args) {
+			for _, k := range slices.Sorted(maps.Keys(st.Args)) {
 				args = append(args, shell.Quote(k+"="+st.Args[k]))
 			}
 			line := fmt.Sprintf("image_build %s %s %s", shell.Quote(st.Name), shell.Quote(st.Dockerfile), shell.Quote(st.Tag))
@@ -222,7 +224,7 @@ func (pl *Plan) Shell() string {
 			b.WriteString(line + "\n")
 		case "command":
 			envs := make([]string, 0, len(st.Env))
-			for _, k := range sortedKeysStr(st.Env) {
+			for _, k := range slices.Sorted(maps.Keys(st.Env)) {
 				envs = append(envs, shell.Quote(k+"="+st.Env[k]))
 			}
 			line := fmt.Sprintf("run_command %s %s %s", shell.Quote(st.Name), shell.Quote(st.Run), shell.Quote(st.Workdir))
@@ -233,20 +235,6 @@ func (pl *Plan) Shell() string {
 		}
 	}
 	return b.String()
-}
-
-func sortedKeysStr(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	// 稳定输出
-	for i := 1; i < len(keys); i++ {
-		for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
-			keys[j], keys[j-1] = keys[j-1], keys[j]
-		}
-	}
-	return keys
 }
 
 // Text 渲染为人类可读的摘要（dry-run 默认输出）。

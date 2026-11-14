@@ -3,30 +3,34 @@ package lock
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+
 	"io"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/shell"
 )
 
-// List 输出 TSV 清单（id、version、kind、平台）。
-func (f *File) List(w io.Writer) {
+// WriteList 以 TSV 输出清单（id、version、kind、平台）。
+func (f *File) WriteList(w io.Writer) {
 	for _, a := range f.Assets {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", a.ID, a.Version, a.Unpack.Kind, strings.Join(sortedKeys(a.Platform), ","))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", a.ID, a.Version, a.Unpack.Kind, strings.Join(slices.Sorted(maps.Keys(a.Platform)), ","))
 	}
 }
 
 // Get 输出 shell 赋值，供 fetch.sh eval。字段名是契约，勿改。
 
-// Get 输出 shell 赋值，供 fetch.sh eval。
-func (f *File) Get(w io.Writer, ref Ref, platform Platform) error {
+// WriteShell 输出 shell 赋值语句，供脚本 eval。
+func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {
 	asset, err := Find(f, ref)
 	if err != nil {
 		return err
 	}
 	url, ok := asset.URL(platform)
 	if !ok && !asset.IsLocal() {
-		return fmt.Errorf("物料 '%s' 不支持平台 '%s'（支持: %s）", ref, platform, strings.Join(sortedKeys(asset.Platform), ", "))
+		return &errs.Invalid{Field: "platform", Value: platform, Reason: fmt.Sprintf("not supported by %s (supported: %s)", ref, strings.Join(slices.Sorted(maps.Keys(asset.Platform)), ", "))}
 	}
 	dir := asset.Dir()
 	if dir == "" {

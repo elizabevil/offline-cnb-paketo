@@ -13,12 +13,13 @@ package profile
 
 import (
 	"fmt"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
@@ -108,7 +109,7 @@ func Load(path string) (*File, error) {
 	}
 	var p File
 	if err := toml.Unmarshal(data, &p); err != nil {
-		return nil, fmt.Errorf("TOML 解析失败: %w", err)
+		return nil, errs.Wrap("parse toml", err)
 	}
 	return &p, nil
 }
@@ -147,7 +148,7 @@ func (p *File) Validate(platform string, l *lock.File) []string {
 	}
 
 	// 物料：id 必须存在，版本/平台必须匹配
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		a := p.Assets[id]
 		asset, err := lock.Find(l, a.ref(id))
 		if err != nil {
@@ -271,7 +272,7 @@ func (p *File) render(l *lock.File, platform string) string {
 	tags := map[string]string{}
 	// 物料版本自动注入为 <ID>_VERSION，供 Dockerfile 拼路径，避免版本写两处
 	assetArgs := map[string]string{}
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		ver := p.Assets[id].Version
 		if ver == "" {
 			if a, err := lock.Find(l, id); err == nil {
@@ -295,7 +296,7 @@ func (p *File) render(l *lock.File, platform string) string {
 
 	// 物料：按名字排序，输出显式 id@version
 	var refs []string
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		a := p.Assets[id]
 		if len(a.Platforms) > 0 && !containsStr(a.Platforms, platform) {
 			continue
@@ -325,7 +326,7 @@ func (p *File) render(l *lock.File, platform string) string {
 				}
 			}
 			args := make([]string, 0, len(merged))
-			for _, k := range sortedKeys(merged) {
+			for _, k := range slices.Sorted(maps.Keys(merged)) {
 				args = append(args, shell.Quote(k+"="+expandVars(resolveRefs(merged[k], tags), platform)))
 			}
 			line := fmt.Sprintf("image_build %s %s %s", shell.Quote(st.Image), shell.Quote(img.Dockerfile), shell.Quote(tag))
@@ -337,7 +338,7 @@ func (p *File) render(l *lock.File, platform string) string {
 		}
 		c := p.Commands[st.Command]
 		envs := make([]string, 0, len(c.Env))
-		for _, k := range sortedKeys(c.Env) {
+		for _, k := range slices.Sorted(maps.Keys(c.Env)) {
 			envs = append(envs, shell.Quote(k+"="+expandVars(resolveRefs(c.Env[k], tags), platform)))
 		}
 		line := fmt.Sprintf("run_command %s %s %s", shell.Quote(st.Command), shell.Quote(c.Run), shell.Quote(mustDefault(c.Workdir, p.Project.Dir)))
@@ -347,15 +348,6 @@ func (p *File) render(l *lock.File, platform string) string {
 		b.WriteString(line + "\n")
 	}
 	return b.String()
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func containsStr(list []string, v string) bool {
@@ -429,7 +421,7 @@ func tagRefNamesInMap(m map[string]string) []string {
 // Refs 返回当前平台需要的物料引用（id 或 id@version）。
 func (p *File) Refs(platform string) []string {
 	var out []string
-	for _, id := range sortedKeys(p.Assets) {
+	for _, id := range slices.Sorted(maps.Keys(p.Assets)) {
 		a := p.Assets[id]
 		if len(a.Platforms) > 0 && !containsStr(a.Platforms, platform) {
 			continue

@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 )
 
 // Load 读取并解析物料清单。
 func Load(path string) (*File, error) {
 	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("未找到 lock 文件: %s", path)
+		return nil, &errs.NotFound{Kind: "lock file", Ref: path}
 	}
 	var f File
 	data, readErr := os.ReadFile(path)
@@ -20,7 +22,7 @@ func Load(path string) (*File, error) {
 		return nil, readErr
 	}
 	if err := toml.Unmarshal(data, &f); err != nil {
-		return nil, fmt.Errorf("TOML 解析失败: %w", err)
+		return nil, errs.Wrap("parse toml", err)
 	}
 	return &f, nil
 }
@@ -59,13 +61,13 @@ func Find(f *File, ref Ref) (*Asset, error) {
 		for _, a := range f.Assets {
 			known = append(known, a.Ref())
 		}
-		return nil, fmt.Errorf("未知物料 '%s'（已定义: %s）", ref, strings.Join(known, ", "))
+		return nil, &errs.NotFound{Kind: "asset", Ref: ref, Known: known}
 	default:
 		versions := make([]string, 0, len(matches))
 		for _, i := range matches {
 			versions = append(versions, f.Assets[i].Version)
 		}
-		return nil, fmt.Errorf("物料 '%s' 有多个版本，请用 id@version 指定（可选: %s）", id, strings.Join(versions, ", "))
+		return nil, &errs.Invalid{Field: "ref", Value: id, Reason: fmt.Sprintf("multiple versions, use id@version (available: %s)", strings.Join(versions, ", "))}
 	}
 }
 

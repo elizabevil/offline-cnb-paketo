@@ -2,7 +2,7 @@ package profile
 
 import (
 	"embed"
-	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"strings"
@@ -39,15 +39,15 @@ func Scaffold(name, dir string) ([]ScaffoldFile, error) {
 	for _, s := range specs {
 		raw, err := templatesFS.ReadFile(s.tpl)
 		if err != nil {
-			return nil, fmt.Errorf("读取内嵌模板 %s: %w", s.tpl, err)
+			return nil, errs.Wrap("read template "+s.tpl, err)
 		}
 		tpl, err := template.New(s.tpl).Parse(string(raw))
 		if err != nil {
-			return nil, fmt.Errorf("解析模板 %s: %w", s.tpl, err)
+			return nil, errs.Wrap("parse template "+s.tpl, err)
 		}
 		var b strings.Builder
 		if err := tpl.Execute(&b, data); err != nil {
-			return nil, fmt.Errorf("渲染模板 %s: %w", s.tpl, err)
+			return nil, errs.Wrap("render template "+s.tpl, err)
 		}
 		out = append(out, ScaffoldFile{Path: s.out, Content: b.String(), Mode: s.mode})
 	}

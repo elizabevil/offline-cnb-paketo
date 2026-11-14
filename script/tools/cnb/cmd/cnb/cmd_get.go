@@ -13,7 +13,7 @@ func newGetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := l.Get(cmd.OutOrStdout(), args[0], args[1]); err != nil {
+			if err := l.WriteShell(cmd.OutOrStdout(), args[0], args[1]); err != nil {
 				return &exitError{code: 2, msg: err.Error()}
 			}
 			return nil
