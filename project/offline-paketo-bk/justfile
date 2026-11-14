@@ -2,31 +2,36 @@
 # 流程定义在 config/projects/offline-paketo-bk.toml：物料、版本、镜像、顺序、打包。
 # 这里只做入口转发；改流程请改配置，不要改这里。
 
-set dotenv-load := true
-
 _dir := justfile_directory()
-_profile := _dir / ".." / ".." / "config" / "projects" / "offline-paketo-bk.toml"
+_root := _dir / ".." / ".."
+_cnb := env_var_or_default("CNB_BIN", _root / "script" / "bin" / "cnb-linux-amd64")
+# 被测流水线配置：默认本项目；CNB_PROFILE 可指向任意项目
+#   CNB_PROFILE=config/projects/other.toml just smart   （相对仓库根）
+#   CNB_PROFILE=/abs/path/other.toml just smart        （绝对路径）
+_profile_env := env_var_or_default("CNB_PROFILE", "")
+_profile := if _profile_env == "" { _root / "config" / "projects" / "offline-paketo-bk.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
 
 _default:
     @just --list
 
 # 按流水线配置执行（物料 → 镜像 → 打包）
 build *args:
-    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} {{args}}
+    @{{_cnb}} pipeline run {{_profile}} {{args}}
 
-# 只打印执行计划与命令，不真正构建
-plan:
-    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} --dry-run
+# 只打印执行计划（yaml；--full 展开完整计划）
+plan *args:
+    @{{_cnb}} pipeline plan {{_profile}} {{args}}
 
 # ── 物料（委托仓库根基座）──────────────────────────────────────────────────
 
-# 下载 + 解压（版本与地址来自 assets.lock.toml）
+# 下载 + 校验 + 解包（地址与规则来自 assets.lock.toml，位置由 [storage] 决定）
 fetch *ids:
-    @just --justfile {{_dir}}/../../justfile fetch {{ids}}
+    @{{_cnb}} materials sync {{ids}}
 
-# 校验本流程物料（范围与规则来自配置）
+# 校验物料落盘状态 + 配置合法性
 verify:
-    @{{_dir}}/../../script/bin/cnb pipeline profile verify {{_profile}}
+    @{{_cnb}} materials verify
+    @{{_cnb}} pipeline profile validate {{_profile}}
 
 # 夹具构建与打包（BK 结构）
 fixtures *args:
@@ -34,10 +39,11 @@ fixtures *args:
 
 # ── bksmartpacker 全链路（一条命令）────────────────────────────────────────
 
-_root := _dir / ".." / ".."
-_bps  := _root / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
-_fx   := _dir / "fixtures/single"
-_out  := "/tmp/bk-paketo-smart"
+# 宿主工具统一放 script/bin/（与 cnb 同目录，构建产物不入库）
+_bps  := env_var_or_default("BPS_BIN", _root / "script" / "bin" / "bksmartpacker-linux-amd64")
+# 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
+_fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
+_out  := env_var_or_default("S_MART_OUT", _dir / "dist")
 smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:latest")
 # 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：
 #   CNB_RUNTIMES=/opt/cnb-runtimes just smart
@@ -56,43 +62,42 @@ mounts := runtimes_mount + cache_mount
 
 # 构建三个镜像（跳过打包阶段）
 smart-builder *args:
-    @{{_root}}/script/bin/cnb pipeline run {{_profile}} --no-commands {{args}}
+    @{{_cnb}} pipeline run {{_profile}} --no-commands {{args}}
 
-# 编译 bksmartpacker（源码不入库，需本地存在）
+# 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:
-    # 清掉可能残留的 GOROOT/GOPATH（如上一次在容器内使用过的路径），
-    # 否则 make 会拿容器路径去编宿主二进制
-    @cd {{_root}}/script/tools/bksmartpacker_v3 && \
-      env -u GOROOT -u GOPATH make build-cli
-    @echo "  ✓ {{_bps}}"
+    @just --justfile {{_root}}/script/tools/bksmartpacker_v3/justfile build
+    @out=$("{{_bps}}" --inspect /dev/null 2>&1 || true); \
+      case "$out" in *"unknown flag"*) echo "  ⚠ 该二进制不含 --inspect，请确认源码已加";; esac
 
-# 全链路：构建镜像 → 编译工具 → 打包夹具 → 校验产物
-smart: smart-builder smart-bps
+# 全链路：构建镜像 → 编译工具 → 打包应用目录 → 校验产物
+#   just smart                      使用 S_MART_SRC（默认 fixtures/single）
+#   just smart /path/to/app         打包任意应用目录（需含 app_desc.yaml）
+smart src="{{_fx}}": smart-builder smart-bps
     @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
     @echo "  · 输出: {{_out}}/s-mart.tgz"
     @rm -f {{_out}}/s-mart.tgz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
-    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tgz
     @echo
     @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tgz
     @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
-    @echo "== 产物内容 =="
-    @tar -tzf {{_out}}/s-mart.tgz | sed 's/^/  /'
-    @echo "== .Version =="
-    @tar -xzOf {{_out}}/s-mart.tgz .Version 2>/dev/null | sed 's/^/  /' || echo "  ✗ 缺少 .Version"
-    @echo
-    @echo "== 层包（应只含应用层）=="
-    @tmp="$(mktemp -d)"; tar -xzf {{_out}}/s-mart.tgz -C "$tmp"; \
-      found=0; for f in "$tmp"/*.tgz "$tmp"/layers/*.tgz; do \
-        [ -f "$f" ] || continue; found=1; \
-        echo "  $(basename "$f")"; tar -tf "$f" | head -6 | sed 's/^/    /'; \
-      done; \
-      [ "$found" = 1 ] || echo "  ✗ 包内没有层 tgz"; \
-      rm -rf "$tmp"
+    @echo "== 包结构 ==" 
+    @{{_bps}} --inspect {{_out}}/s-mart.tgz
+
+# 只打包指定目录（跳过建镜像，复用已有 builder）：just pack-case /path/to/app
+pack-case src:
+    @test -d "{{src}}" || { echo "  ✗ 目录不存在: {{src}}"; exit 1; }
+    @mkdir -p {{_out}} {{cache_dir}}
+    @rm -f {{_out}}/s-mart.tgz
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
+        --builder-image "{{smart_builder}}" \
+        --dest {{_out}}/s-mart.tgz
+    @{{_bps}} --inspect {{_out}}/s-mart.tgz
 
 # 清理打包产物
 smart-clean:

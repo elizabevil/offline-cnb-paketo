@@ -6,6 +6,10 @@
 
 _test := source_directory()
 _cnb := _test / ".." / "script" / "bin" / "cnb"
+# 被测项目配置：默认 offline-paketo，可用 E2E_PROFILE 覆盖（绝对或相对仓库根）
+_profile := env_var_or_default("E2E_PROFILE", _test / ".." / "config" / "projects" / "offline-paketo.toml")
+# 被测夹具目录：默认 test/fixtures，可用 E2E_FIXTURES 指向其它目录
+_fixtures := env_var_or_default("E2E_FIXTURES", _test / "fixtures")
 
 # just 的 import 之间不共享变量，这里重复一次同样的探测（可用 GO=… 覆盖）
 
@@ -39,30 +43,30 @@ test-contract-plan:
 
 # 单个 e2e（fixtures）：just test-e2e go-app
 test-e2e name:
-    @{{_test}}/e2e/run.sh {{_test}}/fixtures/{{name}} {{name}}
+    @{{_test}}/e2e/run.sh {{_fixtures}}/{{name}} {{name}}
 
 # 单个 e2e（lifecycle 直连，不走 pack）：just test-e2e-core go-app
 test-e2e-core name:
-    @{{_test}}/e2e/lifecycle.sh {{_test}}/fixtures/{{name}} {{name}}
+    @{{_test}}/e2e/lifecycle.sh {{_fixtures}}/{{name}} {{name}}
 
 # 全部 lifecycle 直连用例
 test-e2e-core-all:
-    @{{_cnb}} pipeline run {{_test}}/../config/projects/offline-paketo.toml
-    @for d in {{_test}}/fixtures/*/; do \
+    @{{_cnb}} pipeline run {{_profile}}
+    @for d in {{_fixtures}}/*/; do \
       E2E_SKIP_BUILD=1 {{_test}}/e2e/lifecycle.sh "$d" "$(basename "$d")" || exit 1; \
     done
 
 # 全部 e2e（fixtures，需要 pack）：先重建一次 builder，再逐个用例
 test-e2e-all:
-    @{{_cnb}} pipeline run {{_test}}/../config/projects/offline-paketo.toml
-    @{{_cnb}} pipeline doctor {{_test}}/../config/projects/offline-paketo.toml || true
-    @for d in {{_test}}/fixtures/*/; do \
+    @{{_cnb}} pipeline run {{_profile}}
+    @{{_cnb}} pipeline doctor {{_profile}} || true
+    @for d in {{_fixtures}}/*/; do \
       E2E_SKIP_BUILD=1 {{_test}}/e2e/auto.sh "$d" "$(basename "$d")" || exit 1; \
     done
 
 # 单个 e2e（自动选择路径）
 test-e2e-auto name:
-    @{{_test}}/e2e/auto.sh {{_test}}/fixtures/{{name}} {{name}}
+    @{{_test}}/e2e/auto.sh {{_fixtures}}/{{name}} {{name}}
 
 # 临时验证项目：just test-external /path/to/app
 test-external path:

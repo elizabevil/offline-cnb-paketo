@@ -99,17 +99,20 @@ strings lifecycle | grep 'toml:"'
 | `missing run image metadata (-run-image)` | 同上 |
 | `get run image top layer SHA: image has no layers` | analyzed 里 top-layer 为空，或 layout 中该镜像零层 |
 
-## 七、应用层导出（方案 A）
+## 七、镜像导出（BK 链路）
 
-`BKS_LAYER_ARCHIVE` 非空时，cnb 不再调用 lifecycle exporter：
+BK 场景下 cnb 只用显式配置决定导出方式，不感知平台：
 
 ```
-detect → build → cnb 直接打包 /app → docker-archive → /cnb-layer/<module>.tgz
+CNB_EXPORT_MODE=daemon（由 bksmartpacker 注入）
+        ↓
+detect → build → analyze → export -daemon   # 镜像写进容器运行时
+        ↓
+bksmartpacker: image save -o <module>.tgz   # 产出 OCI 归档
+        ↓
+s-mart: .Version + app_desc + <module>.tgz + artifact.json
 ```
 
-- 实现：`internal/apparchive`（单层 tar + 最小 config + manifest.json）
-- 不依赖 daemon，也不依赖 run image / analyzed.toml
-- 语义：产物只含应用层，符合"只打包应用层"的目标
-
-因此 BK 链路里 exporter、analyzer、run-image 导入都不再执行；
-若将来需要完整镜像（含 launcher/processes），再切回 exporter 路径。
+- 导出由 lifecycle exporter 完成，config / Entrypoint / buildpack 层都由它生成
+- cnb 不读 `BKS_*`；平台差异全部留在 bksmartpacker
+- 需要不依赖 daemon 时用 `--export=layout --layout-dir=...`

@@ -20,9 +20,8 @@ const (
 	envPlatformAPI = "CNB_PLATFORM_API"
 	envRunUser     = "CNB_RUN_USER"
 	envLayoutDir   = "CNB_LAYOUT_DIR"
-	envLayerArch   = "BKS_LAYER_ARCHIVE"
 	envRunArchive  = "BKS_RUN_IMAGE_ARCHIVE"
-	envIncludeSrc  = "BKS_INCLUDE_SOURCE"
+	envExportMode  = "CNB_EXPORT_MODE"
 
 	// lifecycle 二进制的默认位置（可在 flags 覆盖）。
 	defaultLifecycleDir = "/cnb/lifecycle"
@@ -34,6 +33,15 @@ var defaultAliases = map[string]string{
 	"bk-buildpack-go":     "paketo-buildpacks/go",
 	"bk-buildpack-nodejs": "paketo-buildpacks/nodejs",
 	"bk-buildpack-python": "paketo-buildpacks/python",
+}
+
+// exportModeFromEnv 读取显式配置的导出方式（缺省 layout）。
+// cnb 不感知具体平台：需要 daemon 的调用方自行设置 CNB_EXPORT_MODE=daemon。
+func exportModeFromEnv() lifecycle.ExportMode {
+	if mode := os.Getenv(envExportMode); mode != "" {
+		return lifecycle.ExportMode(mode)
+	}
+	return lifecycle.ExportLayout
 }
 
 func envOr(key, def string) string {
@@ -65,14 +73,12 @@ func configFromEnv() lifecycle.Config {
 			SourceURL: os.Getenv(envSourceURL),
 		},
 		Export: lifecycle.ExportTarget{
+			Mode:            exportModeFromEnv(),
 			OutputImage:     os.Getenv(envOutputImage),
 			RunImage:        envOr(envRunImage, "fake-cnb-runner:latest"),
 			RunImageArchive: os.Getenv(envRunArchive),
 			CacheImage:      os.Getenv(envCacheImage),
-			Layout:          true,
 			LayoutDir:       envOr(envLayoutDir, "/layers/oci"),
-			LayerArchive:    os.Getenv(envLayerArch),
-			IncludeSource:   os.Getenv(envIncludeSrc) == "1",
 		},
 		Runtime: lifecycle.RuntimeOptions{
 			PlatformAPI: envOr(envPlatformAPI, "0.15"),

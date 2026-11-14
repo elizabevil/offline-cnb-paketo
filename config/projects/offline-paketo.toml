@@ -15,6 +15,9 @@ context       = "project/offline-paketo"   # docker build 上下文（项目目�
 bundle_layout = "arch-first"  # bundle/<platform>/{archives,binaries}
 
 # ── 物料：键名即 id；version 省略则取 lock 的 default ───────────────────────
+[assets.cnb]
+version = "3.0.0"
+
 [assets.lifecycle]
 version = "0.21.29"
 
@@ -38,7 +41,7 @@ tag        = "offline-run:latest"
 args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 
 [images.builder]
-inject_versions = ["lifecycle", "fnm", "uv"]
+inject_versions = ["lifecycle", "fnm", "uv", "cnb"]
 desc       = "构建层：lifecycle + node/python/procfile buildpack"
 dockerfile = "docker/builder.dockerfile"
 tag        = "offline-builder:latest"

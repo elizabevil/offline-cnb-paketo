@@ -11,6 +11,7 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/pipeline"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/render"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // newPlanCmd 生成执行计划而不执行。
@@ -79,8 +80,20 @@ func newRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			_, l, platform, err := openProfile(args[0])
+			if err != nil {
+				return err
+			}
+			ctx, err := workspace.Open(workspace.Options{Repo: root})
+			if err != nil {
+				return err
+			}
+			bundleDir := ctx.Bundle
 			runner := pipeline.New(pipeline.Options{
 				Root:       root,
+				BundleDir:  bundleDir,
+				Lock:       l,
+				Platform:   platform,
 				Only:       only,
 				NoCommands: noCommands,
 			}, logger)

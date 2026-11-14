@@ -40,6 +40,11 @@ ARG BUNDLE_ARCH=linux-amd64
 # ── CNB Lifecycle ─────────────────────────────────────────────────────────
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb/lifecycle/
 
+# cnb CLI（本地构建物料）：作为 lifecycle 执行器
+ARG CNB_VERSION
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/cnb/${CNB_VERSION}/cnb /cnb/tools/cnb
+RUN chmod +x /cnb/tools/cnb
+
 # ── 运行时工具（fnm → Node, uv/uvx → Python） ────────────
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/fnm/${FNM_VERSION}/fnm       /usr/local/bin/fnm
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/uv/${UV_VERSION}/uv        /usr/local/bin/uv

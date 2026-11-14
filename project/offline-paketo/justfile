@@ -1,35 +1,42 @@
-# ─── offline-paketo 子项目入口 ─────────────────────────────────────────────────────
+# ─── offline-paketo 子项目入口 ─────────────────────────────────────────────
 # 流程定义在 config/projects/offline-paketo.toml：物料、版本、镜像、顺序、打包。
 # 这里只做入口转发；改流程请改配置，不要改这里。
 
-set dotenv-load := true
-
 _dir := justfile_directory()
-_profile := _dir / ".." / ".." / "config" / "projects" / "offline-paketo.toml"
+_root := _dir / ".." / ".."
+_cnb := env_var_or_default("CNB_BIN", _root / "script" / "bin" / "cnb-linux-amd64")
+# 被测配置：默认本项目；CNB_PROFILE 可指向任意项目（相对仓库根或绝对路径）
+_profile_env := env_var_or_default("CNB_PROFILE", "")
+_profile := if _profile_env == "" { _root / "config" / "projects" / "offline-paketo.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
 
 _default:
     @just --list
 
 # 按流水线配置执行（物料 → 镜像 → 打包）
 build *args:
-    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} {{args}}
+    @{{_cnb}} pipeline run {{_profile}} {{args}}
 
-# 只打印执行计划与命令，不真正构建
-plan:
-    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} --dry-run
+# 只打印执行计划（yaml；--full 展开完整计划）
+plan *args:
+    @{{_cnb}} pipeline plan {{_profile}} {{args}}
 
-# ── 物料（委托仓库根基座）──────────────────────────────────────────────────
-
-# 下载 + 解压（版本与地址来自 assets.lock.toml）
+# 下载 + 校验 + 解包（地址与规则来自 assets.lock.toml，位置由 [storage] 决定）
 fetch *ids:
-    @just --justfile {{_dir}}/../../justfile fetch {{ids}}
+    @{{_cnb}} materials sync {{ids}}
 
-# 校验本流程物料（范围与规则来自配置）
+# 校验物料落盘状态 + 配置合法性
 verify:
-    @{{_dir}}/../../script/bin/cnb pipeline profile verify {{_profile}}
+    @{{_cnb}} materials verify
+    @{{_cnb}} pipeline profile validate {{_profile}}
 
-# ── 示例（案例目录不入库）──────────────────────────────────────────────────
+# 夹具（本目录 fixtures/）：build / test / test-all
+fixtures *args:
+    @just --justfile {{_dir}}/fixtures/justfile {{args}}
 
-# 对 go 示例跑 detect → build → analyze → export
-test:
-    @cd {{_dir}}/../.. && just --justfile {{_dir}}/../../justfile test-e2e-core-all
+# 对本项目夹具跑 e2e（detect → build → analyze → export）
+test *args:
+    @just --justfile {{_dir}}/fixtures/justfile test-all {{args}}
+
+# 对任意应用目录跑一次 e2e：just test-case /path/to/app
+test-case dir *args:
+    @E2E_PROFILE={{_profile}} E2E_SKIP_BUILD=1 {{_root}}/test/e2e/lifecycle.sh {{dir}} "$(basename {{dir}})" {{args}}

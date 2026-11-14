@@ -22,9 +22,14 @@ type Marker struct {
 	SyncedAt  string        `json:"synced_at"`
 }
 
+// syncMarkerPath 返回 JSON marker 路径（与 legacy .sha256 区分）。
+func syncMarkerPath(bundleDir string, platform lock.Platform, r lock.AssetRef) string {
+	return filepath.Join(binariesDir(bundleDir, platform), DirMeta, r.String()+SyncSuffix)
+}
+
 // readMarker 读取 marker；不存在时返回 nil。
 func readMarker(bundleDir string, platform lock.Platform, r lock.AssetRef) *Marker {
-	data, err := os.ReadFile(markerPath(bundleDir, platform, r))
+	data, err := os.ReadFile(syncMarkerPath(bundleDir, platform, r))
 	if err != nil {
 		return nil
 	}
@@ -37,7 +42,7 @@ func readMarker(bundleDir string, platform lock.Platform, r lock.AssetRef) *Mark
 
 // writeMarker 写入 marker。
 func writeMarker(bundleDir string, platform lock.Platform, m Marker) error {
-	path := markerPath(bundleDir, platform, lock.AssetRef{ID: m.ID, Version: m.Version})
+	path := syncMarkerPath(bundleDir, platform, lock.AssetRef{ID: m.ID, Version: m.Version})
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -49,7 +54,7 @@ func writeMarker(bundleDir string, platform lock.Platform, m Marker) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// writeLegacyMarker 同步写 fetch.sh 时代的 .meta/<ref>.sha256，
+// writeLegacyMarker 同步写旧版 .meta/<ref>.sha256 标记，
 // 保持 materials verify（bundle 包）与 sync 的状态判断一致。
 func writeLegacyMarker(bundleDir string, platform lock.Platform, ref, sha string) error {
 	path := filepath.Join(binariesDir(bundleDir, platform), DirMeta, ref+".sha256")

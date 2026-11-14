@@ -13,9 +13,18 @@ type (
 
 // File 是 assets.lock.toml 的完整结构。
 type File struct {
-	Schema int
-	Meta   Meta    `toml:"meta"`
-	Assets []Asset `toml:"asset"`
+	Schema  int
+	Meta    Meta    `toml:"meta"`
+	Storage Storage `toml:"storage"`
+	Assets  []Asset `toml:"asset"`
+}
+
+// Storage 声明物料落盘位置，避免调用方自己猜路径。
+type Storage struct {
+	// Root 是物料根目录；相对路径以 lock 文件所在目录为基准。
+	Root string `toml:"root"`
+	// Layout 是 bundle 内布局：arch-first（默认）或 kind-first。
+	Layout string `toml:"layout"`
 }
 
 // Meta 记录清单的来源与平台范围。

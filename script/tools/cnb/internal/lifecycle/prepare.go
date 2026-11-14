@@ -11,6 +11,9 @@ import (
 
 // Prepare 解包源码、生成过滤后的 order。
 func (c Config) Prepare() error {
+	if err := c.Export.Validate(); err != nil {
+		return err
+	}
 	if err := c.extractSource(); err != nil {
 		return err
 	}

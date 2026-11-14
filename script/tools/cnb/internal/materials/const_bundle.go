@@ -1,6 +1,6 @@
 package materials
 
-// 物料布局与标记文件约定（与 script/lib/common.sh、fetch.sh 保持一致）。
+// 物料布局与标记文件约定。
 const (
 	// DirArchives 存放下载归档。
 	DirArchives = "archives"
@@ -11,6 +11,9 @@ const (
 
 	// MarkerSuffix 是解压标记文件名后缀。
 	MarkerSuffix = ".sha256"
+
+	// SyncSuffix 是同步标记（JSON）的后缀，与 legacy MarkerSuffix 区分。
+	SyncSuffix = ".sync.json"
 
 	// MarkerUnpinned 表示物料未固定 sha256，但已解压。
 	MarkerUnpinned = "unpinned"

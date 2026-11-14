@@ -4,7 +4,7 @@ set -euo pipefail
 
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${TEST_ROOT}/.." && pwd)"
-CNB="${REPO_ROOT}/script/bin/cnb"
+CNB="${CNB_BIN:-${REPO_ROOT}/script/bin/cnb-linux-amd64}"
 BUILDER_IMAGE="${BUILDER_IMAGE:-offline-builder:latest}"
 RUN_IMAGE="${RUN_IMAGE:-offline-run:latest}"
 PASS=0 FAIL=0 CASE=""
@@ -166,7 +166,7 @@ e2e_pack() {
   [ "${tool}" != "none" ] || { bad "未找到 podman/docker"; return 1; }
   if ! builder_source_ref "${tool}" >/dev/null; then
     bad "builder 镜像不存在: ${BUILDER_IMAGE}"
-    printf '    先执行: cnb pipeline run %s/config/projects/offline-paketo.toml\n' "${REPO_ROOT}" >&2
+    printf '    先执行: cnb pipeline run %s/config/projects/${E2E_PROFILE_NAME:-offline-paketo}.toml\n' "${REPO_ROOT}" >&2
     return 1
   fi
   BUILDER_REF="$(prepare_builder_ref)" || { bad "无法准备 builder 引用"; return 1; }

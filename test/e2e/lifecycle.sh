@@ -44,7 +44,7 @@ say "lifecycle: ${case_name}  (${app_dir})"
 validate_flags || { done_; exit 1; }
 
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ]; then
-  say "rebuild builder (offline-paketo)"
+  say "rebuild builder ($(basename "${PROFILE}"))"
   run_step "rebuild builder" "rebuild-${case_name}" \
     "${CNB}" pipeline run "${PROFILE}" --no-commands || { done_; exit 1; }
 fi

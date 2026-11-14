@@ -90,13 +90,23 @@ func Sync(l *lock.File, ids []string, opts Options) ([]Result, error) {
 func syncOne(a *lock.Asset, opts Options) Result {
 	parsed, _ := lock.ParseRef(a.Ref())
 	res := Result{Ref: a.Ref(), Action: ActionSkipped}
+	// 本地物料（[asset.local]）由 `materials publish` 产出，不下载
+	if a.IsLocal() {
+		// 本地物料没有下载来源，也没有 .sha256 标记：只看产物是否已发布
+		if !expectOK(opts.BundleDir, opts.Platform, a) {
+			res.Action = ActionFailed
+			res.Err = fmt.Errorf("%s not published; run cnb materials publish %s", a.Ref(), a.ID)
+		}
+		return res
+	}
+
 	archive := archivePath(opts.BundleDir, opts.Platform, a)
 	binDir := binariesDir(opts.BundleDir, opts.Platform)
 
 	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m != nil && m.Extractor == extractorID(a) && m.SHA256 == a.SHA256(opts.Platform) {
 		return res
 	}
-	// 兼容旧标记（fetch.sh 的 .sha256）：产物齐全且归档校验通过时补写 marker
+	// 兼容旧标记（.sha256）：产物齐全且归档校验通过时补写 marker
 	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m == nil && isExtracted(opts.BundleDir, opts.Platform, a) {
 		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
 			_ = writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform))

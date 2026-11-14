@@ -18,7 +18,7 @@ Learn-cnb-paketo/
 ├── assets.lock.toml                     # 物料唯一事实源
 ├── config/projects/offline-paketo.toml  # 本项目的流水线定义
 ├── bundle/<platform>/binaries/<id>/<ver> # 共享物料（不入库）
-├── script/                              # 执行器：cnb / fetch.sh / lib/
+├── script/                              # 执行器：cnb → materials sync
 └── project/offline-paketo/              # 本项目
     ├── build.sh                         # 入口：cnb pipeline run <配置>
     ├── justfile                         # build / plan / fetch / verify / test
@@ -34,7 +34,7 @@ build.sh
        ├─ cnb profile validate   校验镜像/命令/流程引用
        ├─ cnb profile render     渲染执行计划（fetch_assets / image_build）
        └─ eval 计划
-            ├─ fetch_assets  → script/fetch.sh（按 lock 下载/校验/解压）
+            ├─ fetch_assets  → cnb materials sync（按 lock 下载/校验/解压）
             ├─ image_build   → script/lib/image-build.sh（podman/docker）
             └─ （无 command 阶段）
 ```
@@ -61,7 +61,7 @@ just verify                 # 校验本项目物料（范围取自配置）
 
 ## 五、物料
 
-由 `assets.lock.toml` 定义，`fetch.sh` 落到 `bundle/<platform>/binaries/<id>/<version>/`：
+由 `assets.lock.toml` 定义，`cnb materials sync` 落到 `bundle/<platform>/binaries/<id>/<version>/`：
 
 | 物料 | 版本 | 用途 |
 |---|---|---|

@@ -26,6 +26,10 @@ const (
 func (p *File) Validate(platform string, l *lock.File) []string {
 	var errs []string
 	errs = append(errs, p.validateBasic(platform)...)
+	if p.Docker.BundleDir != "" && l.Storage.Root != "" && p.Docker.BundleDir != l.Storage.Root {
+		errs = append(errs, fmt.Sprintf("%s bundle_dir %q must match lock [storage].root %q",
+			prefixDocker, p.Docker.BundleDir, l.Storage.Root))
+	}
 	errs = append(errs, p.validateAssets(l)...)
 	errs = append(errs, p.validateImages()...)
 	errs = append(errs, p.validateCommands()...)

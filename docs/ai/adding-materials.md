@@ -2,6 +2,18 @@
 
 面向“要加一个新工具 / 升一个版本”的人。先看结论，再看细节。
 
+## 一·0、物料存放位置由 lock 声明
+
+```toml
+[storage]
+root   = "bundle"      # 相对 lock 文件所在目录；也可写绝对路径
+layout = "arch-first"  # arch-first | kind-first
+```
+
+- `cnb` 一律按 `[storage].root` 解析物料目录，不再"猜"
+- 项目配置里的 `[docker].bundle_dir` 若填写，必须与之相同（validate 会报错）
+- 改存放位置只改这一处，所有命令（sync/verify/publish/plan）自动跟随
+
 ## 一、字段归属（谁写）
 
 | 字段 | 谁写 | 说明 |
@@ -52,14 +64,14 @@ default = true
 ```bash
 just fetch mytool
 # 或
-script/bin/cnb materials sync mytool
+script/bin/cnb-linux-amd64 materials sync mytool
 ```
 
 3. 校验：
 
 ```bash
-script/bin/cnb materials validate
-script/bin/cnb materials verify mytool
+script/bin/cnb-linux-amd64 materials validate
+script/bin/cnb-linux-amd64 materials verify mytool
 ```
 
 4. 在项目的 `config/projects/*.toml` 里引用并注入版本：
@@ -98,7 +110,7 @@ id = "cnb"
 version = "3.0.0"
 
   [asset.local]
-  source = "script/bin/cnb"
+  source = "script/bin/cnb-linux-amd64"
   sha256 = ""
 
   [asset.unpack]

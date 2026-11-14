@@ -1,0 +1,31 @@
+# ─── fixtures/justfile — offline-paketo 夹具的构建与 e2e ────────────────────
+# 前置：已构建 builder/run 镜像（just build），本目录使用 lifecycle 直连 e2e。
+
+set shell := ["bash", "-uc"]
+
+_root := source_directory()
+_repo := _root / "../../.."
+_cnb  := env_var_or_default("CNB_BIN", _repo / "script" / "bin" / "cnb-linux-amd64")
+_profile := _repo / "config/projects/offline-paketo.toml"
+
+# 默认列出用法
+default:
+    @just --justfile {{_root}}/justfile --list
+
+# 构建三个镜像（base/run/builder）
+build:
+    @{{_cnb}} pipeline run {{_profile}} --no-commands
+
+# 单个夹具：just test go-app
+test case:
+    @E2E_PROFILE={{_profile}} E2E_FIXTURES={{_root}} \
+      just --justfile {{_repo}}/justfile test-e2e-core {{case}}
+
+# 全部夹具
+test-all:
+    @E2E_PROFILE={{_profile}} E2E_FIXTURES={{_root}} \
+      just --justfile {{_repo}}/justfile test-e2e-core-all
+
+# 查看某用例的 layers（构建后保留在 test/.work 下）
+layers case:
+    @find {{_repo}}/test/.work -maxdepth 4 -path "*{{case}}*" -name '*.toml' 2>/dev/null | sed 's/^/  /' || true

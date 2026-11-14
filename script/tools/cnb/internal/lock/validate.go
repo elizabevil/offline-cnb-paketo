@@ -10,6 +10,12 @@ import (
 // Validate 检查清单结构，返回错误条数。
 func (f *File) Validate() int {
 	var errs []string
+	switch f.Storage.Layout {
+	case "", LayoutArchFirst, LayoutKindFirst:
+	default:
+		errs = append(errs, fmt.Sprintf("[storage].layout must be %q or %q, got %q",
+			LayoutArchFirst, LayoutKindFirst, f.Storage.Layout))
+	}
 	if f.Schema != 1 {
 		errs = append(errs, fmt.Sprintf("schema 必须为 1，实际 %d", f.Schema))
 	}

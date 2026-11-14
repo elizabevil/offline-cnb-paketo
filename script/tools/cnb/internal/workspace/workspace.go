@@ -61,7 +61,7 @@ func Open(o Options) (Context, error) {
 	}
 	bundleDir := o.Bundle
 	if bundleDir == "" {
-		bundleDir = filepath.Join(filepath.Dir(lockPath), DefaultBundle)
+		bundleDir = resolveBundle(filepath.Dir(lockPath), l)
 	}
 	return Context{Root: root, LockPath: lockPath, Lock: l, Bundle: bundleDir, Platform: platform}, nil
 }
@@ -109,4 +109,16 @@ func UserProfilePath(root, configDir, name string) string {
 		return filepath.Join(root, name)
 	}
 	return ProfilePath(root, configDir, name)
+}
+
+// resolveBundle 按 lock 的 [storage].root 解析物料目录（相对 lock 所在目录）。
+func resolveBundle(lockDir string, l *lock.File) string {
+	root := l.Storage.Root
+	if root == "" {
+		root = DefaultBundle
+	}
+	if filepath.IsAbs(root) {
+		return root
+	}
+	return filepath.Join(lockDir, root)
 }

@@ -97,3 +97,21 @@ podman run --rm --userns=keep-id   -v <app>:/workspace:ro   -v <work>/layers:/la
 ```bash
 VERBOSE=1 just test-e2e-core go-app
 ```
+
+## 参数化（不再绑定单个项目）
+
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `E2E_PROFILE` | `config/projects/offline-paketo.toml` | 被测流水线配置（builder/run 镜像由 `pipeline plan` 推导） |
+| `E2E_FIXTURES` | `test/fixtures` | 被测夹具目录 |
+| `E2E_SKIP_BUILD` | `0` | 跳过重建设镜像 |
+| `E2E_ONLY` | 全部阶段 | 只跑指定阶段（复用 layers） |
+| `E2E_FRESH` | `0` | 清空 cache 后重跑 |
+
+示例：用 bk 项目与它的夹具跑同一套用例
+
+```bash
+E2E_PROFILE=config/projects/offline-paketo-bk.toml \
+E2E_FIXTURES=project/offline-paketo-bk/fixtures \
+just test-e2e-core-all
+```

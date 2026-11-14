@@ -19,6 +19,11 @@
 
 schema = 1
 
+# 物料落盘位置：root 相对本文件所在目录，layout 决定 bundle 内层级
+[storage]
+root   = "bundle"
+layout = "arch-first"
+
 [meta]
 name = "learn-cnb-paketo"
 description = "CNB / Paketo 离线构建物料基座"
@@ -250,8 +255,8 @@ default = true
   license  = "MIT"
 
   [asset.local]
-  source = "script/bin/cnb"
-  sha256 = "06ea3db3e37feeb2c1c8a643de790b01f15dc8953125bb90fa8f77f083d9cd78"
+  source = "script/bin/cnb-linux-amd64"
+  sha256 = "bc97dfbcc1b9aac1485e1ffe971c95cffb95d83b1b54eadb744993b183ae36c0"
 
   [asset.unpack]
   kind   = "bin"

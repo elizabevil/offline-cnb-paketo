@@ -17,6 +17,9 @@ const (
 	ContextBundle     = "bundle"
 	ContextBuildpacks = "buildpacks"
 
+	// DefaultStorageLayout 是物料目录的默认布局。
+	DefaultStorageLayout = "arch-first"
+
 	// DefaultLockName / DefaultBundle / DefaultConfig 是仓库默认名。
 	DefaultLockName = "assets.lock.toml"
 	DefaultBundle   = "bundle"

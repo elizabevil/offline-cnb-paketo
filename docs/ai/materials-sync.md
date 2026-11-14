@@ -1,6 +1,6 @@
 # materials sync 设计约束（已定稿部分）
 
-> 目标：把 `script/fetch.sh` 的下载 / 解包 / marker 收进 `cnb materials sync`。
+> 目标：下载 / 解包 / marker 统一由 `cnb materials sync` 负责（旧 fetch.sh 已删除）。
 
 ## 一、已拍板的决策
 
@@ -66,7 +66,7 @@ cnb materials sync --check     # 只校验
 cnb materials sync --jobs 4
 ```
 
-`script/fetch.sh` 收编为一行转发。
+旧 `fetch.sh` 已删除，just 的 fetch 直接调用 `cnb materials sync`。
 
 ## 六、安全约束
 

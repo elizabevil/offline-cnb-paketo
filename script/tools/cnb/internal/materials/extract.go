@@ -19,11 +19,16 @@ func extractAsset(a *lock.Asset, src, binDir string) ([]string, error) {
 	opts := archive.Options{Strip: a.Unpack.Strip, Include: a.Unpack.Include}
 	switch a.Unpack.Kind {
 	case lock.KindBin:
-		name := a.Unpack.Expect[0]
-		if err := fsutil.CopyFile(src, filepath.Join(binDir, name)); err != nil {
+		// expect 是相对 binaries/ 的完整路径（含 dir 前缀）
+		rel := a.ExpectedPaths()[0]
+		target := filepath.Join(binDir, rel)
+		if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 			return nil, err
 		}
-		return []string{name}, nil
+		if err := fsutil.CopyFile(src, target); err != nil {
+			return nil, err
+		}
+		return []string{rel}, nil
 	case lock.KindTGZ, lock.KindTarGz:
 		return archive.ExtractTarGz(src, dest, opts)
 	case lock.KindZip:

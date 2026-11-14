@@ -26,7 +26,6 @@ func newLifecycleCmd() *cobra.Command {
 		exportMode   string
 		lifecycleDir string
 		loglevel     string
-		layerArch    string
 	)
 	run := &cobra.Command{
 		Use:   "run",
@@ -58,10 +57,7 @@ func newLifecycleCmd() *cobra.Command {
 				cfg.Build.Order = orderPath
 			}
 			if exportMode != "" {
-				cfg.Export.Layout = exportMode == "layout"
-			}
-			if layerArch != "" {
-				cfg.Export.LayerArchive = layerArch
+				cfg.Export.Mode = lifecycle.ExportMode(exportMode)
 			}
 			if lifecycleDir != "" {
 				cfg.Bins = lifecycle.Bins{
@@ -93,8 +89,7 @@ func newLifecycleCmd() *cobra.Command {
 	run.Flags().StringVar(&lifecycleDir, "lifecycle-dir", "", "lifecycle 二进制目录（默认 /cnb/lifecycle）")
 	run.Flags().StringVar(&loglevel, "log-level", "info", "log level: debug|info|warn|error")
 	run.Flags().StringVar(&orderPath, "order", "", "order.toml 路径（默认 /cnb/order.toml）")
-	run.Flags().StringVar(&exportMode, "export-mode", "layout", "导出方式：layout（不依赖 daemon）| daemon")
-	run.Flags().StringVar(&layerArch, "layer-archive", "", "把 layout 转成 docker-archive 写到此路径")
+	run.Flags().StringVar(&exportMode, "export", "", "导出方式：daemon | layout | none（默认取环境：BK→daemon，其余 layout）")
 	run.Flags().BoolVar(&dryRun, "dry-run", false, "只打印四阶段命令")
 	parent.AddCommand(run)
 	return parent
