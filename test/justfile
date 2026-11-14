@@ -1,0 +1,69 @@
+# ─── test/justfile — 测试入口（被根 justfile import）──────────────────────────
+# 约定：
+#   fixtures/  自有测试项目（入库，稳定）
+#   external/  临时验证项目（不入库，外来代码放这里）
+
+
+_test := source_directory()
+_cnb := _test / ".." / "script" / "bin" / "cnb"
+
+# just 的 import 之间不共享变量，这里重复一次同样的探测（可用 GO=… 覆盖）
+
+# 构建需要预编译二进制的夹具（源码在 fixtures-src/，产物进 fixtures/）
+fixtures:
+    @cd {{_test}}/fixtures-src/procfile-app && CGO_ENABLED=0 GOOS=linux "$({{_test}}/../script/lib/go.sh)" build -o {{_test}}/fixtures/procfile-app/app server.go
+    @echo "  ✓ procfile-app/app"
+
+# 全部快速测试（单测 + 契约）
+test: test-unit test-contract
+
+# Go 单测
+test-unit:
+    @cd {{_test}}/../script/tools/cnb && \
+      GOCACHE={{_test}}/../.cache/go-build "$({{_test}}/../script/lib/go.sh)" test ./...
+
+# 全部契约测试
+test-contract: test-contract-get test-contract-validate test-contract-plan
+
+# 契约：cnb get 输出字段
+test-contract-get:
+    @{{_test}}/contract/get-contract.sh
+
+# 契约：坏配置必须被拒绝
+test-contract-validate:
+    @{{_test}}/contract/validate-rejects.sh
+
+# 契约：计划三种格式
+test-contract-plan:
+    @{{_test}}/contract/plan-formats.sh
+
+# 单个 e2e（fixtures）：just test-e2e go-app
+test-e2e name:
+    @{{_test}}/e2e/run.sh {{_test}}/fixtures/{{name}} {{name}}
+
+# 单个 e2e（lifecycle 直连，不走 pack）：just test-e2e-core go-app
+test-e2e-core name:
+    @{{_test}}/e2e/lifecycle.sh {{_test}}/fixtures/{{name}} {{name}}
+
+# 全部 lifecycle 直连用例
+test-e2e-core-all:
+    @{{_cnb}} run {{_test}}/../config/projects/offline-paketo.toml
+    @for d in {{_test}}/fixtures/*/; do \
+      E2E_SKIP_BUILD=1 {{_test}}/e2e/lifecycle.sh "$d" "$(basename "$d")" || exit 1; \
+    done
+
+# 全部 e2e（fixtures，需要 pack）：先重建一次 builder，再逐个用例
+test-e2e-all:
+    @{{_cnb}} run {{_test}}/../config/projects/offline-paketo.toml
+    @{{_cnb}} doctor {{_test}}/../config/projects/offline-paketo.toml || true
+    @for d in {{_test}}/fixtures/*/; do \
+      E2E_SKIP_BUILD=1 {{_test}}/e2e/auto.sh "$d" "$(basename "$d")" || exit 1; \
+    done
+
+# 单个 e2e（自动选择路径）
+test-e2e-auto name:
+    @{{_test}}/e2e/auto.sh {{_test}}/fixtures/{{name}} {{name}}
+
+# 临时验证项目：just test-external /path/to/app
+test-external path:
+    @{{_test}}/e2e/run.sh "{{path}}" external

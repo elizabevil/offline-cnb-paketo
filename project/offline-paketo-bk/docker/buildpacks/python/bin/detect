@@ -1,0 +1,25 @@
+#!/bin/sh
+# detect — Python buildpack (离线版)
+# 通过检测 requirements.txt / pyproject.toml 等文件判断是否为 Python 项目
+# Args: <platform_dir> <plan_path>  (CNB 规范)
+# App: CNB_APP_DIR 或当前目录
+
+set -euo pipefail
+
+platform_dir="${1:-${CNB_PLATFORM_DIR:-/platform}}"
+plan_path="${2:-${CNB_PLAN_PATH:-}}"
+app_dir="${CNB_APP_DIR:-$(pwd)}"
+found=0
+
+[ -f "${app_dir}/requirements.txt" ] && echo "  ✅ requirements.txt" && found=1
+[ -f "${app_dir}/Pipfile"          ] && echo "  ✅ Pipfile"          && found=1
+[ -f "${app_dir}/pyproject.toml"   ] && echo "  ✅ pyproject.toml"   && found=1
+[ -f "${app_dir}/setup.py"         ] && echo "  ✅ setup.py"         && found=1
+[ -f "${app_dir}/setup.cfg"        ] && echo "  ✅ setup.cfg"        && found=1
+
+if [ "${found}" -eq 1 ]; then
+  echo "  🐍 Python project detected"
+  exit 0
+fi
+
+exit 1

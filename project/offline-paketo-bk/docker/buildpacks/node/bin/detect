@@ -1,0 +1,25 @@
+#!/bin/sh
+# detect — Node.js buildpack (离线版)
+# 通过检测 package.json / yarn.lock 等文件判断是否为 Node.js 项目
+# Args: <platform_dir> <plan_path>  (CNB 规范)
+# App: CNB_APP_DIR 或当前目录
+
+set -euo pipefail
+
+platform_dir="${1:-${CNB_PLATFORM_DIR:-/platform}}"
+plan_path="${2:-${CNB_PLAN_PATH:-}}"
+app_dir="${CNB_APP_DIR:-$(pwd)}"
+found=0
+
+[ -f "${app_dir}/package.json"    ] && echo "  ✅ package.json"          && found=1
+[ -f "${app_dir}/yarn.lock"       ] && echo "  ✅ yarn.lock"             && found=1
+[ -f "${app_dir}/pnpm-lock.yaml"  ] && echo "  ✅ pnpm-lock.yaml"        && found=1
+[ -f "${app_dir}/.npmrc"          ] && echo "  ✅ .npmrc"                && found=1
+[ -f "${app_dir}/lerna.json"      ] && echo "  ✅ lerna.json (monorepo)" && found=1
+
+if [ "${found}" -eq 1 ]; then
+  echo "  📦 Node.js project detected"
+  exit 0
+fi
+
+exit 1

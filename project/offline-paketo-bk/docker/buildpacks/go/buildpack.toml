@@ -1,0 +1,31 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/go"
+  name = "Go Buildpack (offline)"
+  version = "4.23.3"
+  homepage = "https://github.com/paketo-buildpacks/go"
+  description = "Detects Go projects by go.mod, installs Go SDK from cache or Aliyun mirror, builds Go binaries."
+  keywords = ["go", "golang", "go.mod", "sdk"]
+  sbom-formats = ["application/vnd.cyclonedx+json"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+    uri = "https://github.com/golang/go/blob/master/LICENSE"
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"
+
+[[targets]]
+  os = "linux"
+  arch = "arm64"
+
+[[stacks]]
+  id = "io.buildpacks.stacks.bionic"
+
+[metadata]
+  # 版本号与上游对齐；实现为自研离线版
+  upstream = "paketo-buildpacks/go"
+  upstream-version = "4.23.3"
+  offline-implementation = true

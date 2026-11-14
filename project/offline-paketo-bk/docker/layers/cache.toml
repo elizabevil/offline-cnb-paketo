@@ -1,0 +1,4 @@
+[types]
+  cache  = true
+  launch = false
+  build  = false

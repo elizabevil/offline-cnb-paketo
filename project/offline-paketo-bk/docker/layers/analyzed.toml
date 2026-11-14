@@ -1,0 +1,2 @@
+[run-image]
+  reference = "offline-run-bk:latest"

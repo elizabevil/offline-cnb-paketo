@@ -1,0 +1,25 @@
+# Go Buildpack 构建参数配置
+# 格式：KEY=VALUE
+# 优先级：环境变量 > 此文件 > 脚本默认值
+# 以 # 开头的行为注释
+
+# 链接器标志（版本注入、strip 等）
+GO_LDFLAGS=-s -w -X main.version=1.0.0
+
+# 构建标签（条件编译）
+# GO_TAGS=integration,debug
+
+# 移除文件系统路径信息
+GO_TRIMPATH=true
+
+# 编译器标志
+# GO_GCFLAGS=-N -l
+
+# 汇编器标志
+# GO_ASMFLAGS=
+
+# 竞态检测（生产环境建议关闭）
+GO_RACE=false
+
+# 模块模式（vendor/mod/readonly）
+# GO_MOD=vendor
