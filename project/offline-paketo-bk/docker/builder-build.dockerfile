@@ -78,7 +78,7 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/jq/${JQ_VERSION}/jq   /usr/local/bin
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/yq/${YQ_VERSION}/yq   /usr/local/bin/yq
 
 # ── Docker CLI（bksmartpacker 镜像层推送用） ─────────────────
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/docker/${DOCKER_VERSION}/docker /usr/local/bin/docker
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/docker/${DOCKER_VERSION}/docker/docker /usr/local/bin/docker
 RUN chmod +x /usr/local/bin/docker
 
 # ── pack CLI（调试用，bksmartpacker 场景不需要） ────────────

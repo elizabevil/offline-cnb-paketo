@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -74,8 +74,8 @@ func newLifecycleCmd() *cobra.Command {
 			if err := cfg.Prepare(); err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
-			logf := func(format string, args ...any) { fmt.Printf(format+"\n", args...) }
-			if err := cfg.Run(logf); err != nil {
+			cfg.Out = os.Stdout
+			if err := cfg.Run(); err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
 			return nil

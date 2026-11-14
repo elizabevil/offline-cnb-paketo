@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"learn-cnb-paketo/tools/cnb/internal/apparchive"
 	"learn-cnb-paketo/tools/cnb/internal/oci"
 )
 
@@ -30,10 +31,15 @@ func (c Config) Phases() []Phase {
 		{Name: PhaseDetect, Bin: c.Bins.Detector, Args: c.detectArgs(), User: c.User},
 		{Name: PhaseBuild, Bin: c.Bins.Builder, Args: c.buildArgs(), User: c.User},
 	}
-	if c.RunImage != "" {
+	// layout 模式下 analyzed.toml 由磁盘上的 layout 直接生成，跳过 analyzer
+	if c.RunImage != "" && !c.ExportLayout {
 		phases = append(phases, Phase{
 			Name: PhaseAnalyze, Bin: c.Bins.Analyzer, Args: c.analyzeArgs(),
 		})
+	}
+	// 只输出应用层：不调用 exporter，直接由 /app 生成 docker-archive
+	if c.appLayerMode() {
+		return phases
 	}
 	phases = append(phases, Phase{
 		Name: PhaseExport, Bin: c.Bins.Exporter, Args: c.exportArgs(),
@@ -42,7 +48,7 @@ func (c Config) Phases() []Phase {
 }
 
 // Run 依次执行四阶段，并在 layout 模式下转换为 docker-archive。
-func (c Config) Run(logf func(format string, args ...any)) error {
+func (c Config) Run() error {
 	if c.OutputImage == "" {
 		return fmt.Errorf("缺少输出镜像名")
 	}
@@ -50,16 +56,22 @@ func (c Config) Run(logf func(format string, args ...any)) error {
 		return err
 	}
 	for _, p := range c.Phases() {
-		if err := c.runPhase(p, logf); err != nil {
+		if err := c.runPhase(p); err != nil {
 			return err
 		}
-		// exporter 在 layout 模式下要求 run image 引用形如 name@digest，
-		// 而 daemon 模式的 analyzer 只能写出镜像 ID，需要就地补全。
-		if p.Name == PhaseAnalyze && c.ExportLayout {
-			if err := c.normalizeAnalyzed(); err != nil {
+		// 磁盘优先：把 run image 落成 OCI layout，再由它生成 analyzed.toml。
+		// 这两步都不依赖 daemon 的读接口（除了导出时的 image save）。
+		if p.Name == PhaseBuild && c.ExportLayout && !c.DryRun {
+			if err := c.seedRunImage(); err != nil {
+				return err
+			}
+			if err := c.writeAnalyzed(); err != nil {
 				return err
 			}
 		}
+	}
+	if c.appLayerMode() {
+		return c.exportAppLayer()
 	}
 	return c.convertLayout()
 }
@@ -82,12 +94,12 @@ func (c Config) prepareWorkDirs() error {
 }
 
 // runPhase 执行单个阶段。
-func (c Config) runPhase(p Phase, logf func(format string, args ...any)) error {
+func (c Config) runPhase(p Phase) error {
 	if c.DryRun {
-		logf("• %s: %s %s", p.Name, p.Bin, strings.Join(p.Args, " "))
+		c.printf("• %s: %s %s", p.Name, p.Bin, strings.Join(p.Args, " "))
 		return nil
 	}
-	logf("• %s", p.Name)
+	c.printf("• %s", p.Name)
 	cmd := exec.CommandContext(context.Background(), p.Bin, p.Args...)
 	env := []string{
 		"CNB_PLATFORM_API=" + c.effectivePlatformAPI(),
@@ -144,9 +156,10 @@ func (c Config) convertLayout() error {
 	if !c.ExportLayout || c.LayerArchive == "" {
 		return nil
 	}
-	dir := c.LayoutDir
-	if dir == "" {
-		dir = defaultLayoutDir
+	// exporter 按镜像路径写 layout：<layout>/index.docker.io/<repo>/<tag>
+	dir, err := oci.LayoutImagePath(c.layoutDir(), c.OutputImage)
+	if err != nil {
+		return err
 	}
 	if err := oci.ToDockerArchive(dir, c.OutputImage, c.LayerArchive); err != nil {
 		return fmt.Errorf("转换 docker-archive: %w", err)
@@ -183,4 +196,31 @@ func chownTree(root string, uid, gid int) error {
 		_ = os.Chown(path, uid, gid) // 非本用户拥有的文件可能失败，忽略
 		return nil
 	})
+}
+
+// appLayerMode 判断是否走"只打包应用层"的导出方式。
+// 平台给出层包路径（BKS_LAYER_ARCHIVE）即视为该模式。
+func (c Config) appLayerMode() bool { return c.LayerArchive != "" }
+
+// exportAppLayer 把 /app 打成 docker-archive。
+func (c Config) exportAppLayer() error {
+	c.printf("• export (app layer): %s → %s", c.OutputImage, c.LayerArchive)
+	arch := ""
+	if strings.HasPrefix(c.Platform, "linux-") {
+		arch = strings.TrimPrefix(c.Platform, "linux-")
+	}
+	if err := apparchive.Build(c.App, c.Layers, c.OutputImage, arch, c.LayerArchive, c.IncludeSource); err != nil {
+		return fmt.Errorf("生成应用层归档: %w", err)
+	}
+	return nil
+}
+
+// printf 输出一行进度信息（统一加换行，避免格式串里拼 "\n"）。
+func (c Config) printf(format string, args ...any) {
+	out := c.Out
+	if out == nil {
+		out = os.Stdout
+	}
+	fmt.Fprintf(out, format, args...)
+	fmt.Fprintln(out)
 }

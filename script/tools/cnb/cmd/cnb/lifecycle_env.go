@@ -21,6 +21,8 @@ const (
 	envRunUser     = "CNB_RUN_USER"
 	envLayoutDir   = "CNB_LAYOUT_DIR"
 	envLayerArch   = "BKS_LAYER_ARCHIVE"
+	envRunArchive  = "BKS_RUN_IMAGE_ARCHIVE"
+	envIncludeSrc  = "BKS_INCLUDE_SOURCE"
 
 	// lifecycle 二进制的默认位置（可在 flags 覆盖）。
 	defaultLifecycleDir = "/cnb/lifecycle"
@@ -51,20 +53,22 @@ func configFromEnv() lifecycle.Config {
 			Analyzer: dir + "/analyzer",
 			Exporter: dir + "/exporter",
 		},
-		App:          envOr(envAppDir, "/app"),
-		Layers:       envOr(envLayersDir, "/layers"),
-		Platform:     envOr(envPlatformDir, "/platform"),
-		Order:        "/cnb/order.toml",
-		RunImage:     envOr(envRunImage, "fake-cnb-runner:latest"),
-		OutputImage:  os.Getenv(envOutputImage),
-		CacheImage:   os.Getenv(envCacheImage),
-		SourceURL:    os.Getenv(envSourceURL),
-		Required:     os.Getenv(envRequired),
-		PlatformAPI:  envOr(envPlatformAPI, "0.15"),
-		User:         envOr(envRunUser, "cnb"),
-		ExportLayout: true,
-		LayoutDir:    envOr(envLayoutDir, "/layers/oci"),
-		LayerArchive: os.Getenv(envLayerArch),
-		Aliases:      defaultAliases,
+		App:             envOr(envAppDir, "/app"),
+		Layers:          envOr(envLayersDir, "/layers"),
+		Platform:        envOr(envPlatformDir, "/platform"),
+		Order:           "/cnb/order.toml",
+		RunImage:        envOr(envRunImage, "fake-cnb-runner:latest"),
+		OutputImage:     os.Getenv(envOutputImage),
+		CacheImage:      os.Getenv(envCacheImage),
+		SourceURL:       os.Getenv(envSourceURL),
+		Required:        os.Getenv(envRequired),
+		PlatformAPI:     envOr(envPlatformAPI, "0.15"),
+		User:            envOr(envRunUser, "cnb"),
+		ExportLayout:    true,
+		LayoutDir:       envOr(envLayoutDir, "/layers/oci"),
+		LayerArchive:    os.Getenv(envLayerArch),
+		RunImageArchive: os.Getenv(envRunArchive),
+		IncludeSource:   os.Getenv(envIncludeSrc) == "1",
+		Aliases:         defaultAliases,
 	}
 }

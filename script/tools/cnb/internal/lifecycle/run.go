@@ -39,8 +39,17 @@ type Config struct {
 	LayoutDir    string
 	LayerArchive string
 	// Aliases 可把外部平台的 buildpack 名映射到 order 里的 id（可为空）。
-	Aliases map[string]string // detect/build 使用的非 root 用户（默认 cnb）
-	DryRun  bool
+	Aliases map[string]string
+	// RunImageArchive 是 run image 的 docker-archive 路径（由平台侧预先落盘）。
+	// 非空时不再调用运行时，完全磁盘驱动。
+	RunImageArchive string
+	// Runtime 是容器运行时命令（默认依次尝试 docker、podman）。
+	Runtime string
+	// IncludeSource 为真时把应用源码一并打进层包（默认否，只要构建产物）。
+	IncludeSource bool
+	// Out 是进度输出目标（默认 os.Stdout）。
+	Out    io.Writer // detect/build 使用的非 root 用户（默认 cnb）
+	DryRun bool
 }
 
 // Prepare 解包源码、生成过滤后的 order。

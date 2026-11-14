@@ -71,11 +71,14 @@ smart: smart-builder smart-bps
     @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
+    @echo "  · 输出: {{_out}}/s-mart.tgz"
+    @rm -f {{_out}}/s-mart.tgz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
     @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tgz
     @echo
+    @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tgz
     @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
     @echo "== 产物内容 =="
     @tar -tzf {{_out}}/s-mart.tgz | sed 's/^/  /'
@@ -84,7 +87,11 @@ smart: smart-builder smart-bps
     @echo
     @echo "== 层包（应只含应用层）=="
     @tmp="$(mktemp -d)"; tar -xzf {{_out}}/s-mart.tgz -C "$tmp"; \
-      for f in "$tmp"/*.tgz; do echo "  $(basename "$f")"; tar -tzf "$f" | head -6 | sed 's/^/    /'; done; \
+      found=0; for f in "$tmp"/*.tgz "$tmp"/layers/*.tgz; do \
+        [ -f "$f" ] || continue; found=1; \
+        echo "  $(basename "$f")"; tar -tf "$f" | head -6 | sed 's/^/    /'; \
+      done; \
+      [ "$found" = 1 ] || echo "  ✗ 包内没有层 tgz"; \
       rm -rf "$tmp"
 
 # 清理打包产物
