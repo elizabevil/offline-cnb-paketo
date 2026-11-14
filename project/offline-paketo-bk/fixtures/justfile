@@ -32,17 +32,13 @@ pack case:
 # 打包全部夹具
 pack-all: (pack "single") (pack "multi")
 
-# 查看产物内容与 .Version 标记
+# 查看产物结构（.Version / 文件列表 / 层包摘要，由 bksmartpacker 解析）
 inspect case:
-    @tar -tzf {{_out}}/s-mart-{{case}}.tgz | sed 's/^/  /'
-    @echo "--- .Version ---"
-    @tar -xzOf {{_out}}/s-mart-{{case}}.tgz .Version 2>/dev/null | sed 's/^/  /' || echo "  （缺失 .Version）"
+    @{{_bps}} --inspect {{_out}}/s-mart-{{case}}.tgz
 
-# 检查层包是否只含应用层（列出镜像内路径，不应出现 debian/ubuntu 根层标记）
-layers case:
-    @tmp="$(mktemp -d)"; tar -xzf {{_out}}/s-mart-{{case}}.tgz -C "$tmp"
-    @for f in "$tmp"/*.tgz; do echo "== $(basename "$f")"; tar -tzf "$f" | head -8 | sed 's/^/  /'; done
-    @rm -rf "$tmp"
+# 同上，机器可读输出
+inspect-json case:
+    @{{_bps}} --inspect {{_out}}/s-mart-{{case}}.tgz --inspect-format json
 
 # 清理产物
 clean:
