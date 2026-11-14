@@ -1,0 +1,17 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/npm-install"
+  name = "npm install (offline)"
+  version = "2.3.36"
+  homepage = "https://github.com/paketo-buildpacks/npm-install"
+  description = "安装 Node 依赖：npm ci/install，缓存落在 /layers/cache"
+  keywords = ["npm", "yarn", "pnpm"]
+  sbom-formats = ["application/vnd.cyclonedx+json"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"

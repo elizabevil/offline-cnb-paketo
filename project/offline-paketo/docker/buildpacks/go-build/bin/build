@@ -1,0 +1,38 @@
+#!/bin/sh
+set -euo pipefail
+layers_dir="${1:?missing layers dir}"
+app_dir="${CNB_APP_DIR:-/workspace}"
+root="$(dirname "${layers_dir}")"
+layer="${layers_dir}/bin"
+cache="${CNB_CACHE_DIR:-/layers/cache}/go"
+mkdir -p "${layer}/env" "${cache}/mod" "${cache}/build"
+
+go_bin="$(ls -d "${root}"/*/go/bin 2>/dev/null | head -1)"
+[ -n "${go_bin}" ] || { echo "  ✗ 未找到 go 层" >&2; exit 1; }
+export PATH="${go_bin}:${PATH}"
+# go 会根据可执行文件位置推断 GOROOT，但经软链时可能失败；显式解析
+go_real="$(readlink -f "${go_bin}/go" 2>/dev/null || echo "${go_bin}/go")"
+export GOROOT="$(cd "$(dirname "${go_real}")/.." && pwd)"
+echo "  GOROOT=${GOROOT}" >&2
+export GOMODCACHE="${cache}/mod"
+export GOCACHE="${cache}/build"
+export GOFLAGS="${GOFLAGS:--mod=mod}"
+
+cd "${app_dir}"
+go build -o "${layer}/app" -trimpath -ldflags '-s -w' . >&2
+
+cat > "${layer}.toml" <<TOML
+[types]
+launch = true
+build  = true
+TOML
+cat > "${layer}.sbom.cdx.json" <<'JSON'
+{ "bomFormat": "CycloneDX", "specVersion": "1.5", "components": [] }
+JSON
+cat > "${layers_dir}/launch.toml" <<TOML
+[[processes]]
+  type = "web"
+  command = ["${layer}/app"]
+  default = true
+TOML
+echo "  ✅ go-build complete" >&2

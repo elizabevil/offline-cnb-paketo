@@ -1,0 +1,58 @@
+#!/bin/sh
+# build <layers_dir> <platform_dir> <plan_path>
+set -euo pipefail
+layers_dir="${1:?missing layers dir}"
+bp_dir="${CNB_BUILDPACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+app_dir="${CNB_APP_DIR:-/workspace}"
+version="${BP_NODE_VERSION:-20}"
+layer="${layers_dir}/node"
+cache="${CNB_CACHE_DIR:-/layers/cache}/node"
+mkdir -p "${layer}/bin" "${layer}/env" "${cache}"
+
+# 1) 挂载的本地运行时 2) 持久缓存 3) 镜像源下载
+if [ -x "${CNB_RUNTIME_DIR:-/cnb/runtimes}/node/${version}/bin/node" ]; then
+  src="${CNB_RUNTIME_DIR:-/cnb/runtimes}/node/${version}/bin/node"
+  echo "  📦 local runtime: ${src}" >&2
+  cp -a "$(dirname "${src}")/." "${layer}/nodejs/"
+elif [ -x "${cache}/node-versions/v${version}/installation/bin/node" ] || ls "${cache}"/node-versions/*/installation/bin/node >/dev/null 2>&1; then
+  echo "  ⏭️  cache hit: ${cache}" >&2
+  fnm="${FNM_PATH:-fnm}"
+  "${fnm}" install "${version}" --fnm-dir="${cache}" >/dev/null 2>&1 || true
+else
+  fnm="${FNM_PATH:-fnm}"
+  export FNM_NODE_DIST_MIRROR="${FNM_NODE_DIST_MIRROR:-https://npmmirror.com/mirrors/node/}"
+  "${fnm}" install "${version}" --fnm-dir="${cache}" >/dev/null 2>&1 || true
+fi
+
+# 统一从缓存/本地取实际目录，并把 installation 直接铺进层根
+# （bin/node 为实体、npm/npx 为指向 ../lib 的相对软链，移入层内仍有效）
+if [ ! -x "${layer}/bin/node" ]; then
+  bin_dir="${CNB_RUNTIME_DIR:-/cnb/runtimes}/node/${version}/bin"
+  [ -x "${bin_dir}/node" ] || bin_dir="$(ls -d "${cache}"/node-versions/*/installation/bin 2>/dev/null | sort -V | tail -1)"
+  [ -n "${bin_dir:-}" ] && [ -x "${bin_dir}/node" ] || { echo "  ✗ node binary not found" >&2; exit 1; }
+  cp -a "$(dirname "${bin_dir}")/." "${layer}/"
+fi
+
+cat > "${layer}.toml" <<TOML
+[types]
+launch = true
+build  = true
+cache  = true
+TOML
+echo "${layer}/bin" > "${layer}/env/PATH.prepend"
+
+# SBOM
+ver="$("${layer}/bin/node" --version 2>/dev/null | tr -d 'v')"
+cat > "${layer}.sbom.cdx.json" <<JSON
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "components": [
+    { "type": "application", "name": "node", "version": "${ver:-${version}}",
+      "purl": "pkg:generic/node@${ver:-${version}}",
+      "licenses": [{ "license": { "id": "MIT" } }] }
+  ]
+}
+JSON
+
+echo "  ✅ node-engine complete (${ver:-${version}})" >&2

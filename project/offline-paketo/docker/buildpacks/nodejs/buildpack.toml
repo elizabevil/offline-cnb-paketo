@@ -1,0 +1,34 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/nodejs"
+  name = "Node.js (offline meta)"
+  version = "10.15.0"
+  homepage = "https://github.com/paketo-buildpacks/nodejs"
+  description = "按 order 组合 node-engine / npm-install / npm-start"
+  keywords = ["node", "nodejs", "npm"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+
+[metadata]
+  upstream = "paketo-buildpacks/nodejs"
+  upstream-version = "10.15.0"
+  offline-implementation = true
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"
+
+[[order]]
+  [[order.group]]
+    id = "paketo-buildpacks/node-engine"
+    version = "8.12.0"
+
+  [[order.group]]
+    id = "paketo-buildpacks/npm-install"
+    version = "2.3.36"
+
+  [[order.group]]
+    id = "paketo-buildpacks/npm-start"
+    version = "2.5.13"

@@ -1,0 +1,17 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/pip-install"
+  name = "pip install (offline)"
+  version = "0.7.51"
+  homepage = "https://github.com/paketo-buildpacks/pip-install"
+  description = "创建 venv 并安装依赖，缓存落在 /layers/cache"
+  keywords = ["python", "pip", "venv"]
+  sbom-formats = ["application/vnd.cyclonedx+json"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"

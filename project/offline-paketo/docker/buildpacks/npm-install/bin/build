@@ -1,0 +1,37 @@
+#!/bin/sh
+set -euo pipefail
+layers_dir="${1:?missing layers dir}"
+app_dir="${CNB_APP_DIR:-/workspace}"
+layer="${layers_dir}/node_modules"
+cache="${CNB_CACHE_DIR:-/layers/cache}/npm-cache"
+mkdir -p "${layer}" "${cache}"
+
+export npm_config_cache="${cache}"
+# 源可配置：默认 npmmirror，可用 NPM_CONFIG_REGISTRY 覆盖
+export npm_config_registry="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
+echo "  registry: ${npm_config_registry}" >&2
+# layers_dir 是本 buildpack 私有目录 /layers/<id>，其父目录才是 layers 根
+root="$(dirname "${layers_dir}")"
+node_bin="$(ls -d "${root}"/*/node/bin 2>/dev/null | head -1 || true)"
+[ -n "${node_bin}" ] || { echo "  ✗ 未找到 node 层（node-engine 未提供）" >&2; exit 1; }
+export PATH="${node_bin}:${PATH}"
+
+cd "${app_dir}"
+if [ -f pnpm-lock.yaml ]; then pnpm install --prefer-offline
+elif [ -f yarn.lock ]; then yarn install --frozen-lockfile
+elif [ -f package-lock.json ]; then npm ci --prefer-offline
+else npm install; fi >&2
+
+[ -d node_modules ] && cp -a node_modules/. "${layer}/" 2>/dev/null || true
+
+cat > "${layer}.toml" <<TOML
+[types]
+launch = true
+build  = true
+TOML
+mkdir -p "${layer}/env"
+echo "${layer}/.bin" > "${layer}/env/PATH.prepend" 2>/dev/null || true
+cat > "${layer}.sbom.cdx.json" <<JSON
+{ "bomFormat": "CycloneDX", "specVersion": "1.5", "components": [] }
+JSON
+echo "  ✅ npm-install complete" >&2

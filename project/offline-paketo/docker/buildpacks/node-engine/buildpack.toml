@@ -1,0 +1,25 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/node-engine"
+  name = "Node Engine (offline)"
+  version = "8.12.0"
+  homepage = "https://github.com/paketo-buildpacks/node-engine"
+  description = "提供 Node.js 运行时：本地挂载 → layers 缓存 → 镜像源兜底"
+  keywords = ["node", "nodejs", "fnm"]
+  sbom-formats = ["application/vnd.cyclonedx+json"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+    uri = "https://github.com/paketo-buildpacks/node-engine/blob/main/LICENSE"
+
+[metadata]
+  [[metadata.dependencies]]
+    id = "node"
+    version = "20.20.2"
+    uri = "https://npmmirror.com/mirrors/node/"
+    sha256 = ""
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"

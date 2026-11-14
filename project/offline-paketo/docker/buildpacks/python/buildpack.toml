@@ -1,0 +1,30 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/python"
+  name = "Python (offline meta)"
+  version = "2.68.0"
+  homepage = "https://github.com/paketo-buildpacks/python"
+  description = "按 order 组合 cpython / pip-install"
+  keywords = ["python", "pip"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+
+[metadata]
+  upstream = "paketo-buildpacks/python"
+  upstream-version = "2.68.0"
+  offline-implementation = true
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"
+
+[[order]]
+  [[order.group]]
+    id = "paketo-buildpacks/cpython"
+    version = "1.18.51"
+
+  [[order.group]]
+    id = "paketo-buildpacks/pip-install"
+    version = "0.7.51"
