@@ -1,0 +1,15 @@
+# {{.Name}} — builder：lifecycle + buildpacks + 运行时工具
+ARG BASE_IMAGE_TAG
+FROM ${BASE_IMAGE_TAG}
+
+# 物料由 fetch 落到共享 bundle，构建上下文为仓库根
+COPY bundle/${BUNDLE_ARCH}/binaries/lifecycle /cnb/lifecycle/
+COPY bundle/${BUNDLE_ARCH}/binaries/fnm       /usr/local/bin/fnm
+COPY bundle/${BUNDLE_ARCH}/binaries/uv        /usr/local/bin/uv
+COPY bundle/${BUNDLE_ARCH}/binaries/uvx       /usr/local/bin/uvx
+
+COPY {{.Dir}}/docker/buildpacks /cnb/buildpacks
+COPY {{.Dir}}/docker/order.toml /cnb/order.toml
+
+ENV PATH="/cnb/lifecycle:${PATH}"
+LABEL io.buildpacks.stack.id="io.buildpacks.stacks.bionic"
