@@ -1,4 +1,4 @@
-package bundle
+package materials
 
 import (
 	"os"
@@ -22,8 +22,8 @@ func binariesDir(bundleDir string, platform lock.Platform) string {
 	return filepath.Join(bundleDir, string(platform), DirBinaries)
 }
 
-func markerPath(bundleDir string, platform lock.Platform, ref lock.Ref) string {
-	return filepath.Join(binariesDir(bundleDir, platform), DirMeta, ref+MarkerSuffix)
+func markerPath(bundleDir string, platform lock.Platform, ref lock.AssetRef) string {
+	return filepath.Join(binariesDir(bundleDir, platform), DirMeta, ref.String()+MarkerSuffix)
 }
 
 func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string {
@@ -33,7 +33,7 @@ func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string
 
 // markerMatches 判断解压标记是否与 lock 中的哈希一致。
 func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset) bool {
-	data, err := os.ReadFile(markerPath(bundleDir, platform, a.Ref()))
+	data, err := os.ReadFile(markerPath(bundleDir, platform, lock.MustParseRef(a.Ref())))
 	if err != nil {
 		return false
 	}

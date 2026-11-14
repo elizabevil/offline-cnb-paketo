@@ -58,8 +58,8 @@ tidy:
 tags:
     @cd {{_dir}}/cnb && \
       bad=$(grep -rn 'json:"' --include='*.go' . \
-        | grep -v _test | grep -v 'internal/oci/' | grep -v 'internal/buildmeta/' \
-        | grep -v 'internal/repack/' | grep -v 'internal/apparchive/' \
+        | grep -v _test | grep -v 'internal/oci/' | grep -v 'internal/checks/' \
+        | grep -v 'internal/repack/' | grep -v 'internal/archive/' \
         | grep -oE 'json:"[^",]+' | grep -vE 'json:"[a-z0-9_]+$' || true); \
       if [ -n "$bad" ]; then echo "  ✗ 非 snake_case 的 json 标签:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ json 标签均为 snake_case"

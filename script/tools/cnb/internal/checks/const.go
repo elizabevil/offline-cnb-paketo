@@ -1,5 +1,4 @@
-// Package buildmeta 生成 pack 要求的 builder metadata（io.buildpacks.builder.metadata）。
-package buildmeta
+package checks
 
 // 规范与文件约定。
 const (

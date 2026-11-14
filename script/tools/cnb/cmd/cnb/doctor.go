@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"learn-cnb-paketo/tools/cnb/internal/doctor"
+	"learn-cnb-paketo/tools/cnb/internal/checks"
 )
 
 // newDoctorCmd 体检：容器运行时、API socket、builder 契约。
@@ -21,12 +21,12 @@ func newDoctorCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			rep := doctor.Run(plan)
+			rep := checks.RunDoctor(plan)
 			for _, it := range rep.Items {
 				switch it.Level {
-				case doctor.LevelOK:
+				case checks.LevelOK:
 					logr.Info("doctor check", "title", it.Title, "result", "ok")
-				case doctor.LevelSkip:
+				case checks.LevelSkip:
 					logr.Info("doctor check", "title", it.Title, "result", "skipped")
 				default:
 					logr.Error("doctor check", "title", it.Title, "hint", it.Hint)

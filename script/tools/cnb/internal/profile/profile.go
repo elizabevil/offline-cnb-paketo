@@ -25,8 +25,8 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/reporoot"
-	"learn-cnb-paketo/tools/cnb/internal/shell"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // File 是流水线配置的根结构。
@@ -138,12 +138,12 @@ func (p *File) render(l *lock.File, platform string) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "# generated from %s\n", p.Project.Name)
-	fmt.Fprintf(&b, "PROFILE_NAME=%s\n", shell.Quote(p.Project.Name))
-	fmt.Fprintf(&b, "PROFILE_DIR=%s\n", shell.Quote(filepath.ToSlash(p.Project.Dir)))
-	fmt.Fprintf(&b, "PLATFORM=%s\n", shell.Quote(platform))
-	fmt.Fprintf(&b, "PROFILE_CONTEXT=%s\n", shell.Quote(filepath.ToSlash(mustDefault(p.Docker.Context, "."))))
-	fmt.Fprintf(&b, "BUNDLE_DIR=%s\n", shell.Quote(filepath.ToSlash(filepath.Join(repoRoot(), mustDefault(p.Docker.BundleDir, lock.DefaultBundleDir)))))
-	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", shell.Quote(mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst)))
+	fmt.Fprintf(&b, "PROFILE_NAME=%s\n", strutil.QuoteShell(p.Project.Name))
+	fmt.Fprintf(&b, "PROFILE_DIR=%s\n", strutil.QuoteShell(filepath.ToSlash(p.Project.Dir)))
+	fmt.Fprintf(&b, "PLATFORM=%s\n", strutil.QuoteShell(platform))
+	fmt.Fprintf(&b, "PROFILE_CONTEXT=%s\n", strutil.QuoteShell(filepath.ToSlash(mustDefault(p.Docker.Context, "."))))
+	fmt.Fprintf(&b, "BUNDLE_DIR=%s\n", strutil.QuoteShell(filepath.ToSlash(filepath.Join(repoRoot(), mustDefault(p.Docker.BundleDir, lock.DefaultBundleDir)))))
+	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", strutil.QuoteShell(mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst)))
 	fmt.Fprintf(&b, "export BUNDLE_DIR BUNDLE_LAYOUT\n")
 
 	// 物料：按名字排序，输出显式 id@version
@@ -153,7 +153,7 @@ func (p *File) render(l *lock.File, platform string) string {
 		if len(a.Platforms) > 0 && !containsStr(a.Platforms, platform) {
 			continue
 		}
-		refs = append(refs, shell.Quote(a.ref(id)))
+		refs = append(refs, strutil.QuoteShell(a.ref(id)))
 	}
 	if len(refs) > 0 {
 		fmt.Fprintf(&b, "fetch_assets %s\n", strings.Join(refs, " "))
@@ -179,9 +179,9 @@ func (p *File) render(l *lock.File, platform string) string {
 			}
 			args := make([]string, 0, len(merged))
 			for _, k := range slices.Sorted(maps.Keys(merged)) {
-				args = append(args, shell.Quote(k+"="+expandVars(resolveRefs(merged[k], tags), lock.Platform(platform))))
+				args = append(args, strutil.QuoteShell(k+"="+expandVars(resolveRefs(merged[k], tags), lock.Platform(platform))))
 			}
-			line := fmt.Sprintf("image_build %s %s %s", shell.Quote(st.Image), shell.Quote(img.Dockerfile), shell.Quote(tag))
+			line := fmt.Sprintf("image_build %s %s %s", strutil.QuoteShell(st.Image), strutil.QuoteShell(img.Dockerfile), strutil.QuoteShell(tag))
 			if len(args) > 0 {
 				line += " " + strings.Join(args, " ")
 			}
@@ -191,9 +191,9 @@ func (p *File) render(l *lock.File, platform string) string {
 		c := p.Commands[st.Command]
 		envs := make([]string, 0, len(c.Env))
 		for _, k := range slices.Sorted(maps.Keys(c.Env)) {
-			envs = append(envs, shell.Quote(k+"="+expandVars(resolveRefs(c.Env[k], tags), lock.Platform(platform))))
+			envs = append(envs, strutil.QuoteShell(k+"="+expandVars(resolveRefs(c.Env[k], tags), lock.Platform(platform))))
 		}
-		line := fmt.Sprintf("run_command %s %s %s", shell.Quote(st.Command), shell.Quote(c.Run), shell.Quote(mustDefault(c.Workdir, p.Project.Dir)))
+		line := fmt.Sprintf("run_command %s %s %s", strutil.QuoteShell(st.Command), strutil.QuoteShell(c.Run), strutil.QuoteShell(mustDefault(c.Workdir, p.Project.Dir)))
 		if len(envs) > 0 {
 			line += " " + strings.Join(envs, " ")
 		}
@@ -223,10 +223,10 @@ func repoRoot() string {
 	if repoRootOverride != "" {
 		return repoRootOverride
 	}
-	if root, err := reporoot.FindFromExecutable(); err == nil {
+	if root, err := workspace.FindFromExecutable(); err == nil {
 		return root
 	}
-	if root, err := reporoot.FindFromWorkingDir(); err == nil {
+	if root, err := workspace.FindFromWorkingDir(); err == nil {
 		return root
 	}
 	return "."

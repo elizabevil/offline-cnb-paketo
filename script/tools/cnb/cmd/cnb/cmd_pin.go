@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"learn-cnb-paketo/tools/cnb/internal/bundle"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
 func newPinCmd() *cobra.Command {
@@ -13,7 +13,7 @@ func newPinCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			suggests, err := bundle.Suggestions(l, bundleDir, platform, ids)
+			suggests, err := materials.Suggestions(l, bundleDir, platform, ids)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

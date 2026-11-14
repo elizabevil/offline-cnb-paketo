@@ -13,23 +13,23 @@ import (
 	"strings"
 	"time"
 
-	"learn-cnb-paketo/tools/cnb/internal/buildmeta"
+	"learn-cnb-paketo/tools/cnb/internal/checks"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 
-	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 // 阶段类型与外部脚本路径。
 const (
-	KindImage   = cnbconst.KindImage
-	KindCommand = cnbconst.KindCommand
-	KindFetch   = cnbconst.KindFetch
+	KindImage   = lock.KindImage
+	KindCommand = lock.KindCommand
+	KindFetch   = lock.KindFetch
 
 	scriptFetch = "script/fetch.sh"
 	scriptImage = "script/lib/image-build.sh"
 
-	contextBundle     = cnbconst.ContextBundle
-	contextBuildpacks = cnbconst.ContextBuildpacks
+	contextBundle     = lock.ContextBundle
+	contextBuildpacks = lock.ContextBuildpacks
 
 	flagBuildContext = "--build-context"
 	flagBuildArg     = "--build-arg"
@@ -146,12 +146,12 @@ func (r *Runner) builderLabels(plan *profile.Plan, st profile.PlanStage) []strin
 		return nil
 	}
 	var args []string
-	if m, err := buildmeta.Generate(plan); err == nil {
+	if m, err := checks.Generate(plan); err == nil {
 		if js, err := m.JSON(); err == nil {
 			args = append(args, flagLabel, labelBuilderMeta+js)
 		}
 	}
-	if sid := buildmeta.StackID(plan); sid != "" {
+	if sid := checks.StackID(plan); sid != "" {
 		args = append(args, flagLabel, labelStackID+sid)
 	}
 	return args

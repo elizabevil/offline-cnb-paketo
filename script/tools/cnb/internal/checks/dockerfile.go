@@ -1,5 +1,4 @@
-// Package dockerfile 静态检查镜像构建所需的源文件是否存在。
-package dockerfile
+package checks
 
 import (
 	"maps"
@@ -10,7 +9,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 
-	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 // 解析规则。
@@ -21,14 +20,14 @@ var (
 
 // 命名构建上下文（与 profile 约定一致）。
 const (
-	ContextBundle     = cnbconst.ContextBundle
-	ContextBuildpacks = cnbconst.ContextBuildpacks
+	ContextBundle     = lock.ContextBundle
+	ContextBuildpacks = lock.ContextBuildpacks
 
 	// KindImage 是计划中的镜像阶段类型。
-	KindImage = cnbconst.KindImage
+	KindImage = lock.KindImage
 
 	// ArchPrefix 是平台名中的架构前缀。
-	ArchPrefix = cnbconst.ArchPrefix
+	ArchPrefix = lock.ArchPrefix
 )
 
 // Missing 是一条缺失的源路径。
@@ -38,17 +37,17 @@ type Missing struct {
 	Target string
 }
 
-// Report 是检查结果。
-type Report struct {
+// DockerfileReport 是 Dockerfile 源路径检查结果。
+type DockerfileReport struct {
 	Missing []Missing
 }
 
 // OK 判断是否全部存在。
-func (r Report) OK() bool { return len(r.Missing) == 0 }
+func (r DockerfileReport) OK() bool { return len(r.Missing) == 0 }
 
-// Check 遍历计划中的镜像阶段，校验 COPY/ADD 源路径。
-func Check(plan *profile.Plan, platform string) Report {
-	var rep Report
+// CheckDockerfile 遍历计划中的镜像阶段，校验 COPY/ADD 源路径。
+func CheckDockerfile(plan *profile.Plan, platform string) DockerfileReport {
+	var rep DockerfileReport
 	for _, st := range plan.Stages {
 		if st.Kind != KindImage {
 			continue

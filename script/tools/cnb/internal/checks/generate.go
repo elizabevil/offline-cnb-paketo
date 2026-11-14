@@ -1,4 +1,4 @@
-package buildmeta
+package checks
 
 import (
 	"encoding/json"
@@ -123,9 +123,9 @@ func findManifest(dir string) string {
 // parseBuildpack 从 buildpack.toml 文本中提取条目。
 func parseBuildpack(text string) Buildpack {
 	return Buildpack{
-		ID:       firstMatch(idRe, text),
-		Version:  firstMatch(verRe, text),
-		API:      firstMatch(apiRe, text),
-		Homepage: firstMatch(homeRe, text),
+		ID:       firstMatch(metaIDRe, text),
+		Version:  firstMatch(metaVerRe, text),
+		API:      firstMatch(metaAPIRe, text),
+		Homepage: firstMatch(metaHomeRe, text),
 	}
 }

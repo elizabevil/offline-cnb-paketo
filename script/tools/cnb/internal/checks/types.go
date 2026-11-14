@@ -1,4 +1,4 @@
-package buildmeta
+package checks
 
 import "encoding/json"
 

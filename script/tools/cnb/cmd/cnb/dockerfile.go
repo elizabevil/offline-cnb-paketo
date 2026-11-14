@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"learn-cnb-paketo/tools/cnb/internal/dockerfile"
+	"learn-cnb-paketo/tools/cnb/internal/checks"
 )
 
 // newDockerfileCmd 静态校验镜像构建所需的源文件是否存在。
@@ -22,7 +22,7 @@ func newDockerfileCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			rep := dockerfile.Check(plan, string(platform))
+			rep := checks.CheckDockerfile(plan, string(platform))
 			for _, m := range rep.Missing {
 				logr.Error("missing COPY source", "stage", m.Stage, "source", m.Source, "resolved", m.Target)
 			}

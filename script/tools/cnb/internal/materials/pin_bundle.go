@@ -1,4 +1,4 @@
-package bundle
+package materials
 
 import (
 	"fmt"

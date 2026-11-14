@@ -25,21 +25,6 @@ func TestParseRepoTag(t *testing.T) {
 	}
 }
 
-func TestLayerSourcesKeepsOrder(t *testing.T) {
-	src := layerSources{items: []layerSource{
-		{digest: "sha256:bbb", desc: blobDescriptor{MediaType: "m", Digest: "sha256:bbb", Size: 2}},
-		{digest: "sha256:aaa", desc: blobDescriptor{MediaType: "m", Digest: "sha256:aaa", Size: 1}},
-	}}
-	data, err := marshalCompact(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `{"sha256:bbb":{"mediaType":"m","digest":"sha256:bbb","size":2},"sha256:aaa":{"mediaType":"m","digest":"sha256:aaa","size":1}}`
-	if string(data) != want {
-		t.Fatalf("顺序或格式不符\n got: %s\nwant: %s", data, want)
-	}
-}
-
 func TestMarshalCompactNoHTMLDigits(t *testing.T) {
 	// 确认编码器不转义 HTML 字符（与 Python ensure_ascii=False 对齐）
 	got, err := marshalCompact(map[string]string{"k": "a<b&c>"})

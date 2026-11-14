@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/shell"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
 // Plan 是校验后的可执行计划，可序列化为 shell / JSON。
@@ -220,16 +220,16 @@ func assetPlatforms(a *lock.Asset, platform lock.Platform) []string {
 func (pl *Plan) Shell() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# generated from %s\n", pl.Project)
-	fmt.Fprintf(&b, "PROFILE_NAME=%s\n", shell.Quote(pl.Project))
-	fmt.Fprintf(&b, "PROFILE_DIR=%s\n", shell.Quote(pl.Dir))
-	fmt.Fprintf(&b, "PLATFORM=%s\n", shell.Quote(pl.Platform))
-	fmt.Fprintf(&b, "PROFILE_CONTEXT=%s\n", shell.Quote(pl.Context))
-	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", shell.Quote(pl.BundleLayout))
+	fmt.Fprintf(&b, "PROFILE_NAME=%s\n", strutil.QuoteShell(pl.Project))
+	fmt.Fprintf(&b, "PROFILE_DIR=%s\n", strutil.QuoteShell(pl.Dir))
+	fmt.Fprintf(&b, "PLATFORM=%s\n", strutil.QuoteShell(pl.Platform))
+	fmt.Fprintf(&b, "PROFILE_CONTEXT=%s\n", strutil.QuoteShell(pl.Context))
+	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", strutil.QuoteShell(pl.BundleLayout))
 
 	if len(pl.Assets) > 0 {
 		q := make([]string, 0, len(pl.Assets))
 		for _, a := range pl.Assets {
-			q = append(q, shell.Quote(a))
+			q = append(q, strutil.QuoteShell(a))
 		}
 		fmt.Fprintf(&b, "fetch_assets %s\n", strings.Join(q, " "))
 	}
@@ -238,9 +238,9 @@ func (pl *Plan) Shell() string {
 		case StageImage:
 			args := make([]string, 0, len(st.Args))
 			for _, k := range slices.Sorted(maps.Keys(st.Args)) {
-				args = append(args, shell.Quote(k+"="+st.Args[k]))
+				args = append(args, strutil.QuoteShell(k+"="+st.Args[k]))
 			}
-			line := fmt.Sprintf("image_build %s %s %s", shell.Quote(st.Name), shell.Quote(st.Dockerfile), shell.Quote(st.Tag))
+			line := fmt.Sprintf("image_build %s %s %s", strutil.QuoteShell(st.Name), strutil.QuoteShell(st.Dockerfile), strutil.QuoteShell(st.Tag))
 			if len(args) > 0 {
 				line += " " + strings.Join(args, " ")
 			}
@@ -248,9 +248,9 @@ func (pl *Plan) Shell() string {
 		case StageCommand:
 			envs := make([]string, 0, len(st.Env))
 			for _, k := range slices.Sorted(maps.Keys(st.Env)) {
-				envs = append(envs, shell.Quote(k+"="+st.Env[k]))
+				envs = append(envs, strutil.QuoteShell(k+"="+st.Env[k]))
 			}
-			line := fmt.Sprintf("run_command %s %s %s", shell.Quote(st.Name), shell.Quote(st.Run), shell.Quote(st.Workdir))
+			line := fmt.Sprintf("run_command %s %s %s", strutil.QuoteShell(st.Name), strutil.QuoteShell(st.Run), strutil.QuoteShell(st.Workdir))
 			if len(envs) > 0 {
 				line += " " + strings.Join(envs, " ")
 			}

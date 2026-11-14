@@ -1,4 +1,4 @@
-package bundle
+package materials
 
 import (
 	"fmt"
@@ -26,12 +26,12 @@ func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string)
 }
 
 // checkOne 校验单个物料。
-func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) Result {
+func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) CheckResult {
 	if a.IsLocal() {
 		if pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths()) {
-			return Result{Ref: a.Ref(), Status: StatusOK}
+			return CheckResult{Ref: a.Ref(), Status: StatusOK}
 		}
-		return Result{Ref: a.Ref(), Status: StatusBroken,
+		return CheckResult{Ref: a.Ref(), Status: StatusBroken,
 			Problems: []string{"not published; run cnb publish " + a.ID}}
 	}
 
@@ -54,12 +54,12 @@ func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) Result {
 }
 
 // classify 根据问题列表判定状态。
-func classify(ref lock.Ref, problems []string) Result {
+func classify(ref lock.Ref, problems []string) CheckResult {
 	if len(problems) == 0 {
-		return Result{Ref: ref, Status: StatusOK}
+		return CheckResult{Ref: ref, Status: StatusOK}
 	}
 	if len(problems) == 1 && problems[0] == "sha256 not pinned" {
-		return Result{Ref: ref, Status: StatusUnpinned, Problems: problems}
+		return CheckResult{Ref: ref, Status: StatusUnpinned, Problems: problems}
 	}
-	return Result{Ref: ref, Status: StatusBroken, Problems: problems}
+	return CheckResult{Ref: ref, Status: StatusBroken, Problems: problems}
 }

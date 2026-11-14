@@ -15,7 +15,6 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
-	"learn-cnb-paketo/tools/cnb/internal/reporoot"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 	"os"
 	"path/filepath"
@@ -96,10 +95,10 @@ func resolveRepo() (string, error) {
 	if env := os.Getenv("CNB_REPO_ROOT"); env != "" {
 		return filepath.Abs(env)
 	}
-	if root, err := reporoot.FindFromExecutable(); err == nil {
+	if root, err := workspace.FindFromExecutable(); err == nil {
 		return root, nil
 	}
-	root, err := reporoot.FindFromWorkingDir()
+	root, err := workspace.FindFromWorkingDir()
 	if err != nil {
 		return "", errs.Wrap("定位仓库根", err)
 	}

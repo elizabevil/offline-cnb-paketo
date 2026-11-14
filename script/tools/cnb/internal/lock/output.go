@@ -10,7 +10,7 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"strings"
 
-	"learn-cnb-paketo/tools/cnb/internal/shell"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
 // WriteList 以 TSV 输出清单（id、version、kind、平台）。
@@ -48,7 +48,7 @@ func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {
 		{"ASSET_EXPECT", strings.Join(asset.ExpectedPaths(), " ")},
 	}
 	for _, p := range pairs {
-		fmt.Fprintf(w, "%s=%s\n", p.key, shell.Quote(p.value))
+		fmt.Fprintf(w, "%s=%s\n", p.key, strutil.QuoteShell(p.value))
 	}
 	return nil
 }

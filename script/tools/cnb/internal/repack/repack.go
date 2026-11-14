@@ -14,22 +14,13 @@ package repack
 //   - 二次执行幂等
 
 import (
-	"archive/tar"
-	"bufio"
-	"bytes"
-	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"learn-cnb-paketo/tools/cnb/internal/errs"
-
-	"io"
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
-	"os/user"
-	"path"
 	"path/filepath"
 	"strings"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 )
 
 // ── OCI / docker 载荷结构 ───────────────────────────────────────────────────
@@ -39,85 +30,6 @@ import (
 //   docker-archive → Config / RepoTags / Layers（见其他文件）
 // 改名会导致 skopeo / containerd / lifecycle 无法解析，故保持原样。
 // 字段顺序即输出键顺序，也不要随意调整。
-
-type blobDescriptor struct {
-	MediaType string `json:"mediaType"`
-	Digest    string `json:"digest"`
-	Size      int64  `json:"size"`
-}
-
-type ociManifest struct {
-	SchemaVersion int              `json:"schemaVersion"`
-	MediaType     string           `json:"mediaType"`
-	Config        blobDescriptor   `json:"config"`
-	Layers        []blobDescriptor `json:"layers"`
-}
-
-type indexAnnotations struct {
-	ContainerdName string `json:"io.containerd.image.name"`
-	RefName        string `json:"org.opencontainers.image.ref.name"`
-}
-
-type indexEntry struct {
-	MediaType   string           `json:"mediaType"`
-	Digest      string           `json:"digest"`
-	Size        int64            `json:"size"`
-	Annotations indexAnnotations `json:"annotations"`
-}
-
-type ociIndex struct {
-	SchemaVersion int          `json:"schemaVersion"`
-	MediaType     string       `json:"mediaType"`
-	Manifests     []indexEntry `json:"manifests"`
-}
-
-type ociLayout struct {
-	ImageLayoutVersion string `json:"imageLayoutVersion"`
-}
-
-type layerSource struct {
-	digest string
-	desc   blobDescriptor
-}
-
-// layerSources 保持插入顺序（Go map 会随机化键顺序）。
-type layerSources struct{ items []layerSource }
-
-func (l layerSources) MarshalJSON() ([]byte, error) {
-	buf := &bytes.Buffer{}
-	buf.WriteByte('{')
-	for i, it := range l.items {
-		if i > 0 {
-			buf.WriteByte(',')
-		}
-		key, err := marshalCompact(it.digest)
-		if err != nil {
-			return nil, err
-		}
-		val, err := marshalCompact(it.desc)
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(key)
-		buf.WriteByte(':')
-		buf.Write(val)
-	}
-	buf.WriteByte('}')
-	return buf.Bytes(), nil
-}
-
-type legacyManifestEntry struct {
-	Config       string       `json:"Config"`
-	RepoTags     []string     `json:"RepoTags"`
-	Layers       []string     `json:"Layers"`
-	LayerSources layerSources `json:"LayerSources"`
-}
-
-type dockerManifestEntry struct {
-	Config   string   `json:"Config"`
-	RepoTags []string `json:"RepoTags"`
-	Layers   []string `json:"Layers"`
-}
 
 // ── 入口 ────────────────────────────────────────────────────────────────────
 
@@ -134,28 +46,28 @@ func Run(target string) error {
 	if info.IsDir() {
 		return normalizePackageDir(abs)
 	}
-	if info.Mode().IsRegular() && strings.HasSuffix(abs, ".tar.gz") {
+	if info.Mode().IsRegular() && strings.HasSuffix(abs, ArchiveSuffix) {
 		return normalizePackageTarball(abs)
 	}
 	return &errs.Invalid{Field: "target", Value: target, Reason: "expect a directory or *.tar.gz"}
 }
 
 func normalizePackageDir(dir string) error {
-	webTar := filepath.Join(dir, "web.tgz")
+	webTar := filepath.Join(dir, WebTarName)
 	if _, err := os.Stat(webTar); err != nil {
-		return &errs.NotFound{Kind: "web.tgz", Ref: dir}
+		return &errs.NotFound{Kind: WebTarName, Ref: dir}
 	}
 	return normalizeWebTar(webTar)
 }
 
 func normalizePackageTarball(pkgTar string) error {
-	tempRoot, err := os.MkdirTemp("", "cnb-repack-pkg-")
+	tempRoot, err := os.MkdirTemp("", TempPkgPrefix)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
-	pkgDir := filepath.Join(tempRoot, "pkg")
+	pkgDir := filepath.Join(tempRoot, DirPkg)
 	if err := os.MkdirAll(pkgDir, fsutil.DirMode); err != nil {
 		return err
 	}
@@ -166,7 +78,7 @@ func normalizePackageTarball(pkgTar string) error {
 		return err
 	}
 
-	rebuilt := filepath.Join(tempRoot, "rebuilt.tar.gz")
+	rebuilt := filepath.Join(tempRoot, RebuiltTar)
 	if err := packDirToTarGz(pkgDir, rebuilt); err != nil {
 		return err
 	}
@@ -182,13 +94,13 @@ func normalizePackageTarball(pkgTar string) error {
 // ── web.tgz 规范化 ──────────────────────────────────────────────────────────
 
 func normalizeWebTar(webTar string) error {
-	tempRoot, err := os.MkdirTemp("", "cnb-repack-web-")
+	tempRoot, err := os.MkdirTemp("", TempWebPrefix)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
-	legacyDir := filepath.Join(tempRoot, "legacy")
+	legacyDir := filepath.Join(tempRoot, DirLegacy)
 	if err := os.MkdirAll(legacyDir, fsutil.DirMode); err != nil {
 		return err
 	}
@@ -197,11 +109,11 @@ func normalizeWebTar(webTar string) error {
 	}
 
 	// 已是 OCI layout → 幂等返回
-	if fileExists(filepath.Join(legacyDir, "oci-layout")) && fileExists(filepath.Join(legacyDir, "index.json")) {
+	if fileExists(filepath.Join(legacyDir, LayoutVersionName)) && fileExists(filepath.Join(legacyDir, IndexName)) {
 		return nil
 	}
 
-	manifestBytes, err := os.ReadFile(filepath.Join(legacyDir, "manifest.json"))
+	manifestBytes, err := os.ReadFile(filepath.Join(legacyDir, ManifestName))
 	if err != nil {
 		return errs.Wrap("missing manifest.json", err)
 	}
@@ -221,8 +133,8 @@ func normalizeWebTar(webTar string) error {
 	configDigest, _, _ := strings.Cut(configName, ".")
 	configSrc := filepath.Join(legacyDir, configName)
 
-	outDir := filepath.Join(tempRoot, "oci")
-	blobsDir := filepath.Join(outDir, "blobs", "sha256")
+	outDir := filepath.Join(tempRoot, DirOCI)
+	blobsDir := filepath.Join(outDir, BlobsDir, SHA256Dir)
 	if err := os.MkdirAll(blobsDir, fsutil.DirMode); err != nil {
 		return err
 	}
@@ -235,14 +147,14 @@ func normalizeWebTar(webTar string) error {
 		return err
 	}
 	configDesc := blobDescriptor{
-		MediaType: "application/vnd.oci.image.config.v1+json",
-		Digest:    "sha256:" + configDigest,
+		MediaType: MediaTypeOCIConfig,
+		Digest:    DigestPrefix + configDigest,
 		Size:      configSize,
 	}
 
 	var layers []blobDescriptor
 	var legacyLayers []string
-	var sources layerSources
+	sources := map[string]blobDescriptor{}
 	lastLayerDigest := ""
 
 	for _, layerRef := range entry.Layers {
@@ -259,18 +171,18 @@ func normalizeWebTar(webTar string) error {
 			return err
 		}
 		desc := blobDescriptor{
-			MediaType: "application/vnd.oci.image.layer.v1.tar",
-			Digest:    "sha256:" + layerDigest,
+			MediaType: MediaTypeOCILayer,
+			Digest:    DigestPrefix + layerDigest,
 			Size:      size,
 		}
 		layers = append(layers, desc)
 		legacyLayers = append(legacyLayers, "blobs/sha256/"+layerDigest)
-		sources.items = append(sources.items, layerSource{digest: "sha256:" + layerDigest, desc: desc})
+		sources[DigestPrefix+layerDigest] = desc
 	}
 
 	manifest := ociManifest{
 		SchemaVersion: 2,
-		MediaType:     "application/vnd.oci.image.manifest.v1+json",
+		MediaType:     MediaTypeOCIManifest,
 		Config:        configDesc,
 		Layers:        layers,
 	}
@@ -285,9 +197,9 @@ func normalizeWebTar(webTar string) error {
 
 	index := ociIndex{
 		SchemaVersion: 2,
-		MediaType:     "application/vnd.oci.image.index.v1+json",
+		MediaType:     MediaTypeOCIIndex,
 		Manifests: []indexEntry{{
-			MediaType: "application/vnd.oci.image.manifest.v1+json",
+			MediaType: MediaTypeOCIManifest,
 			Digest:    "sha256:" + manifestDigest,
 			Size:      int64(len(manifestJSON)),
 			Annotations: indexAnnotations{
@@ -296,7 +208,7 @@ func normalizeWebTar(webTar string) error {
 			},
 		}},
 	}
-	if err := writeJSONFile(filepath.Join(outDir, "index.json"), index); err != nil {
+	if err := writeJSONFile(filepath.Join(outDir, IndexName), index); err != nil {
 		return err
 	}
 
@@ -306,10 +218,10 @@ func normalizeWebTar(webTar string) error {
 		Layers:       legacyLayers,
 		LayerSources: sources,
 	}}
-	if err := writeJSONFile(filepath.Join(outDir, "manifest.json"), legacyOut); err != nil {
+	if err := writeJSONFile(filepath.Join(outDir, ManifestName), legacyOut); err != nil {
 		return err
 	}
-	if err := writeJSONFile(filepath.Join(outDir, "oci-layout"), ociLayout{ImageLayoutVersion: "1.0.0"}); err != nil {
+	if err := writeJSONFile(filepath.Join(outDir, LayoutVersionName), ociLayout{ImageLayoutVersion: "1.0.0"}); err != nil {
 		return err
 	}
 	repos := map[string]map[string]string{repoName: {repoVersion: lastLayerDigest}}
@@ -321,261 +233,6 @@ func normalizeWebTar(webTar string) error {
 	return packDirToTar(outDir, webTar)
 }
 
-// parseRepoTag 拆分 repo:tag，忽略 docker.io/ 前缀。
-func parseRepoTag(repoTag string) (repo, tag string) {
-	normalized := strings.TrimPrefix(repoTag, "docker.io/")
-	slash := strings.LastIndex(normalized, "/")
-	lastSegment := normalized[slash+1:]
-	if idx := strings.LastIndex(lastSegment, ":"); idx >= 0 {
-		repo = normalized[:slash+1+idx]
-		tag = lastSegment[idx+1:]
-		return repo, tag
-	}
-	return normalized, "latest"
-}
-
 // ── tar / gzip 基础设施 ─────────────────────────────────────────────────────
 
-// extractTar 解包 tar / tar.gz 到 dest（按文件头类型还原目录、链接、权限、mtime）。
-func extractTar(archive, dest string) error {
-	f, err := os.Open(archive)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	reader := bufio.NewReader(f)
-	var src io.Reader = reader
-	if magic, _ := reader.Peek(2); len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-		gz, err := gzip.NewReader(reader)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = gz.Close() }()
-		src = gz
-	}
-
-	tr := tar.NewReader(src)
-	cleanDest := filepath.Clean(dest) + string(os.PathSeparator)
-
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		target := filepath.Join(dest, filepath.FromSlash(hdr.Name))
-		if !strings.HasPrefix(filepath.Clean(target)+string(os.PathSeparator), cleanDest) {
-			return &errs.Invalid{Field: "path", Value: hdr.Name, Reason: "path traversal"}
-		}
-
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.FileMode(hdr.Mode)); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
-				return err
-			}
-			out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(hdr.Mode))
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(out, tr); err != nil {
-				_ = out.Close() // 写入已完成，关闭错误不影响产物
-				return err
-			}
-			_ = out.Close() // 写入已完成，关闭错误不影响产物
-		case tar.TypeSymlink:
-			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
-				return err
-			}
-			// 覆盖已存在文件时忽略删除失败（随后会重建）
-			_ = os.Remove(target)
-			if err := os.Symlink(hdr.Linkname, target); err != nil {
-				return err
-			}
-		case tar.TypeLink:
-			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
-				return err
-			}
-			// 覆盖已存在文件时忽略删除失败（随后会重建）
-			_ = os.Remove(target)
-			if err := os.Link(filepath.Join(dest, filepath.FromSlash(hdr.Linkname)), target); err != nil {
-				return err
-			}
-		case tar.TypeXGlobalHeader:
-			continue
-		default:
-			continue
-		}
-
-		if hdr.Typeflag != tar.TypeSymlink && !hdr.ModTime.IsZero() {
-			// 保留时间戳失败不影响内容正确性
-			_ = os.Chtimes(target, hdr.ModTime, hdr.ModTime)
-		}
-	}
-	return nil
-}
-
-// packDirToTar 把目录打成 plain tar：顶层条目按名排序，目录递归展开（与 Python 版一致）。
-func packDirToTar(srcDir, destTar string) error {
-	tmp := destTar + ".tmp"
-	f, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	tw := tar.NewWriter(f)
-
-	entries, err := os.ReadDir(srcDir) // os.ReadDir 已按文件名排序
-	if err != nil {
-		_ = f.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	for _, entry := range entries {
-		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			_ = tw.Close() // 写入已完成，关闭错误不影响产物
-			_ = f.Close()  // 写入已完成，关闭错误不影响产物
-			return err
-		}
-	}
-	if err := tw.Close(); err != nil {
-		_ = f.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, destTar)
-}
-
-// packDirToTarGz 用于重建 SmartPackage（gzip 压缩级别与 Python 不同，内容等价）。
-func packDirToTarGz(srcDir, destTarGz string) error {
-	tmp := destTarGz + ".tmp"
-	f, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	gz := gzip.NewWriter(f)
-	tw := tar.NewWriter(gz)
-
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		_ = f.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	for _, entry := range entries {
-		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			_ = tw.Close() // 写入已完成，关闭错误不影响产物
-			_ = gz.Close() // 写入已完成，关闭错误不影响产物
-			_ = f.Close()  // 写入已完成，关闭错误不影响产物
-			return err
-		}
-	}
-	if err := tw.Close(); err != nil {
-		_ = f.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	if err := gz.Close(); err != nil {
-		_ = f.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, destTarGz)
-}
-
-func addTree(tw *tar.Writer, fsPath, arcName string) error {
-	info, err := os.Lstat(fsPath)
-	if err != nil {
-		return err
-	}
-
-	link := ""
-	if info.Mode()&os.ModeSymlink != 0 {
-		if link, err = os.Readlink(fsPath); err != nil {
-			return err
-		}
-	}
-
-	hdr, err := tar.FileInfoHeader(info, link)
-	if err != nil {
-		return err
-	}
-	hdr.Name = arcName
-	if info.IsDir() && !strings.HasSuffix(hdr.Name, "/") {
-		hdr.Name += "/"
-	}
-	// 对齐 Python tarfile 的 uname/gname 填充行为
-	if cur, err := user.Current(); err == nil {
-		hdr.Uname = cur.Username
-		if grp, err := user.LookupGroupId(cur.Gid); err == nil {
-			hdr.Gname = grp.Name
-		}
-	}
-
-	if err := tw.WriteHeader(hdr); err != nil {
-		return err
-	}
-
-	// 目录必须递归：Python 的 tar.add 对目录会自动展开子项
-	if info.IsDir() {
-		children, err := os.ReadDir(fsPath)
-		if err != nil {
-			return err
-		}
-		for _, child := range children {
-			if err := addTree(tw, filepath.Join(fsPath, child.Name()), path.Join(arcName, child.Name())); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if !info.Mode().IsRegular() {
-		return nil
-	}
-
-	f, err := os.Open(fsPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-	_, err = io.Copy(tw, f)
-	return err
-}
-
 // ── 杂项 ────────────────────────────────────────────────────────────────────
-
-// marshalCompact 输出紧凑 JSON（无空格、不转义 HTML），与 Python json.dumps 一致。
-func marshalCompact(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
-}
-
-func writeJSONFile(path string, v any) error {
-	data, err := marshalCompact(v)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, fsutil.FileMode)
-}
-
-func sha256Hex(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
-}

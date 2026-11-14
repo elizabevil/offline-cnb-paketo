@@ -2,7 +2,6 @@
 package workspace
 
 import (
-	"learn-cnb-paketo/tools/cnb/internal/strutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,9 +9,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/reporoot"
-
-	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
 // 环境变量与默认值。
@@ -20,11 +17,11 @@ const (
 	EnvRepoRoot = "CNB_REPO_ROOT"
 	EnvLockFile = "LOCK_FILE"
 
-	DefaultLockName = cnbconst.DefaultLockName
-	DefaultBundle   = cnbconst.DefaultBundle
+	DefaultLockName = lock.DefaultLockName
+	DefaultBundle   = lock.DefaultBundle
 
-	PlatformAMD64 = cnbconst.PlatformAMD64
-	PlatformARM64 = cnbconst.PlatformARM64
+	PlatformAMD64 = lock.PlatformAMD64
+	PlatformARM64 = lock.PlatformARM64
 )
 
 // Options 是调用方显式指定的覆盖项。
@@ -77,10 +74,10 @@ func resolveRepo(explicit string) (string, error) {
 	if env := os.Getenv(EnvRepoRoot); env != "" {
 		return filepath.Abs(env)
 	}
-	if root, err := reporoot.FindFromExecutable(); err == nil {
+	if root, err := FindFromExecutable(); err == nil {
 		return root, nil
 	}
-	root, err := reporoot.FindFromWorkingDir()
+	root, err := FindFromWorkingDir()
 	if err != nil {
 		return "", errs.Wrap("locate repo root", err)
 	}

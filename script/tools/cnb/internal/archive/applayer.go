@@ -1,8 +1,7 @@
-// Package apparchive 把应用目录打成 docker-archive（只含应用层）。
-//
-// 用于"只输出应用层"的场景：不依赖 lifecycle exporter，也不依赖容器 daemon。
-package apparchive
+package archive
 
+// 本文件实现应用层 docker-archive 的构造（只含应用层）：
+// 不依赖 lifecycle exporter，也不依赖容器 daemon。
 import (
 	"archive/tar"
 	"crypto/sha256"
@@ -21,8 +20,6 @@ const (
 	DefaultArch = "amd64"
 
 	layerTarName = "layer.tar"
-	fileMode     = 0o644
-	dirMode      = 0o755
 )
 
 type manifestEntry struct {

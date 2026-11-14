@@ -1,5 +1,4 @@
-// Package bundle 管理物料在 bundle 目录下的落盘布局与校验结果。
-package bundle
+package materials
 
 import "learn-cnb-paketo/tools/cnb/internal/lock"
 
@@ -15,8 +14,8 @@ const (
 	StatusBroken Status = "broken"
 )
 
-// Result 是单个物料的校验条目。
-type Result struct {
+// CheckResult 是单个物料的校验条目。
+type CheckResult struct {
 	Ref      lock.Ref
 	Status   Status
 	Problems []string
@@ -25,7 +24,7 @@ type Result struct {
 // Report 是一次校验的完整结果。
 type Report struct {
 	Platform string
-	Results  []Result
+	Results  []CheckResult
 }
 
 // Failures 返回不达标（StatusBroken）的条目数。

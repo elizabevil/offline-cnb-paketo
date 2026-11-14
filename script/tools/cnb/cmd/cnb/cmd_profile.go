@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"learn-cnb-paketo/tools/cnb/internal/bundle"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	"os"
@@ -90,7 +90,7 @@ func newProfileCmd() *cobra.Command {
 				return &exitError{code: 1}
 			}
 			_, _, bundleDir, _ := open()
-			rep, err := bundle.Check(l, bundleDir, platform, p.Refs(string(platform)))
+			rep, err := materials.Check(l, bundleDir, platform, p.Refs(string(platform)))
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

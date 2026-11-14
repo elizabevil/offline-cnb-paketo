@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"learn-cnb-paketo/tools/cnb/internal/bpcheck"
+	"learn-cnb-paketo/tools/cnb/internal/checks"
 )
 
 // newLintCmd 检查 buildpack 结构是否符合官方约定。
@@ -23,7 +23,7 @@ func newLintCmd() *cobra.Command {
 			}
 			var errs, warns int
 			for _, dir := range dirs {
-				rep := bpcheck.Check(dir)
+				rep := checks.CheckBuildpack(dir)
 				for _, f := range rep.Findings {
 					if f.IsError {
 						logr.Error("buildpack lint", "buildpack", f.Name, "problem", f.Message)

@@ -1,4 +1,4 @@
-package bundle
+package materials
 
 // 物料布局与标记文件约定（与 script/lib/common.sh、fetch.sh 保持一致）。
 const (

@@ -1,16 +1,10 @@
 package lock
 
-import "learn-cnb-paketo/tools/cnb/internal/cnbconst"
-
 // 平台与目录约定（lock 作用域）。
 const (
-	// PlatformAMD64 是 linux/amd64 物料目录名。
-	PlatformAMD64 = cnbconst.PlatformAMD64
-	// PlatformARM64 是 linux/arm64 物料目录名。
-	PlatformARM64 = cnbconst.PlatformARM64
 
 	// DefaultBundleDir 是 lock 同级的物料目录名。
-	DefaultBundleDir = cnbconst.DefaultBundle
+	DefaultBundleDir = DefaultBundle
 
 	// LayoutArchFirst 是 bundle/<platform>/... 布局。
 	LayoutArchFirst = "arch-first"

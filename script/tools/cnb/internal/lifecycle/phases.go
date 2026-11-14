@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"learn-cnb-paketo/tools/cnb/internal/apparchive"
+	"learn-cnb-paketo/tools/cnb/internal/archive"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	"learn-cnb-paketo/tools/cnb/internal/user"
@@ -143,7 +143,7 @@ func (c Config) exportAppLayer() error {
 	if after, ok := strings.CutPrefix(c.Paths.Platform, "linux-"); ok {
 		arch = after
 	}
-	if err := apparchive.Build(c.Paths.App, c.Paths.Layers, c.Export.OutputImage, arch, c.Export.LayerArchive, c.Export.IncludeSource); err != nil {
+	if err := archive.Build(c.Paths.App, c.Paths.Layers, c.Export.OutputImage, arch, c.Export.LayerArchive, c.Export.IncludeSource); err != nil {
 		return errs.Wrap("build app layer archive", err)
 	}
 	return nil

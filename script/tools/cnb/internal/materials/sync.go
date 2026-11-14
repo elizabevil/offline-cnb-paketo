@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"sync"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
@@ -95,14 +93,14 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	archive := archivePath(opts.BundleDir, opts.Platform, a)
 	binDir := binariesDir(opts.BundleDir, opts.Platform)
 
-	if m := readMarker(binDir, parsed); m != nil && m.Extractor == extractorID(a) && m.SHA256 == a.SHA256(opts.Platform) {
+	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m != nil && m.Extractor == extractorID(a) && m.SHA256 == a.SHA256(opts.Platform) {
 		return res
 	}
 	// 兼容旧标记（fetch.sh 的 .sha256）：产物齐全且归档校验通过时补写 marker
-	if m := readMarker(binDir, parsed); m == nil && isExtracted(binDir, a) {
+	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m == nil && isExtracted(opts.BundleDir, opts.Platform, a) {
 		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
-			_ = writeLegacyMarker(binDir, a.Ref(), a.SHA256(opts.Platform))
-			_ = writeMarker(binDir, Marker{
+			_ = writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform))
+			_ = writeMarker(opts.BundleDir, opts.Platform, Marker{
 				ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
 				Size: fsutil.Size(archive), Extractor: extractorID(a),
 			})
@@ -110,7 +108,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		}
 	}
 	if opts.Check || opts.Offline {
-		if !isExtracted(binDir, a) {
+		if !isExtracted(opts.BundleDir, opts.Platform, a) {
 			res.Err = fmt.Errorf("offline: %s not synced", a.Ref())
 		}
 		return res
@@ -128,12 +126,12 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		return res
 	}
 	res.Action = ActionExtracted
-	if err := writeLegacyMarker(binDir, a.Ref(), a.SHA256(opts.Platform)); err != nil {
+	if err := writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform)); err != nil {
 		res.Err = err
 	}
 
 	size := fsutil.Size(archive)
-	if err := writeMarker(binDir, Marker{
+	if err := writeMarker(opts.BundleDir, opts.Platform, Marker{
 		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
 		Size: size, Extractor: extractorID(a), Files: files,
 	}); err != nil {
@@ -147,25 +145,4 @@ func extractorID(a *lock.Asset) string {
 	return string(a.Unpack.Kind) + "/v2"
 }
 
-func archivesDir(bundleDir string, platform lock.Platform) string {
-	return filepath.Join(bundleDir, string(platform), "archives")
-}
-
-func binariesDir(bundleDir string, platform lock.Platform) string {
-	return filepath.Join(bundleDir, string(platform), "binaries")
-}
-
-func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string {
-	url, _ := a.URL(platform)
-	return filepath.Join(archivesDir(bundleDir, platform), a.ID, a.Version, filepath.Base(url))
-}
-
 // isExtracted 判断预期产物是否齐全。
-func isExtracted(binDir string, a *lock.Asset) bool {
-	for _, rel := range a.ExpectedPaths() {
-		if _, err := os.Stat(filepath.Join(binDir, rel)); err != nil {
-			return false
-		}
-	}
-	return true
-}

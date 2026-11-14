@@ -9,9 +9,6 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/timefmt"
 )
 
-// markerSuffix 是同步标记的扩展名。
-const markerSuffix = ".sync.json"
-
 // Marker 记录一次同步的来源与结果。
 type Marker struct {
 	ID        string        `json:"id"`
@@ -25,14 +22,9 @@ type Marker struct {
 	SyncedAt  string        `json:"synced_at"`
 }
 
-// markerPath 返回 marker 路径（文件名为 id@version）。
-func markerPath(binDir string, r lock.AssetRef) string {
-	return filepath.Join(binDir, ".meta", r.String()+markerSuffix)
-}
-
 // readMarker 读取 marker；不存在时返回 nil。
-func readMarker(binDir string, r lock.AssetRef) *Marker {
-	data, err := os.ReadFile(markerPath(binDir, r))
+func readMarker(bundleDir string, platform lock.Platform, r lock.AssetRef) *Marker {
+	data, err := os.ReadFile(markerPath(bundleDir, platform, r))
 	if err != nil {
 		return nil
 	}
@@ -44,8 +36,8 @@ func readMarker(binDir string, r lock.AssetRef) *Marker {
 }
 
 // writeMarker 写入 marker。
-func writeMarker(binDir string, m Marker) error {
-	path := markerPath(binDir, lock.AssetRef{ID: m.ID, Version: m.Version})
+func writeMarker(bundleDir string, platform lock.Platform, m Marker) error {
+	path := markerPath(bundleDir, platform, lock.AssetRef{ID: m.ID, Version: m.Version})
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -59,8 +51,8 @@ func writeMarker(binDir string, m Marker) error {
 
 // writeLegacyMarker 同步写 fetch.sh 时代的 .meta/<ref>.sha256，
 // 保持 materials verify（bundle 包）与 sync 的状态判断一致。
-func writeLegacyMarker(binDir, ref, sha string) error {
-	path := filepath.Join(binDir, ".meta", ref+".sha256")
+func writeLegacyMarker(bundleDir string, platform lock.Platform, ref, sha string) error {
+	path := filepath.Join(binariesDir(bundleDir, platform), DirMeta, ref+".sha256")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

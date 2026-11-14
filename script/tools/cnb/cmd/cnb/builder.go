@@ -5,11 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"learn-cnb-paketo/tools/cnb/internal/buildmeta"
+	"learn-cnb-paketo/tools/cnb/internal/checks"
 )
 
 func newBuilderCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "builder", Short: "builder 元数据"}
 	var format string
 	meta := &cobra.Command{
 		Use:   "metadata <profile>",
@@ -24,7 +23,7 @@ func newBuilderCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
-			m, err := buildmeta.Generate(plan)
+			m, err := checks.Generate(plan)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
@@ -44,6 +43,5 @@ func newBuilderCmd() *cobra.Command {
 		},
 	}
 	meta.Flags().StringVar(&format, "format", "json", "输出格式：json | label")
-	parent.AddCommand(meta)
-	return parent
+	return meta
 }

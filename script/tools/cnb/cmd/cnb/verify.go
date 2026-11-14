@@ -3,19 +3,19 @@ package main
 import (
 	"strings"
 
-	"learn-cnb-paketo/tools/cnb/internal/bundle"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
 // printReport 输出校验报告并返回是否通过。
-func printReport(rep bundle.Report, strict, quiet bool) bool {
+func printReport(rep materials.Report, strict, quiet bool) bool {
 	logr.Info("verify assets", "platform", rep.Platform)
 	for _, r := range rep.Results {
 		switch r.Status {
-		case bundle.StatusOK:
+		case materials.StatusOK:
 			if !quiet {
 				logr.Info("asset ok", "ref", r.Ref)
 			}
-		case bundle.StatusUnpinned:
+		case materials.StatusUnpinned:
 			logr.Warn("asset unpinned", "ref", r.Ref, "problems", strings.Join(r.Problems, "; "))
 		default:
 			logr.Error("asset broken", "ref", r.Ref, "problems", strings.Join(r.Problems, "; "))
@@ -33,7 +33,7 @@ func printReport(rep bundle.Report, strict, quiet bool) bool {
 }
 
 // printSuggestions 输出 sha256 回填建议。
-func printSuggestions(suggests []bundle.Suggestion) bool {
+func printSuggestions(suggests []materials.Suggestion) bool {
 	if len(suggests) == 0 {
 		logr.Warn("no archives to pin")
 		return false

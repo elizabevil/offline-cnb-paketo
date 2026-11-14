@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"learn-cnb-paketo/tools/cnb/internal/bundle"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
 func newVerifyCmd() *cobra.Command {
@@ -13,7 +13,7 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rep, err := bundle.Check(l, bundleDir, platform, ids)
+			rep, err := materials.Check(l, bundleDir, platform, ids)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

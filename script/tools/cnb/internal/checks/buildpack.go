@@ -1,5 +1,5 @@
-// Package bpcheck 按官方模板静态检查 buildpack 的结构与契约。
-package bpcheck
+// Package checks 提供静态检查与元数据生成：buildpack 结构、Dockerfile 源、环境体检、builder metadata。
+package checks
 
 import (
 	"fmt"
@@ -29,14 +29,14 @@ var Providers = map[string]bool{
 }
 
 var (
-	apiRe   = regexp.MustCompile(`(?m)^\s*api\s*=\s*"([^"]+)"`)
-	idRe    = regexp.MustCompile(`(?m)^\s*id\s*=\s*"([^"]+)"`)
-	verRe   = regexp.MustCompile(`(?m)^\s*version\s*=\s*"([^"]+)"`)
-	nameRe  = regexp.MustCompile(`(?m)^\s*name\s*=\s*"([^"]+)"`)
-	orderRe = regexp.MustCompile(`(?m)^\s*\[\[order\]\]`)
-	groupRe = regexp.MustCompile(`(?ms)\[\[order\.group\]\](.*?)(?:\[\[|\z)`)
-	sbomRe  = regexp.MustCompile(`(?m)^\s*sbom-formats\s*=`)
-	depsRe  = regexp.MustCompile(`(?m)^\s*\[\[metadata\.dependencies\]\]`)
+	bpAPIRe  = regexp.MustCompile(`(?m)^\s*api\s*=\s*"([^"]+)"`)
+	bpIDRe   = regexp.MustCompile(`(?m)^\s*id\s*=\s*"([^"]+)"`)
+	bpVerRe  = regexp.MustCompile(`(?m)^\s*version\s*=\s*"([^"]+)"`)
+	bpNameRe = regexp.MustCompile(`(?m)^\s*name\s*=\s*"([^"]+)"`)
+	orderRe  = regexp.MustCompile(`(?m)^\s*\[\[order\]\]`)
+	groupRe  = regexp.MustCompile(`(?ms)\[\[order\.group\]\](.*?)(?:\[\[|\z)`)
+	sbomRe   = regexp.MustCompile(`(?m)^\s*sbom-formats\s*=`)
+	depsRe   = regexp.MustCompile(`(?m)^\s*\[\[metadata\.dependencies\]\]`)
 )
 
 // Finding 是一条检查结果。
@@ -46,13 +46,13 @@ type Finding struct {
 	IsError bool
 }
 
-// Report 是一个目录的检查结果。
-type Report struct {
+// BuildpackReport 是一个 buildpack 目录的检查结果。
+type BuildpackReport struct {
 	Findings []Finding
 }
 
 // Errors 返回错误条数。
-func (r Report) Errors() int {
+func (r BuildpackReport) Errors() int {
 	n := 0
 	for _, f := range r.Findings {
 		if f.IsError {
@@ -63,14 +63,14 @@ func (r Report) Errors() int {
 }
 
 // Warnings 返回警告条数。
-func (r Report) Warnings() int { return len(r.Findings) - r.Errors() }
+func (r BuildpackReport) Warnings() int { return len(r.Findings) - r.Errors() }
 
 // OK 判断是否无错误。
-func (r Report) OK() bool { return r.Errors() == 0 }
+func (r BuildpackReport) OK() bool { return r.Errors() == 0 }
 
-// Check 检查单个 buildpack 目录。
-func Check(dir string) Report {
-	var rep Report
+// CheckBuildpack 检查单个 buildpack 目录。
+func CheckBuildpack(dir string) BuildpackReport {
+	var rep BuildpackReport
 	leaf, versionDir := locate(dir)
 	add := func(ok bool, msg string) {
 		if !ok {
@@ -90,11 +90,11 @@ func Check(dir string) Report {
 	}
 	text := string(data)
 
-	add(apiRe.MatchString(text), "missing api")
-	id := firstOf(idRe, text)
+	add(bpAPIRe.MatchString(text), "missing api")
+	id := firstOf(bpIDRe, text)
 	add(id != "", "missing [buildpack] id")
-	add(verRe.MatchString(text), "missing [buildpack] version")
-	add(nameRe.MatchString(text), "missing [buildpack] name")
+	add(bpVerRe.MatchString(text), "missing [buildpack] version")
+	add(bpNameRe.MatchString(text), "missing [buildpack] name")
 	add(idMatchesDir(id, leaf), fmt.Sprintf("dir %s does not match id %s", leaf, id))
 
 	if orderRe.MatchString(text) {
@@ -125,7 +125,7 @@ func locate(dir string) (string, string) {
 }
 
 // checkMeta 检查 meta buildpack：不得含脚本，order 引用的组件需存在。
-func checkMeta(rep *Report, dir, text string) {
+func checkMeta(rep *BuildpackReport, dir, text string) {
 	add := func(ok bool, msg string) {
 		if !ok {
 			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})
@@ -137,7 +137,7 @@ func checkMeta(rep *Report, dir, text string) {
 
 	root := filepath.Dir(dir)
 	for _, g := range groupRe.FindAllStringSubmatch(text, -1) {
-		gid := firstOf(idRe, g[1])
+		gid := firstOf(bpIDRe, g[1])
 		if gid == "" {
 			continue
 		}
@@ -149,7 +149,7 @@ func checkMeta(rep *Report, dir, text string) {
 }
 
 // checkComponent 检查实现型 buildpack：脚本、权限、SBOM 与依赖声明。
-func checkComponent(rep *Report, dir, leaf, text string, warn func(bool, string)) {
+func checkComponent(rep *BuildpackReport, dir, leaf, text string, warn func(bool, string)) {
 	add := func(ok bool, msg string) {
 		if !ok {
 			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})

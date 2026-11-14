@@ -1,5 +1,4 @@
-// Package doctor 检查构建前置条件：容器运行时、API socket、builder 契约。
-package doctor
+package checks
 
 import (
 	"fmt"
@@ -11,15 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"learn-cnb-paketo/tools/cnb/internal/buildmeta"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 
-	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 // 检查项常量。
 const (
-	stageKindImage = cnbconst.KindImage
+	stageKindImage = lock.KindImage
 	stageRun       = "run"
 	stageBuilder   = "builder"
 
@@ -61,13 +59,13 @@ type Item struct {
 	Hint  string
 }
 
-// Report 是一次体检结果。
-type Report struct {
+// DoctorReport 是一次体检结果。
+type DoctorReport struct {
 	Items []Item
 }
 
 // Problems 返回不达标项数量。
-func (r Report) Problems() int {
+func (r DoctorReport) Problems() int {
 	n := 0
 	for _, it := range r.Items {
 		if it.Level == LevelFail {
@@ -78,11 +76,11 @@ func (r Report) Problems() int {
 }
 
 // OK 判断是否全部通过（跳过不计）。
-func (r Report) OK() bool { return r.Problems() == 0 }
+func (r DoctorReport) OK() bool { return r.Problems() == 0 }
 
-// Run 执行全部检查。
-func Run(plan *profile.Plan) Report {
-	var rep Report
+// RunDoctor 执行全部检查。
+func RunDoctor(plan *profile.Plan) DoctorReport {
+	var rep DoctorReport
 	add := func(level Level, title, hint string) {
 		rep.Items = append(rep.Items, Item{Level: level, Title: title, Hint: hint})
 	}
@@ -97,7 +95,7 @@ func Run(plan *profile.Plan) Report {
 	checkBuilder(plan, add)
 	checkRunLibc(plan, add)
 
-	if _, err := buildmeta.Generate(plan); err != nil {
+	if _, err := Generate(plan); err != nil {
 		add(LevelFail, "generate builder metadata", err.Error())
 	} else {
 		add(LevelOK, "generate builder metadata", "")

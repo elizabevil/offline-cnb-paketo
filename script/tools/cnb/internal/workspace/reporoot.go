@@ -1,9 +1,11 @@
-// Package reporoot 通过标记文件向上定位仓库根，避免依赖固定的目录层级。
-package reporoot
+package workspace
+
+// 本文件通过标记文件向上定位仓库根，避免依赖固定的目录层级。
 
 import (
-	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"os"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"path/filepath"
 )
 
