@@ -22,7 +22,7 @@
   script/fetch.sh    script/lib/image-build.sh   bash -c
         │                     │                      │
         ▼                     ▼                      ▼
-  bundle/<platform>/    podman|docker build     examples/build.sh
+  bundle/<platform>/    podman|docker build     scripts/build.sh
   {archives,binaries}   (context = 仓库根)      + cnb repack
 ```
 
@@ -44,7 +44,7 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
   offline-builder-base-bk:latest --build-arg BASE_IMAGE=…
 
 # ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb repack 规范化）
-(cd <repo>/project/offline-paketo-bk && examples/build.sh)
+(cd <repo>/project/offline-paketo-bk && scripts/build.sh)
 ```
 
 ## 分工
@@ -56,7 +56,7 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
 | 规划 | `cnb profile render` | 校验 + 生成 shell 计划 | 执行 |
 | 执行 | `cnb run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
 | 原语 | `fetch.sh` / `image-build.sh` | 下载解压 / 单镜像构建 | 顺序 |
-| 资产 | `<proj>/docker/`、`examples/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
+| 资产 | `<proj>/docker/`、`<proj>/scripts/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
 
 ## 改东西去哪
 
@@ -105,6 +105,6 @@ cnb dockerfile check config/projects/<p>.toml   # COPY 源路径是否存在
 
 ## 尚未完成
 
-- `package` 阶段指向 `examples/build.sh`，该目录不入库，新克隆仓库需自备
+- `package` 阶段指向 `scripts/build.sh`，该目录不入库，新克隆仓库需自备
 - Dockerfile 模板化**已决定不做**：只保留 `dockerfile check` 作为路径守卫
 - 物料哈希多为空（`verify` 会提示未固定），对外分发前应改为上游官方值

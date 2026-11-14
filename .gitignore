@@ -48,3 +48,6 @@ __pycache__/
 
 # IDE
 .idea/
+
+# 外部工具源码（不纳入本仓库）
+/script/tools/bksmartpacker_v3/

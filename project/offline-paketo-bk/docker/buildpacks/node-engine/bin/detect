@@ -1,0 +1,9 @@
+#!/bin/sh
+# detect <platform_dir> <plan_path>
+set -e
+app_dir="${CNB_APP_DIR:-$(pwd)}"
+if [ -f "${app_dir}/package.json" ] || [ -f "${app_dir}/pnpm-lock.yaml" ] || [ -f "${app_dir}/yarn.lock" ]; then
+  echo "provides = [{ name = \"node\" }]"
+  exit 0
+fi
+exit 100

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+app_dir="${CNB_APP_DIR:-$(pwd)}"
+[ -f "${app_dir}/go.mod" ] || exit 100
+echo 'provides = [{ name = "go-build" }]'
+echo 'requires = [{ name = "go" }]'
+exit 0

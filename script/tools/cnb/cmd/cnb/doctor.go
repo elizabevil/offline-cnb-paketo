@@ -79,7 +79,42 @@ func newDoctorCmd() *cobra.Command {
 					"确认 metadata 由 cnb 生成（含 stack.runImage）")
 			}
 
-			// 4. metadata 可生成（不需要镜像）
+			// 4. run 镜像 libc 与运行时一致性（Node/Python 为 glibc 二进制）
+			runBase := ""
+			for _, st := range plan.Stages {
+				if st.Kind == "image" && st.Name == "run" {
+					runBase = st.Args["BASE_IMAGE"]
+					if runBase == "" {
+						runBase = st.Args["BASE_IMAGE_TAG"]
+					}
+				}
+			}
+			lower := strings.ToLower(runBase)
+			musl := strings.Contains(lower, "alpine") || strings.Contains(lower, "musl")
+			glibcRuntime := false
+			for id := range p.Assets {
+				if id == "fnm" || id == "uv" {
+					glibcRuntime = true
+				}
+			}
+			if bps, err := os.ReadDir(plan.BuildpacksDir); err == nil {
+				for _, b := range bps {
+					switch b.Name() {
+					case "node-engine", "npm-start", "cpython", "pip-install":
+						glibcRuntime = true
+					}
+				}
+			}
+			if runBase == "" {
+				fmt.Printf("  · run 镜像未声明 BASE_IMAGE，跳过 libc 检查\n")
+			} else if musl && glibcRuntime {
+				check(false, "run 镜像为 musl（"+runBase+"），但项目含 Node/Python 运行时",
+					"改用 debian/ubuntu 基础镜像；glibc 二进制在 musl 下会报 ENOENT")
+			} else {
+				check(true, "run 镜像 libc 与运行时匹配", "")
+			}
+
+			// 5. metadata 可生成（不需要镜像）
 			if _, err := buildmeta.Generate(plan); err != nil {
 				check(false, "可生成 builder metadata", err.Error())
 			} else {

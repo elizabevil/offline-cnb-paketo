@@ -6,7 +6,7 @@
 
 [[order]]
   [[order.group]]
-    id = "paketo-buildpacks/node"
+    id = "paketo-buildpacks/nodejs"
     version = "10.15.0"
     optional = false
 

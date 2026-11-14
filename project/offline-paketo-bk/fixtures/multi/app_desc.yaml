@@ -1,0 +1,27 @@
+specVersion: 3
+appVersion: 0.0.2
+app:
+  bkAppCode: "fixture-multi"
+  bkAppName: "多模块夹具"
+modules:
+  - name: web
+    language: "Go"
+    isDefault: true
+    sourceDir: "web"
+    spec:
+      processes:
+        - name: web
+          procCommand: ./workspace/app
+      build:
+        buildpacks:
+          - name: bk-buildpack-go
+  - name: worker
+    language: "Go"
+    sourceDir: "worker"
+    spec:
+      processes:
+        - name: worker
+          procCommand: ./workspace/worker
+      build:
+        buildpacks:
+          - name: bk-buildpack-go

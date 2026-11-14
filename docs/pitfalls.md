@@ -14,6 +14,10 @@
 | 修法 | run 镜像改用 glibc 基础（`debian:trixie-slim`） |
 
 > 判断顺序：先 `ldd <binary>`，再看 PATH。**"文件存在但报不存在"九成是动态链接器**。
+>
+> 这条规律在三个项目上都复现过（offline-paketo、offline-paketo-bk）；
+> 现在由 `cnb doctor` 静态检查：run 镜像含 alpine/musl 且项目含 Node/Python
+> 运行时即报错，不必等容器起不来。
 
 官方 Node 只有 glibc 构建（nodejs.org 与 fnm 均是），无静态版；
 Python（uv 的 `cpython-*-gnu`）同理；Go 静态链接，alpine 也可。

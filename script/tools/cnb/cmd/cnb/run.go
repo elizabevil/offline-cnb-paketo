@@ -47,10 +47,11 @@ func newPlanCmd() *cobra.Command {
 
 func newRunCmd() *cobra.Command {
 	var (
-		dryRun bool
-		only   string
-		level  string
-		format string
+		dryRun     bool
+		only       string
+		level      string
+		format     string
+		noCommands bool
 	)
 	cmd := &cobra.Command{
 		Use:   "run <profile>",
@@ -71,6 +72,9 @@ func newRunCmd() *cobra.Command {
 				plan.ConfigPath = abs
 			}
 			if dryRun {
+				if noCommands {
+					fmt.Fprintln(os.Stderr, "  （--no-commands：command 阶段不会执行）")
+				}
 				out, err := render.Format(plan, format)
 				if err != nil {
 					return &exitError{code: 2, msg: err.Error()}
@@ -81,13 +85,14 @@ func newRunCmd() *cobra.Command {
 			if text, err := render.Text(plan); err == nil {
 				fmt.Print(text)
 			}
-			return executePlan(logger, plan, only)
+			return executePlan(logger, plan, only, noCommands)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只打印计划，不执行")
 	cmd.Flags().StringVar(&format, "format", "text", "dry-run 输出格式：text | shell | json | yaml")
 	cmd.Flags().StringVar(&only, "only", "", "只执行指定阶段")
 	cmd.Flags().StringVar(&level, "log-level", "info", "日志级别：debug|info|warn|error")
+	cmd.Flags().BoolVar(&noCommands, "no-commands", false, "跳过 command 阶段（只构建镜像）")
 	return cmd
 }
 
@@ -106,7 +111,7 @@ func newLogger(level string) *slog.Logger {
 	return slog.New(render.NewCompactHandler(os.Stderr, lv))
 }
 
-func executePlan(log *slog.Logger, plan *profile.Plan, only string) error {
+func executePlan(log *slog.Logger, plan *profile.Plan, only string, noCommands bool) error {
 	root, err := resolveRepo()
 	if err != nil {
 		return err
@@ -129,6 +134,10 @@ func executePlan(log *slog.Logger, plan *profile.Plan, only string) error {
 	}
 
 	for i, st := range plan.Stages {
+		if noCommands && st.Kind == "command" {
+			fmt.Printf("\n[%d/%d] %-7s %s  – skipped (--no-commands)\n", i+1, total, st.Kind, st.Name)
+			continue
+		}
 		if only != "" && only != st.Name {
 			fmt.Printf("\n[%d/%d] %-7s %s  – skipped\n", i+1, total, st.Kind, st.Name)
 			continue

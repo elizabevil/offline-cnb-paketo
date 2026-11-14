@@ -4,6 +4,9 @@ set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
 
 app_dir="$1"; case_name="${2:-$(basename "${app_dir}")}"
+# 项目参数化：默认 offline-paketo，可用 E2E_PROFILE 指向其它配置
+PROFILE="${E2E_PROFILE:-${REPO_ROOT}/config/projects/offline-paketo.toml}"
+[ -f "${PROFILE}" ] || { echo "找不到 profile: ${PROFILE}" >&2; exit 1; }
 CASE="e2e/lifecycle/${case_name}"
 image="offline-test-${case_name}:latest"
 tool="$(container_tool)"
@@ -43,7 +46,7 @@ validate_flags || { done_; exit 1; }
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ]; then
   say "rebuild builder (offline-paketo)"
   run_step "rebuild builder" "rebuild-${case_name}" \
-    "${CNB}" run "${REPO_ROOT}/config/projects/offline-paketo.toml" || { done_; exit 1; }
+    "${CNB}" run "${PROFILE}" --no-commands || { done_; exit 1; }
 fi
 
 # ── 挂载约定（与 lifecycle 的语义对齐）────────────────────────
@@ -53,12 +56,21 @@ fi
 #   /layers/cache   跨构建缓存 —— 唯一需要持久化的目录（Node/Python 等）
 #   /platform       平台元数据（env 等），每次全新
 #   /cnb/runtimes   本地 Node/Python 运行时（只读，可选，用于完全离线）
+# 从配置推导镜像名（不再写死 offline-builder / offline-run）
+plan_shell="$("${CNB}" plan "${PROFILE}" --format shell 2>/dev/null || true)"
+pick_tag() { printf '%s\n' "${plan_shell}" | awk -v n="$1" '$1=="image_build" && $2=="\047"n"\047" {print $4}' | tr -d "\047"; }
+BUILDER_IMAGE="$(pick_tag builder)"
+RUN_IMAGE="$(pick_tag run)"
+
+BUILDER_IMAGE="${BUILDER_IMAGE:-offline-builder:latest}"
+RUN_IMAGE="${RUN_IMAGE:-offline-run:latest}"
+
 # 断言镜像内的 buildpack 是当前源码：否则改了脚本却不生效，白跑
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ]; then
   fresh="$("${tool}" run --rm --entrypoint sh "${BUILDER_IMAGE}" -c \
-    'test -f /cnb/buildpacks/paketo-buildpacks_node-engine/8.12.0/bin/build && echo 1 || echo 0' 2>/dev/null)"
+    'ls /cnb/buildpacks/*/*/bin/build >/dev/null 2>&1 && echo 1 || echo 0' 2>/dev/null)"
   if [ "${fresh:-0}" = "0" ]; then
-    bad "builder 镜像里的 node-engine 缺失或过期（需重新构建）"
+    bad "builder 镜像里没有任何 buildpack（需重新构建）"
     printf '    镜像创建时间: %s\n' "$("${tool}" inspect -f '{{.Created}}' "${BUILDER_IMAGE}" 2>/dev/null)" >&2
     printf '    确认 cnb run 真正重建了 builder，或在 e2e 里删除该镜像后重跑\n' >&2
   else

@@ -180,3 +180,19 @@ just fetch lifecycle && ls bundle/linux-amd64/binaries/lifecycle | head -3
 ```
 
 L4（repack golden）只在改动 `repack.go` 或发版时跑；它是纯 Go 测试，不引入额外运行时依赖。
+
+## 附：libc 一致性（由 doctor 检查）
+
+| 运行时 | 基础镜像要求 |
+|---|---|
+| Node（fnm 官方构建） | glibc（debian/ubuntu） |
+| Python（uv 的 cpython-*-gnu） | glibc |
+| Go（静态链接） | 任意，含 alpine |
+
+`cnb doctor <profile>` 会读取 `[images.run].args.BASE_IMAGE`：
+若为 `alpine`/`musl` 且项目启用 Node 或 Python，直接报错并给出修法。
+
+```bash
+cnb doctor config/projects/<p>.toml
+# ✓ run 镜像 libc 与运行时匹配
+```

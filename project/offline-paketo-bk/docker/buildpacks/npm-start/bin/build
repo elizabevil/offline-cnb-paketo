@@ -1,0 +1,14 @@
+#!/bin/sh
+set -euo pipefail
+layers_dir="${1:?missing layers dir}"
+# layers_dir 是本 buildpack 私有目录 /layers/<id>，其父目录才是 layers 根
+root="$(dirname "${layers_dir}")"
+node_bin="$(ls -d "${root}"/*/node/bin 2>/dev/null | head -1 || true)"
+mods="$(ls -d "${root}"/*/node_modules 2>/dev/null | head -1 || true)"
+cat > "${layers_dir}/launch.toml" <<TOML
+[[processes]]
+  type = "web"
+  command = ["/bin/sh", "-c", "PATH=${node_bin}:${mods}/.bin:\$PATH npm start"]
+  default = true
+TOML
+echo "  ✅ npm-start: web process registered" >&2

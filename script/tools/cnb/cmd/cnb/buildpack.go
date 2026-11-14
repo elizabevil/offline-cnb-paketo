@@ -51,7 +51,22 @@ func newBuildpackCmd() *cobra.Command {
 }
 
 func lintBuildpack(cmd *cobra.Command, dir string, res *lintResult) {
-	leaf := filepath.Base(dir)
+	// 支持官方布局：<id>/<version>/buildpack.toml
+	if !exists(filepath.Join(dir, "buildpack.toml")) {
+		if subs, err := os.ReadDir(dir); err == nil {
+			for _, sub := range subs {
+				cand := filepath.Join(dir, sub.Name())
+				if sub.IsDir() && exists(filepath.Join(cand, "buildpack.toml")) {
+					dir = cand
+					break
+				}
+			}
+		}
+	}
+	leaf := filepath.Base(filepath.Dir(dir))
+	if leaf == "." || leaf == "" {
+		leaf = filepath.Base(dir)
+	}
 	report := func(ok bool, msg string) {
 		if ok {
 			return

@@ -1,0 +1,17 @@
+specVersion: 3
+appVersion: 0.0.1
+app:
+  bkAppCode: "fixture-single"
+  bkAppName: "单模块夹具"
+modules:
+  - name: default
+    language: "Go"
+    isDefault: true
+    sourceDir: "."
+    spec:
+      processes:
+        - name: web
+          procCommand: ./workspace/app
+      build:
+        buildpacks:
+          - name: bk-buildpack-go

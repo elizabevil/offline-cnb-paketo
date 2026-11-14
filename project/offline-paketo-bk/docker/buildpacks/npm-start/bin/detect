@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+app_dir="${CNB_APP_DIR:-$(pwd)}"
+[ -f "${app_dir}/package.json" ] || exit 100
+grep -q '"start"' "${app_dir}/package.json" 2>/dev/null || exit 100
+echo 'provides = [{ name = "start" }]'
+echo 'requires = [{ name = "node" }, { name = "node_modules" }]'
+exit 0

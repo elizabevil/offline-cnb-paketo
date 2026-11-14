@@ -26,20 +26,20 @@ version = "0.13.8"
 # ── 镜像：键名即阶段名；after 决定顺序 ──────────────────────────────────────
 [images.base]
 desc       = "系统依赖层：apt / CA 证书 / curl / unzip"
-dockerfile = "docker/Dockerfile.base"
+dockerfile = "docker/base.dockerfile"
 tag        = "offline-builder-base:latest"
 args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 
 [images.run]
 desc       = "运行时层：glibc 基础镜像（Node/Python 二进制需要 glibc，不能用 alpine/musl）"
-dockerfile = "docker/Dockerfile.run"
+dockerfile = "docker/run.dockerfile"
 tag        = "offline-run:latest"
 args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 
 [images.builder]
 inject_versions = ["lifecycle", "fnm", "uv"]
 desc       = "构建层：lifecycle + node/python/procfile buildpack"
-dockerfile = "docker/Dockerfile"
+dockerfile = "docker/builder.dockerfile"
 tag        = "offline-builder:latest"
 args       = { BASE_IMAGE_TAG = "${image.base.tag}", PROCFILE_BP_TAG = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4" }
 

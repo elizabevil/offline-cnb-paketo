@@ -1,0 +1,23 @@
+api = "0.12"
+
+[buildpack]
+  id = "paketo-buildpacks/go-dist"
+  name = "Go Distribution (offline)"
+  version = "2.11.2"
+  homepage = "https://github.com/paketo-buildpacks/go-dist"
+  description = "提供 Go SDK：本地挂载 → layers 缓存 → 镜像源下载"
+  keywords = ["go", "golang", "sdk"]
+  sbom-formats = ["application/vnd.cyclonedx+json"]
+
+  [[buildpack.licenses]]
+    type = "Apache-2.0"
+
+[metadata]
+  [[metadata.dependencies]]
+    id = "go"
+    version = "1.24.0"
+    uri = "https://go.dev/dl/"
+
+[[targets]]
+  os = "linux"
+  arch = "amd64"

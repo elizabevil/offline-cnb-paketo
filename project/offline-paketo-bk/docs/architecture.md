@@ -58,7 +58,7 @@
 │  ┌──────────────────────────────────┐       ┌─────────────────────┐     │
 │  │  archives/{arch}/                │       │  docker/             │     │
 │  │  ├── lifecycle-*.tgz             │       │  ├── Dockerfile      │     │
-│  │  ├── fnm-*.zip                   │       │  ├── Dockerfile.base │     │
+│  │  ├── fnm-*.zip                   │       │  ├── base.dockerfile │     │
 │  │  └── uv-*.tar.gz                 │       │  ├── apt-sources/    │     │
 │  │                                  │       │  │   └── sources.list│     │
 │  │  binaries/{arch}/                │       │  ├── order.toml      │     │
@@ -101,7 +101,7 @@
 |------|------|
 | **单一镜像** | 一个 Builder 镜像内含全部 3 种 Buildpack，运行时自动 detect 项目类型 |
 | **构建缓存** | `bundle/` 是 Docker build 阶段 COPY 进去的，包含 lifecycle + fnm/uv 工具链 |
-| **基础层分离** | Dockerfile.base 仅装系统依赖，Dockerfile 叠加上层构建产物，可单独缓存 base 层 |
+| **基础层分离** | base.dockerfile 仅装系统依赖，Dockerfile 叠加上层构建产物，可单独缓存 base 层 |
 | **APT 源注入** | `docker/apt-sources/sources.list` 预置宿主镜像源，构建时 apt-get 走国内源 |
 | **架构参数化** | `BUNDLE_ARCH` build arg 驱动 COPY 路径，`just arch=linux-arm64 docker-build` 切换架构 |
 | **代理统一** | 所有 curl 下载使用 `http_proxy= https_proxy= curl ... --proxy` 双重保障 |
@@ -123,7 +123,7 @@ offline-paketo/
 │
 ├── docker/
 │   ├── Dockerfile          # 最终 Builder 镜像：lifecycle + tools + buildpacks
-│   ├── Dockerfile.base     # 基础 OS 层：apt 依赖
+│   ├── base.dockerfile     # 基础 OS 层：apt 依赖
 │   ├── order.toml          # CNB detect 顺序
 │   ├── apt-sources/
 │   │   └── sources.list    # 宿主机 APT 镜像源（预复制，构建时生效）
@@ -219,7 +219,7 @@ just download-all 'http://proxy:8080'       # 位置参数覆写（优先级最�
 ### 6.1 双层镜像结构
 
 ```
-Dockerfile.base              Dockerfile
+base.dockerfile              Dockerfile
 ─────────────────────        ─────────────────────
 FROM debian:trixie-slim      FROM builder-base:latest
 COPY apt-sources/...         COPY bundle/binaries/${BUNDLE_ARCH}/...  → /cnb/lifecycle/
@@ -239,7 +239,7 @@ RUN apt-get update && \      COPY fnm/uv/uvx                         → /usr/lo
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `BASE_IMAGE` | `debian:trixie-slim` | Dockerfile.base 的基础 OS |
+| `BASE_IMAGE` | `debian:trixie-slim` | base.dockerfile 的基础 OS |
 | `BASE_IMAGE_TAG` | `offline-builder-base:latest` | 上一步构建的 base 镜像 tag |
 | `PROCFILE_BP_TAG` | `paketobuildpacks/procfile:5.13.4` | 官方 Procfile buildpack 镜像 |
 | `BUNDLE_ARCH` | `linux-amd64` | 架构，驱动 bundle COPY 路径 |
@@ -452,7 +452,7 @@ container_tool := if shell("command -v podman") != "" { "podman" } else { "docke
 - `binaries/`：解压后可执行文件，供 Docker build COPY
 - 分离后 `archives/` 可以只分发一次，`binaries/` 按需重建
 
-### 9.5 为什么拆分 Dockerfile.base 和 Dockerfile
+### 9.5 为什么拆分 base.dockerfile 和 Dockerfile
 
 - base 层变化频率低（仅 apt 依赖），可独立缓存
 - builder 层随 bundle/ 内容变化，单独迭代
@@ -476,7 +476,7 @@ container_tool := if shell("command -v podman") != "" { "podman" } else { "docke
 | Procfile buildpack | 使用 Paketo 官方镜像多阶段提取，不自实现 |
 | SDK 版本 | 通过 `config.just` 集中管理，不自动追踪 latest |
 | 网络 | 完全离线设计，所有组件预先下载 |
-| Dockerfile.base | 仅安装 ca-certificates / curl / unzip，其他运行时依赖在 buildpack 脚本中处理 |
+| base.dockerfile | 仅安装 ca-certificates / curl / unzip，其他运行时依赖在 buildpack 脚本中处理 |
 
 ---
 
@@ -491,7 +491,7 @@ download.just                ✅     3 个下载 recipe + download-all
 docker.just                  ✅     docker-build / docker-build-base
 info.just                    ✅     info / check-deps / list / clean
 justfile (汇总入口)          ✅     仅 import + _default
-Dockerfile.base              ✅     apt 依赖 + 宿主 APT 源注入
+base.dockerfile              ✅     apt 依赖 + 宿主 APT 源注入
 Dockerfile                   ✅     multi-stage, BUNDLE_ARCH 参数化
 docker/apt-sources/          ✅     预置清华镜像源
 docker/order.toml            ✅     Node → Python → Procfile

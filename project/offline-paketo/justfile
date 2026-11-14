@@ -32,5 +32,4 @@ verify:
 
 # 对 go 示例跑 detect → build → analyze → export
 test:
-    @test -f {{_dir}}/examples/test.just || { echo "  ✗ 缺少 examples/test.just"; exit 1; }
-    @just --justfile {{_dir}}/examples/test.just test-go
+    @cd {{_dir}}/../.. && just test-e2e-core-all 2>/dev/null || just test

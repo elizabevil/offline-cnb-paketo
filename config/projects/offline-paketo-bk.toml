@@ -34,26 +34,26 @@ version = "0.40.11"
 
 [images.base]
 desc       = "系统依赖层：apt / CA 证书 / curl"
-dockerfile = "docker/Dockerfile.builder-base"
+dockerfile = "docker/builder-base.dockerfile"
 tag        = "offline-builder-base-bk:latest"
 args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 
 [images.run]
-desc       = "运行时层：alpine 最小根"
-dockerfile = "docker/Dockerfile.run"
+desc       = "运行时层：glibc 基础镜像（Node/Python 二进制需要 glibc，不能用 alpine/musl）"
+dockerfile = "docker/run.dockerfile"
 tag        = "offline-run-bk:latest"
-args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/alpine:3.24.0" }
+args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 
 [images.builder]
 inject_versions = ["lifecycle", "fnm", "uv", "docker", "jq", "yq", "pack"]
 desc       = "构建层：lifecycle + 4 buildpack + docker/jq/yq/pack"
-dockerfile = "docker/Dockerfile.builder-build"
+dockerfile = "docker/builder-build.dockerfile"
 tag        = "offline-builder-build-bk:latest"
 args       = { BASE_IMAGE_TAG = "${image.base.tag}", BUNDLE_ARCH = "${platform}" }
 
-# ── 命令：打包（examples/ 不入库，本地需存在）────────────────────────────────
+# ── 命令：打包（scripts/build.sh 由使用方提供，不入库）────────────────────────────────
 [commands.package]
-run   = "examples/build.sh"
+run   = "scripts/build.sh"
 workdir = "project/offline-paketo-bk"
 
 # ── 流程：顺序即数组顺序 ──────────────────────────────────────────────────
