@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"learn-cnb-paketo/tools/cnb/internal/archive"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	"learn-cnb-paketo/tools/cnb/internal/user"
@@ -34,13 +35,14 @@ func (c Config) Phases() []Phase {
 		{Name: PhaseDetect, Bin: c.Bins.Detector, Args: c.detectArgs(), User: c.Runtime.User},
 		{Name: PhaseBuild, Bin: c.Bins.Builder, Args: c.buildArgs(), User: c.Runtime.User},
 	}
-	if c.Export.Mode == ExportNone {
-		return phases
-	}
-	if c.Export.RunImage != "" {
+	if c.Export.RunImage != "" && !c.appLayerMode() {
 		phases = append(phases, Phase{
 			Name: PhaseAnalyze, Bin: c.Bins.Analyzer, Args: c.analyzeArgs(),
 		})
+	}
+	// 只输出应用层：不调用 exporter，直接由 /app 生成 docker-archive
+	if c.appLayerMode() {
+		return phases
 	}
 	phases = append(phases, Phase{
 		Name: PhaseExport, Bin: c.Bins.Exporter, Args: c.exportArgs(),
@@ -48,10 +50,7 @@ func (c Config) Phases() []Phase {
 	return phases
 }
 
-// Run 依次执行四阶段。
-//
-// BK 模式（Export.LayerArchive 非空）下导出走 daemon：exporter 把完整镜像写进
-// 容器运行时，随后由 bksmartpacker 执行 image save，产物格式与平台一致。
+// Run 依次执行四阶段，并在 layout 模式下转换为 docker-archive。
 func (c Config) Run() error {
 	if c.Export.OutputImage == "" {
 		return &errs.Missing{What: "output image"}
@@ -59,46 +58,15 @@ func (c Config) Run() error {
 	if err := c.prepareWorkDirs(); err != nil {
 		return err
 	}
-	if err := c.loadRunImage(); err != nil {
-		return err
-	}
 	for _, p := range c.Phases() {
 		if err := c.runPhase(p); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-// loadRunImage 把 run 镜像载入容器运行时（BK 以 docker-archive 形式提供）。
-func (c Config) loadRunImage() error {
-	if c.Export.RunImageArchive == "" || c.DryRun {
-		return nil
-	}
-	tool := containerTool()
-	if tool == "" {
-		return &errs.Missing{What: "podman / docker"}
-	}
-	c.log().Info("load run image", "archive", c.Export.RunImageArchive)
-	cmd := exec.CommandContext(context.Background(), tool, "load", "-i", c.Export.RunImageArchive)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("load run image: %w", err)
+	if c.appLayerMode() {
+		return c.exportAppLayer()
 	}
 	return nil
-}
-
-// containerTool 返回可用的容器 CLI（可用 CONTAINER_TOOL 强制指定）。
-func containerTool() string {
-	if t := os.Getenv("CONTAINER_TOOL"); t != "" {
-		return t
-	}
-	for _, t := range []string{"podman", "docker"} {
-		if _, err := exec.LookPath(t); err == nil {
-			return t
-		}
-	}
-	return ""
 }
 
 // prepareWorkDirs 在降权前把工作目录交给目标用户。
@@ -133,7 +101,7 @@ func (c Config) runPhase(p Phase) error {
 		envPlatformDir + "=" + c.Paths.Platform,
 	}
 	// OCI layout 在 lifecycle 里仍标记为实验特性
-	if c.Export.Mode == ExportLayout || c.Export.Mode == "" {
+	if c.Export.Layout {
 		env = append(env, envExperimental+"=warn")
 	}
 	cmd.Env = append(os.Environ(), env...)
@@ -155,13 +123,30 @@ const minLayoutPlatformAPI = "0.12"
 
 // effectivePlatformAPI 在 layout 模式下抬高 Platform API 下限。
 func (c Config) effectivePlatformAPI() string {
-	if c.Export.Mode != ExportLayout && c.Export.Mode != "" {
+	if !c.Export.Layout {
 		return c.Runtime.PlatformAPI
 	}
 	if semver.Compare("v"+c.Runtime.PlatformAPI, "v"+minLayoutPlatformAPI) < 0 {
 		return minLayoutPlatformAPI
 	}
 	return c.Runtime.PlatformAPI
+}
+
+// appLayerMode 判断是否走"只打包应用层"的导出方式。
+// 平台给出层包路径（BKS_LAYER_ARCHIVE）即视为该模式。
+func (c Config) appLayerMode() bool { return c.Export.LayerArchive != "" }
+
+// exportAppLayer 把 /app 打成 docker-archive。
+func (c Config) exportAppLayer() error {
+	c.log().Info("export app layer", "image", c.Export.OutputImage, "archive", c.Export.LayerArchive)
+	arch := ""
+	if after, ok := strings.CutPrefix(c.Paths.Platform, "linux-"); ok {
+		arch = after
+	}
+	if err := archive.Build(c.Paths.App, c.Paths.Layers, c.Export.OutputImage, arch, c.Export.LayerArchive, c.Export.IncludeSource); err != nil {
+		return errs.Wrap("build app layer archive", err)
+	}
+	return nil
 }
 
 // log 返回日志器（未注入时用默认 stderr 日志）。

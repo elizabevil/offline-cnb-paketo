@@ -10,7 +10,7 @@
                               │
         项目/build.sh ────────┴──────── just build / just plan
                               │
-                    script/bin/cnb-linux-amd64 pipeline run <profile>
+                    script/bin/cnb pipeline run <profile>
                               │
                  ┌────────────┴─────────────┐
                  │ cnb pipeline run：校验 + 计划 + 执行 │

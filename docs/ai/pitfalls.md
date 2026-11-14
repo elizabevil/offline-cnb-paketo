@@ -181,7 +181,7 @@ e2e 的新鲜度断言写死了路径，组件拆分后仍检查旧路径 → �
 
 ```toml
 [asset.local]
-source = "script/bin/cnb-linux-amd64"   # 构建产物路径（相对仓库根）
+source = "script/bin/cnb"   # 构建产物路径（相对仓库根）
 sha256 = ""                 # 发布后自动回填
 ```
 

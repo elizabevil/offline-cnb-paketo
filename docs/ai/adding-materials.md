@@ -64,14 +64,14 @@ default = true
 ```bash
 just fetch mytool
 # 或
-script/bin/cnb-linux-amd64 materials sync mytool
+script/bin/cnb materials sync mytool
 ```
 
 3. 校验：
 
 ```bash
-script/bin/cnb-linux-amd64 materials validate
-script/bin/cnb-linux-amd64 materials verify mytool
+script/bin/cnb materials validate
+script/bin/cnb materials verify mytool
 ```
 
 4. 在项目的 `config/projects/*.toml` 里引用并注入版本：
@@ -110,7 +110,7 @@ id = "cnb"
 version = "3.0.0"
 
   [asset.local]
-  source = "script/bin/cnb-linux-amd64"
+  source = "script/bin/cnb"
   sha256 = ""
 
   [asset.unpack]

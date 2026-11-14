@@ -1,35 +1,76 @@
-# ─── script/tools/justfile — 工具聚合入口 ──────────────────────────────────
-# 每个工具各自维护 justfile（唯一 go build 封装），这里只做转发。
-# 产物统一在 script/bin/<工具>-<os>-<arch>。
+# ─── script/tools/justfile — Go 工具的格式化 / 静态检查 / 测试 ────────────────
+# 用法（在 script/tools 下）：just lint | just test | just check
 
 set shell := ["bash", "-uc"]
 
-_dir := justfile_directory()
-_root := _dir / ".."
-_bps_src := _dir / "bksmartpacker_v3"
+_dir := source_directory()
+_go := env_var_or_default("GO", shell(_dir / "../lib/go.sh"))
+_lint := env_var_or_default("GOLANGCI_LINT", "golangci-lint")
+_cfg := _dir / ".golangci.yml"
+_mods := "cnb"          # 本目录下的 Go 模块
+_cache := _dir / "../.." / ".cache"
 
-_default:
-    @just --list
+# 统一缓存位置：HOME 可能只读
+export GOCACHE := _cache / "go-build"
+export GOLANGCI_LINT_CACHE := _cache / "golangci-lint"
 
-# 构建全部工具（bksmartpacker 源码缺失时跳过）
-build: build-cnb build-bps
+# 默认列出用法
+default:
+    @just --justfile {{_dir}}/justfile --list
 
-# cnb：编译并发布为本地物料
-build-cnb:
-    @just --justfile {{_dir}}/cnb/justfile publish
+# 所有模块：gofmt
+fmt:
+    @for m in {{_mods}}; do \
+      echo "• gofmt $m"; \
+      ( cd {{_dir}}/$m && {{_go}} fmt ./... ); \
+    done
 
-# bksmartpacker：源码不入库，缺失则提示跳过
-build-bps:
-    @if [ -d {{_bps_src}}/cmd/bksmartpacker ]; then \
-        just --justfile {{_bps_src}}/justfile build; \
-     else \
-        echo "  · 跳过 bksmartpacker（源码目录不存在: {{_bps_src}}）"; \
-     fi
+# 所有模块：go vet
+vet:
+    @for m in {{_mods}}; do \
+      echo "• vet $m"; \
+      ( cd {{_dir}}/$m && {{_go}} vet ./... ); \
+    done
 
-# 只编译不发布
-build-cnb-only:
-    @just --justfile {{_dir}}/cnb/justfile build
+# 所有模块：golangci-lint（配置在 .golangci.yml）
+lint:
+    @command -v {{_lint}} >/dev/null || { echo "  ✗ 缺少 golangci-lint"; exit 1; }
+    @for m in {{_mods}}; do \
+      echo "• lint $m"; \
+      ( cd {{_dir}}/$m && {{_lint}} run --config {{_cfg}} ./... ); \
+    done
 
-# 列出产物
-list:
-    @ls -lh {{_root}}/bin 2>/dev/null || echo "  （无产物，先 just build）"
+# 所有模块：单元测试
+test:
+    @for m in {{_mods}}; do \
+      echo "• test $m"; \
+      ( cd {{_dir}}/$m && {{_go}} test ./... ); \
+    done
+
+# 依赖整理
+tidy:
+    @for m in {{_mods}}; do \
+      echo "• tidy $m"; \
+      ( cd {{_dir}}/$m && {{_go}} mod tidy ); \
+    done
+
+# 校验自有结构的 json 标签为 snake_case（外部格式文件除外）
+tags:
+    @cd {{_dir}}/cnb && \
+      bad=$(grep -rn 'json:"' --include='*.go' . \
+        | grep -v _test | grep -v 'internal/oci/' | grep -v 'internal/checks/' \
+        | grep -v 'internal/repack/' | grep -v 'internal/archive/' \
+        | grep -oE 'json:"[^",]+' | grep -vE 'json:"[a-z0-9_]+$' || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 非 snake_case 的 json 标签:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ json 标签均为 snake_case"
+
+# 编译检查
+build:
+    @for m in {{_mods}}; do \
+      echo "• build $m"; \
+      ( cd {{_dir}}/$m && {{_go}} build ./... ); \
+    done
+
+# 提交前总检：格式 + vet + lint + 测试
+check: fmt vet lint test tags
+    @echo "  ✓ tools check 通过"

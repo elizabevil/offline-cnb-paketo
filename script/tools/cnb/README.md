@@ -13,7 +13,7 @@ script/tools/cnb/
 └── go.mod/go.sum  # 唯一依赖 BurntSushi/toml v1.6.0（不使用 vendor）
 ```
 
-产物：`script/bin/cnb-<os>-<arch>`（如 `cnb-linux-amd64`，静态链接、CGO 关闭）。由 `just tools` 生成，不入库。
+产物：`script/bin/cnb`（静态链接、CGO 关闭、约 3.4MB）。由 `just tools` 生成，不入库。
 
 ---
 
@@ -21,8 +21,8 @@ script/tools/cnb/
 
 | 命令 | 输出 | 退出码 | 谁依赖 |
 |---|---|---|---|
-| `list` | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0 | 终端/脚本（`cut -f1`） |
-| `get <id> <platform>` | shell 赋值 8 行，字段名固定 | 0 / 2 | `just` 配方 |
+| `list` | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0 | `script/fetch.sh`（`cut -f1`） |
+| `get <id> <platform>` | shell 赋值 8 行，字段名固定 | 0 / 2 | `script/fetch.sh`（`eval`） |
 | `validate` | 成功一行 `✓`；失败逐条 `✗` 到 stderr | 0 / 1 | `just check`、CI |
 | `platforms` | 逗号分隔 | 0 | 人工 |
 | `verify [ids...]` | 逐物料 `✓/✗` | 0 / 1 | `just verify`、CI 门禁 |
@@ -31,9 +31,9 @@ script/tools/cnb/
 
 约定：
 
-- `get` 的字段名与顺序是契约，shell 侧用 `eval` 消费；改名要同步改脚本。
+- `get` 的字段名与顺序是契约，`fetch.sh` 用 `eval` 消费；改名要同步改 shell。
 - `verify` 读 `bundle/<platform>/binaries/.meta/<id>.sha256`（marker），
-  marker 由 `materials sync` 在解压后写入，内容为归档 sha256 或 `unpinned`。
+  marker 由 `fetch.sh` 在解压后写入，内容为归档 sha256 或 `unpinned`。
 - 全局选项（`--file/--bundle/--platform/--strict`）可出现在子命令前后任意位置。
 
 ---
@@ -91,7 +91,7 @@ gofmt -l . ; go vet ./... ; go test ./...
 
 规则：
 
-- 不改已有命令的输出格式；确需改，**同时**更新依赖它的脚本与 `docs/design/base.md`。
+- 不改已有命令的输出格式；确需改，**同时**改 `script/fetch.sh` 与 `docs/design/base.md`。
 - 需要网络/容器/外部命令的，不要放进来（这类留在 shell）。
 - 新增第三方依赖前先问：stdlib 能不能做？现在全仓只有 1 个依赖。
 
@@ -100,9 +100,9 @@ gofmt -l . ; go vet ./... ; go test ./...
 ## 三、新建一个项目（模板）
 
 ```bash
-script/bin/cnb-linux-amd64 profile init my-proj --dir my-proj       # 生成 config/projects/my-proj.toml
-script/bin/cnb-linux-amd64 profile show config/projects/my-proj.toml # 分组查看（不平铺）
-script/bin/cnb-linux-amd64 profile validate config/projects/my-proj.toml
+script/bin/cnb profile init my-proj --dir my-proj       # 生成 config/projects/my-proj.toml
+script/bin/cnb profile show config/projects/my-proj.toml # 分组查看（不平铺）
+script/bin/cnb profile validate config/projects/my-proj.toml
 ```
 
 模板只写结构与注释，物料/镜像/命令留成占位，避免猜业务。
@@ -138,7 +138,7 @@ platforms = ["linux-amd64"]  # 省略表示全部平台
 ## 五、构建与自测
 
 ```bash
-just tools     # 编译到 script/bin/cnb-<os>-<arch>
+just tools     # 编译到 script/bin/cnb
 just check     # lock 结构 + 模板合法性 + bash -n + gofmt + vet + 单测
 go test ./...  # 只跑单测
 ```

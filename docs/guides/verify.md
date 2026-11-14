@@ -24,7 +24,7 @@ just check && just verify
 |---|---|---|---|
 | L1 结构 | lock 与模板合法、脚本语法、Go 代码质量 | `just check` | 配置或代码本身有问题，别往下走 |
 | L2 物料 | 归档哈希、解压标记、产物齐全 | `just verify` | 物料损坏/未解压/被手工改过 |
-| L3 工具行为 | `cnb` 命令契约与退出码 | 本文 §3 | 输出格式变了，会悄悄打断依赖它的脚本 |
+| L3 工具行为 | `cnb` 命令契约与退出码 | 本文 §3 | 输出格式变了，会悄悄打断 `fetch.sh` |
 | L4 repack | 与 Python 参照实现等价 | 本文 §4（手动） | OCI 包内容漂移，**发版前必须跑** |
 | L5 集成 | shell ↔ Go 的 marker 契约 | 本文 §5 | 自愈链路断了 |
 
@@ -36,15 +36,15 @@ just check && just verify
 
 ```bash
 # 1) 生效的 lock 合法
-script/bin/cnb-linux-amd64 --file assets.lock.toml validate
+script/bin/cnb --file assets.lock.toml validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 2) 模板不能腐烂（模板也是文档，改了字段却不同步模板 = 下一个人被误导）
-script/bin/cnb-linux-amd64 --file assets.lock.toml.example validate
+script/bin/cnb --file assets.lock.toml.example validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 3) shell 语法
-bash -n script/ci.sh script/check-updates.sh
+bash -n script/fetch.sh script/lib/common.sh
 
 # 4) Go 质量
 cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
@@ -58,7 +58,7 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 
 ## 3. L3：`cnb` 的命令契约
 
-这些格式被 justfile 与脚本直接消费，**改格式 = 破坏调用方**。
+这些格式被 `script/fetch.sh` 直接消费，**改格式 = 破坏调用方**。
 
 | 命令 | 期望输出 | 退出码 |
 |---|---|---|
@@ -72,9 +72,9 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 逐条手工验证：
 
 ```bash
-script/bin/cnb-linux-amd64 materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
-script/bin/cnb-linux-amd64 materials get lifecycle linux-amd64
-script/bin/cnb-linux-amd64 materials get nope linux-amd64; echo "exit=$?"   # 期望 2
+script/bin/cnb materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
+script/bin/cnb materials get lifecycle linux-amd64
+script/bin/cnb materials get nope linux-amd64; echo "exit=$?"   # 期望 2
 ```
 
 单测覆盖的是同一批契约：
@@ -147,8 +147,8 @@ cp /tmp/fnm.bak bundle/linux-amd64/archives/fnm-linux.zip
 just verify                      # 恢复
 ```
 
-> 注意：强制重下请先删归档再 fetch，或直接 `cnb materials sync <id>`（已存在时跳过）：
-> `rm -f bundle/<platform>/archives/<id>/<version>/* && just fetch <id>`
+> 注意：`fetch.sh` 的 `--force` 没有暴露到 just recipe，需要时直接：
+> `script/fetch.sh fetch <id> --force`
 
 ---
 

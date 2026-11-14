@@ -4,7 +4,7 @@ set -euo pipefail
 
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${TEST_ROOT}/.." && pwd)"
-CNB="${CNB_BIN:-${REPO_ROOT}/script/bin/cnb-linux-amd64}"
+CNB="${REPO_ROOT}/script/bin/cnb"
 BUILDER_IMAGE="${BUILDER_IMAGE:-offline-builder:latest}"
 RUN_IMAGE="${RUN_IMAGE:-offline-run:latest}"
 PASS=0 FAIL=0 CASE=""

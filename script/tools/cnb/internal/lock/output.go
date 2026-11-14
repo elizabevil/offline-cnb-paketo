@@ -20,7 +20,7 @@ func (f *File) WriteList(w io.Writer) {
 	}
 }
 
-// Get 输出 shell 赋值，供脚本 eval。字段名是契约，勿改。
+// Get 输出 shell 赋值，供 fetch.sh eval。字段名是契约，勿改。
 
 // WriteShell 输出 shell 赋值语句，供脚本 eval。
 func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {

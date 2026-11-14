@@ -255,8 +255,8 @@ default = true
   license  = "MIT"
 
   [asset.local]
-  source = "script/bin/cnb-linux-amd64"
-  sha256 = "bc97dfbcc1b9aac1485e1ffe971c95cffb95d83b1b54eadb744993b183ae36c0"
+  source = "script/bin/cnb"
+  sha256 = "d50de80a41f634b3f3bd272331547ad7d228a4e5d9f5513af853c8a8c2eb0387"
 
   [asset.unpack]
   kind   = "bin"
