@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/profile"
+
+	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
 )
 
 // 解析规则。
@@ -19,14 +21,14 @@ var (
 
 // 命名构建上下文（与 profile 约定一致）。
 const (
-	ContextBundle     = "bundle"
-	ContextBuildpacks = "buildpacks"
+	ContextBundle     = cnbconst.ContextBundle
+	ContextBuildpacks = cnbconst.ContextBuildpacks
 
 	// KindImage 是计划中的镜像阶段类型。
-	KindImage = "image"
+	KindImage = cnbconst.KindImage
 
 	// ArchPrefix 是平台名中的架构前缀。
-	ArchPrefix = "linux-"
+	ArchPrefix = cnbconst.ArchPrefix
 )
 
 // Missing 是一条缺失的源路径。

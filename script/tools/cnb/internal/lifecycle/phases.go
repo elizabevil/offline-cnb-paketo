@@ -30,7 +30,7 @@ func (c Config) Phases() []Phase {
 		{Name: PhaseDetect, Bin: c.Bins.Detector, Args: c.detectArgs(), User: c.User},
 		{Name: PhaseBuild, Bin: c.Bins.Builder, Args: c.buildArgs(), User: c.User},
 	}
-	if c.RunImage != "" && !c.ExportLayout {
+	if c.RunImage != "" {
 		phases = append(phases, Phase{
 			Name: PhaseAnalyze, Bin: c.Bins.Analyzer, Args: c.analyzeArgs(),
 		})
@@ -52,6 +52,13 @@ func (c Config) Run(logf func(format string, args ...any)) error {
 	for _, p := range c.Phases() {
 		if err := c.runPhase(p, logf); err != nil {
 			return err
+		}
+		// exporter 在 layout 模式下要求 run image 引用形如 name@digest，
+		// 而 daemon 模式的 analyzer 只能写出镜像 ID，需要就地补全。
+		if p.Name == PhaseAnalyze && c.ExportLayout {
+			if err := c.normalizeAnalyzed(); err != nil {
+				return err
+			}
 		}
 	}
 	return c.convertLayout()
@@ -82,12 +89,17 @@ func (c Config) runPhase(p Phase, logf func(format string, args ...any)) error {
 	}
 	logf("• %s", p.Name)
 	cmd := exec.CommandContext(context.Background(), p.Bin, p.Args...)
-	cmd.Env = append(os.Environ(),
-		"CNB_PLATFORM_API="+c.PlatformAPI,
-		"CNB_APP_DIR="+c.App,
-		"CNB_LAYERS_DIR="+c.Layers,
-		"CNB_PLATFORM_DIR="+c.Platform,
-	)
+	env := []string{
+		"CNB_PLATFORM_API=" + c.effectivePlatformAPI(),
+		"CNB_APP_DIR=" + c.App,
+		"CNB_LAYERS_DIR=" + c.Layers,
+		"CNB_PLATFORM_DIR=" + c.Platform,
+	}
+	// OCI layout 在 lifecycle 里仍标记为实验特性
+	if c.ExportLayout {
+		env = append(env, "CNB_EXPERIMENTAL_MODE=warn")
+	}
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if p.User != "" && os.Geteuid() == 0 {
 		if uid, gid, ok := lookupUser(p.User); ok {
@@ -98,6 +110,33 @@ func (c Config) runPhase(p Phase, logf func(format string, args ...any)) error {
 		return fmt.Errorf("%s 失败: %w", p.Name, err)
 	}
 	return nil
+}
+
+// minLayoutPlatformAPI 是 layout 导出所需的最低 Platform API。
+// lifecycle 在 0.11 及以下不暴露 -layout 参数，直接使用会报 flag not defined。
+const minLayoutPlatformAPI = "0.12"
+
+// effectivePlatformAPI 在 layout 模式下抬高 Platform API 下限。
+func (c Config) effectivePlatformAPI() string {
+	if !c.ExportLayout {
+		return c.PlatformAPI
+	}
+	if apiLess(c.PlatformAPI, minLayoutPlatformAPI) {
+		return minLayoutPlatformAPI
+	}
+	return c.PlatformAPI
+}
+
+// apiLess 比较 x.y 形式的版本号。
+func apiLess(a, b string) bool {
+	var amaj, amin, bmaj, bmin int
+	// 解析失败时按 0 处理，等价于"低于下限"
+	_, _ = fmt.Sscanf(a, "%d.%d", &amaj, &amin)
+	_, _ = fmt.Sscanf(b, "%d.%d", &bmaj, &bmin)
+	if amaj != bmaj {
+		return amaj < bmaj
+	}
+	return amin < bmin
 }
 
 // convertLayout 把 OCI layout 转成 docker-archive（如指定了输出路径）。

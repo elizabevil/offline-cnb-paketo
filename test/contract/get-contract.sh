@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 契约：cnb get 的输出字段是 fetch.sh 的输入，不能变
+# 契约：cnb materials get 的输出字段是 fetch.sh 的输入，不能变
 source "$(dirname "$0")/../lib/common.sh"
 CASE="contract/get"
 out="$("${CNB}" --file "${REPO_ROOT}/assets.lock.toml" get fnm linux-amd64)"

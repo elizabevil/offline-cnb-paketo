@@ -4,9 +4,9 @@ source "$(dirname "$0")/../lib/common.sh"
 CASE="contract/plan"
 cfg="${REPO_ROOT}/config/projects/offline-paketo.toml"
 for f in text shell json yaml; do
-  out="$("${CNB}" plan "${cfg}" --format "${f}" 2>&1)"
+  out="$("${CNB}" pipeline plan "${cfg}" --format "${f}" 2>&1)"
   [ -n "${out}" ] && ok "format=${f} 非空" || bad "format=${f} 为空"
 done
-assert_contains "$("${CNB}" plan "${cfg}" --format shell)" "image_build" "shell 含 image_build"
-assert_contains "$("${CNB}" plan "${cfg}" --format json)" '"stages"' "json 含 stages"
+assert_contains "$("${CNB}" pipeline plan "${cfg}" --format shell)" "image_build" "shell 含 image_build"
+assert_contains "$("${CNB}" pipeline plan "${cfg}" --format json)" '"stages"' "json 含 stages"
 done_

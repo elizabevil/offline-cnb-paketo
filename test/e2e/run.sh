@@ -11,7 +11,7 @@ say "e2e: ${case_name}  (${app_dir})"
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ] && [ "${E2E_BUILT:-0}" != "1" ]; then
   say "rebuild builder (offline-paketo)"
   if ! run_step "rebuild builder" "rebuild-${case_name}" \
-      "${CNB}" run "${REPO_ROOT}/config/projects/offline-paketo.toml"; then
+      "${CNB}" pipeline run "${REPO_ROOT}/config/projects/offline-paketo.toml"; then
     done_; exit 1
   fi
   export E2E_BUILT=1

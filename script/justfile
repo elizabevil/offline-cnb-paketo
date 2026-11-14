@@ -45,15 +45,15 @@ tools:
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" CGO_ENABLED=0 \
       {{_go}} build -trimpath -ldflags "-X learn-cnb-paketo/tools/cnb/internal/version.Version={{_cnb_version}} -s -w" -o ../../bin/cnb ./cmd/cnb && \
-      ../../bin/cnb publish cnb >/dev/null
+      ../../bin/cnb materials publish cnb >/dev/null
     @echo "  ✓ {{_script}}/bin/cnb → $({{_script}}/bin/cnb version)"
 
 # 基座结构自检：lock 结构 + shell 语法 + go 静态检查
 check: tools
     @echo "── lock 结构 ──"
-    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml validate
+    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml materials validate
     @echo "── 模板合法性（防止模板腐烂）──"
-    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml.example validate
+    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml.example materials validate
     @echo "── shell 语法 ──"
     @bash -n {{_fetch}} {{_script}}/lib/common.sh && echo "  ✓ bash -n 通过"
     @echo "── go 静态检查 ──"
@@ -86,7 +86,7 @@ pin *ids:
 
 # 规范化 SmartPackage 的 web.tgz（docker-save → OCI layout）；目标为目录或 *.tar.gz
 repack target:
-    @{{_script}}/bin/cnb repack {{target}}
+    @{{_script}}/bin/cnb pipeline repack {{target}}
 
 # 从历史子项目 bundle 导入归档（不覆盖、不回写 lock）
 import-legacy *ids:

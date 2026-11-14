@@ -10,6 +10,8 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/reporoot"
+
+	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
 )
 
 // 环境变量与默认值。
@@ -17,11 +19,11 @@ const (
 	EnvRepoRoot = "CNB_REPO_ROOT"
 	EnvLockFile = "LOCK_FILE"
 
-	DefaultLockName = "assets.lock.toml"
-	DefaultBundle   = "bundle"
+	DefaultLockName = cnbconst.DefaultLockName
+	DefaultBundle   = cnbconst.DefaultBundle
 
-	PlatformAMD64 = "linux-amd64"
-	PlatformARM64 = "linux-arm64"
+	PlatformAMD64 = cnbconst.PlatformAMD64
+	PlatformARM64 = cnbconst.PlatformARM64
 )
 
 // Options 是调用方显式指定的覆盖项。

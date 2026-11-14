@@ -2,7 +2,7 @@ package main
 
 // CLI 作用域常量。
 const (
-	// DefaultLockName 是默认物料清单文件名。
+	// DefaultLockName 与 workspace 保持一致。
 	DefaultLockName = "assets.lock.toml"
 	// DefaultConfigDir 是默认流程配置目录。
 	DefaultConfigDir = "config/projects"

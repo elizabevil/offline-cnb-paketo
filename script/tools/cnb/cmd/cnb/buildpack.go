@@ -10,10 +10,9 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/render"
 )
 
-// newBuildpackCmd 是 buildpack 维护入口。
-func newBuildpackCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "buildpack", Short: "buildpack maintenance"}
-	parent.AddCommand(&cobra.Command{
+// newLintCmd 检查 buildpack 结构是否符合官方约定。
+func newLintCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "lint [dir…]",
 		Short: "check buildpack layout against official conventions",
 		RunE: func(cmd *cobra.Command, dirs []string) error {
@@ -44,6 +43,6 @@ func newBuildpackCmd() *cobra.Command {
 			}
 			return nil
 		},
-	})
-	return parent
+	}
+	return cmd
 }

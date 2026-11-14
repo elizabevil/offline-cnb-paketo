@@ -16,7 +16,7 @@ default:
 
 # 构建三个镜像（base/run/builder），跳过打包阶段
 build:
-    @{{_repo}}/script/bin/cnb run {{_repo}}/config/projects/offline-paketo-bk.toml --no-commands
+    @{{_repo}}/script/bin/cnb pipeline run {{_repo}}/config/projects/offline-paketo-bk.toml --no-commands
 
 # 编译 bksmartpacker（源码不在仓库内，需本地存在）
 bps:

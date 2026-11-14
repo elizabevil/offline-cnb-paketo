@@ -13,19 +13,21 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/buildmeta"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
+
+	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
 )
 
 // 阶段类型与外部脚本路径。
 const (
-	KindImage   = "image"
-	KindCommand = "command"
-	KindFetch   = "fetch"
+	KindImage   = cnbconst.KindImage
+	KindCommand = cnbconst.KindCommand
+	KindFetch   = cnbconst.KindFetch
 
 	scriptFetch = "script/fetch.sh"
 	scriptImage = "script/lib/image-build.sh"
 
-	contextBundle     = "bundle"
-	contextBuildpacks = "buildpacks"
+	contextBundle     = cnbconst.ContextBundle
+	contextBuildpacks = cnbconst.ContextBuildpacks
 
 	flagBuildContext = "--build-context"
 	flagBuildArg     = "--build-arg"

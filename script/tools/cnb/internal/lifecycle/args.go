@@ -48,7 +48,9 @@ func (c Config) detectArgs() []string {
 // buildArgs 生成 builder 参数。
 func (c Config) buildArgs() []string { return c.common() }
 
-// analyzeArgs 生成 analyzer 参数（仅 daemon 模式需要）。
+// analyzeArgs 生成 analyzer 参数。
+// analyzer 始终走 daemon：它要把 run image 的元数据写进 analyzed.toml，
+// 而 layout 模式下 analyzer 只会在 layout 目录里找镜像（尚未导入时必然失败）。
 func (c Config) analyzeArgs() []string {
 	var a args
 	a.flag("layers", c.Layers)
@@ -58,18 +60,22 @@ func (c Config) analyzeArgs() []string {
 	return a
 }
 
+// layoutDir 返回 OCI layout 输出目录。
+func (c Config) layoutDir() string {
+	if c.LayoutDir != "" {
+		return c.LayoutDir
+	}
+	return defaultLayoutDir
+}
+
 // exportArgs 生成 exporter 参数。
 func (c Config) exportArgs() []string {
 	var a args
 	a.flag("layers", c.Layers)
 	a.flag("app", c.App)
 	if c.ExportLayout {
-		dir := c.LayoutDir
-		if dir == "" {
-			dir = defaultLayoutDir
-		}
 		a.boolFlag("layout", true)
-		a.flag("layout-dir", dir)
+		a.flag("layout-dir", c.layoutDir())
 	} else {
 		a.boolFlag("daemon", true)
 	}

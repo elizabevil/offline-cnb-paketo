@@ -25,7 +25,7 @@ test-unit:
 # 全部契约测试
 test-contract: test-contract-get test-contract-validate test-contract-plan
 
-# 契约：cnb get 输出字段
+# 契约：cnb materials get 输出字段
 test-contract-get:
     @{{_test}}/contract/get-contract.sh
 
@@ -47,15 +47,15 @@ test-e2e-core name:
 
 # 全部 lifecycle 直连用例
 test-e2e-core-all:
-    @{{_cnb}} run {{_test}}/../config/projects/offline-paketo.toml
+    @{{_cnb}} pipeline run {{_test}}/../config/projects/offline-paketo.toml
     @for d in {{_test}}/fixtures/*/; do \
       E2E_SKIP_BUILD=1 {{_test}}/e2e/lifecycle.sh "$d" "$(basename "$d")" || exit 1; \
     done
 
 # 全部 e2e（fixtures，需要 pack）：先重建一次 builder，再逐个用例
 test-e2e-all:
-    @{{_cnb}} run {{_test}}/../config/projects/offline-paketo.toml
-    @{{_cnb}} doctor {{_test}}/../config/projects/offline-paketo.toml || true
+    @{{_cnb}} pipeline run {{_test}}/../config/projects/offline-paketo.toml
+    @{{_cnb}} pipeline doctor {{_test}}/../config/projects/offline-paketo.toml || true
     @for d in {{_test}}/fixtures/*/; do \
       E2E_SKIP_BUILD=1 {{_test}}/e2e/auto.sh "$d" "$(basename "$d")" || exit 1; \
     done

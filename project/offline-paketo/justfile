@@ -12,11 +12,11 @@ _default:
 
 # 按流水线配置执行（物料 → 镜像 → 打包）
 build *args:
-    @{{_dir}}/../../script/bin/cnb run {{_profile}} {{args}}
+    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} {{args}}
 
 # 只打印执行计划与命令，不真正构建
 plan:
-    @{{_dir}}/../../script/bin/cnb run {{_profile}} --dry-run
+    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} --dry-run
 
 # ── 物料（委托仓库根基座）──────────────────────────────────────────────────
 
@@ -26,10 +26,10 @@ fetch *ids:
 
 # 校验本流程物料（范围与规则来自配置）
 verify:
-    @{{_dir}}/../../script/bin/cnb profile verify {{_profile}}
+    @{{_dir}}/../../script/bin/cnb pipeline profile verify {{_profile}}
 
 # ── 示例（案例目录不入库）──────────────────────────────────────────────────
 
 # 对 go 示例跑 detect → build → analyze → export
 test:
-    @cd {{_dir}}/../.. && just test-e2e-core-all 2>/dev/null || just test
+    @cd {{_dir}}/../.. && just --justfile {{_dir}}/../../justfile test-e2e-core-all

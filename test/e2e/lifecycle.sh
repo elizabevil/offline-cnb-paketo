@@ -46,7 +46,7 @@ validate_flags || { done_; exit 1; }
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ]; then
   say "rebuild builder (offline-paketo)"
   run_step "rebuild builder" "rebuild-${case_name}" \
-    "${CNB}" run "${PROFILE}" --no-commands || { done_; exit 1; }
+    "${CNB}" pipeline run "${PROFILE}" --no-commands || { done_; exit 1; }
 fi
 
 # ── 挂载约定（与 lifecycle 的语义对齐）────────────────────────
@@ -57,7 +57,7 @@ fi
 #   /platform       平台元数据（env 等），每次全新
 #   /cnb/runtimes   本地 Node/Python 运行时（只读，可选，用于完全离线）
 # 从配置推导镜像名（不再写死 offline-builder / offline-run）
-plan_shell="$("${CNB}" plan "${PROFILE}" --format shell 2>/dev/null || true)"
+plan_shell="$("${CNB}" pipeline plan "${PROFILE}" --format shell 2>/dev/null || true)"
 pick_tag() { printf '%s\n' "${plan_shell}" | awk -v n="$1" '$1=="image_build" && $2=="\047"n"\047" {print $4}' | tr -d "\047"; }
 BUILDER_IMAGE="$(pick_tag builder)"
 RUN_IMAGE="$(pick_tag run)"
@@ -72,7 +72,7 @@ if [ "${E2E_SKIP_BUILD:-0}" != "1" ]; then
   if [ "${fresh:-0}" = "0" ]; then
     bad "builder 镜像里没有任何 buildpack（需重新构建）"
     printf '    镜像创建时间: %s\n' "$("${tool}" inspect -f '{{.Created}}' "${BUILDER_IMAGE}" 2>/dev/null)" >&2
-    printf '    确认 cnb run 真正重建了 builder，或在 e2e 里删除该镜像后重跑\n' >&2
+    printf '    确认 cnb pipeline run 真正重建了 builder，或在 e2e 里删除该镜像后重跑\n' >&2
   else
     ok "builder 镜像包含最新 buildpack"
   fi

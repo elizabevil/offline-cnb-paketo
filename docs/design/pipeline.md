@@ -10,10 +10,10 @@
                               │
         项目/build.sh ────────┴──────── just build / just plan
                               │
-                    script/bin/cnb run <profile>
+                    script/bin/cnb pipeline run <profile>
                               │
                  ┌────────────┴─────────────┐
-                 │ cnb run：校验 + 计划 + 执行 │
+                 │ cnb pipeline run：校验 + 计划 + 执行 │
                  └────────────┬─────────────┘
                               │ eval
         ┌─────────────────────┼──────────────────────┐
@@ -23,7 +23,7 @@
         │                     │                      │
         ▼                     ▼                      ▼
   bundle/<platform>/    podman|docker build     scripts/build.sh
-  {archives,binaries}   (context = 仓库根)      + cnb repack
+  {archives,binaries}   (context = 仓库根)      + cnb pipeline repack
 ```
 
 ## 一次完整构建
@@ -43,7 +43,7 @@ script/fetch.sh fetch lifecycle@0.21.13 fnm@1.39.0 … --platform linux-amd64
 script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerfile.builder-base \
   offline-builder-base-bk:latest --build-arg BASE_IMAGE=…
 
-# ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb repack 规范化）
+# ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb pipeline repack 规范化）
 (cd <repo>/project/offline-paketo-bk && scripts/build.sh)
 ```
 
@@ -54,7 +54,7 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
 | 事实 | `assets.lock.toml` | 物料版本 / URL / 哈希 | 流程 |
 | 流程 | `config/projects/*.toml` | 用哪些物料、建哪些镜像、顺序 | 具体命令实现 |
 | 规划 | `cnb profile render` | 校验 + 生成 shell 计划 | 执行 |
-| 执行 | `cnb run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
+| 执行 | `cnb pipeline run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
 | 原语 | `fetch.sh` / `image-build.sh` | 下载解压 / 单镜像构建 | 顺序 |
 | 资产 | `<proj>/docker/`、`<proj>/scripts/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
 
@@ -93,12 +93,12 @@ cnb profile show config/projects/<p>.toml    # 分组查看
 ./build.sh --only builder  # 只跑某一步，其余标注 skipped
 ```
 
-失败时会给出可直接重跑的命令：`cnb run <cfg> --only <stage>`。
+失败时会给出可直接重跑的命令：`cnb pipeline run <cfg> --only <stage>`。
 
 ## 静态检查
 
 ```bash
-cnb dockerfile check config/projects/<p>.toml   # COPY 源路径是否存在
+cnb pipeline dockerfile check config/projects/<p>.toml   # COPY 源路径是否存在
 ```
 
 已接入 `script/ci.sh`，能拦住"改了目录/改名后 Dockerfile 失效"这类问题。

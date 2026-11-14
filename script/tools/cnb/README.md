@@ -155,3 +155,15 @@ Go 默认缓存路径会直接 `read-only file system` 失败（已实测踩过�
 - **幂等**：输入已是 OCI layout（有 `oci-layout` + `index.json`）时直接返回，不重写文件。
 - 改完必须跑 `go test -run Repack`；golden 常量在 `repack_test.go` 顶部，若确属预期变更，
   需连同**新的字节**一起 review，而不是简单覆盖。
+
+## 命令分组（v3 起）
+
+```
+cnb materials  list|get|platforms|validate|verify|pin|publish|lock set-sha
+cnb pipeline   plan|run|doctor|dockerfile check|profile …|repack
+cnb buildpack  lint|metadata
+cnb lifecycle  run
+cnb version
+```
+
+旧的顶级命令（`list`/`get`/`verify`/`run`/`plan` 等）已移除，脚本与文档同步更新。

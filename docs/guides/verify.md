@@ -62,19 +62,19 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 
 | 命令 | 期望输出 | 退出码 |
 |---|---|---|
-| `cnb list` | `id\tversion\tkind\tplatforms`，平台按字母序、逗号分隔 | 0 |
-| `cnb get lifecycle linux-amd64` | 8 行 `ASSET_*='...'`，单引号包裹 | 0 |
-| `cnb get nope linux-amd64` | stderr 提示已定义 id | 2 |
-| `cnb validate` | `✓ ...` 或逐条 `✗ ...` | 0 / 1 |
-| `cnb verify` | 每物料 `✓/✗` | 0 / 1 |
-| `cnb repack <不存在路径>` | `目标不存在` | 1 |
+| `cnb materials list` | `id\tversion\tkind\tplatforms`，平台按字母序、逗号分隔 | 0 |
+| `cnb materials get lifecycle linux-amd64` | 8 行 `ASSET_*='...'`，单引号包裹 | 0 |
+| `cnb materials get nope linux-amd64` | stderr 提示已定义 id | 2 |
+| `cnb materials validate` | `✓ ...` 或逐条 `✗ ...` | 0 / 1 |
+| `cnb materials verify` | 每物料 `✓/✗` | 0 / 1 |
+| `cnb pipeline repack <不存在路径>` | `目标不存在` | 1 |
 
 逐条手工验证：
 
 ```bash
-script/bin/cnb list | cat -A | head -3   # 看 \t 是否是真正的制表符
-script/bin/cnb get lifecycle linux-amd64
-script/bin/cnb get nope linux-amd64; echo "exit=$?"   # 期望 2
+script/bin/cnb materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
+script/bin/cnb materials get lifecycle linux-amd64
+script/bin/cnb materials get nope linux-amd64; echo "exit=$?"   # 期望 2
 ```
 
 单测覆盖的是同一批契约：
@@ -109,7 +109,7 @@ cd script/tools/cnb && go test -run Repack -v ./...
 
 1. 改 Go 实现；
 2. `go test` 失败，逐字看 diff 是否真是你要的变化；
-3. 用同样的 fixture 跑一次 `cnb repack`，把新字节贴回常量；
+3. 用同样的 fixture 跑一次 `cnb pipeline repack`，把新字节贴回常量；
 4. commit message 里写明「为什么字节变了」。
 
 **失败排查**：
@@ -189,10 +189,10 @@ L4（repack golden）只在改动 `repack.go` 或发版时跑；它是纯 Go 测
 | Python（uv 的 cpython-*-gnu） | glibc |
 | Go（静态链接） | 任意，含 alpine |
 
-`cnb doctor <profile>` 会读取 `[images.run].args.BASE_IMAGE`：
+`cnb pipeline doctor <profile>` 会读取 `[images.run].args.BASE_IMAGE`：
 若为 `alpine`/`musl` 且项目启用 Node 或 Python，直接报错并给出修法。
 
 ```bash
-cnb doctor config/projects/<p>.toml
+cnb pipeline doctor config/projects/<p>.toml
 # ✓ run 镜像 libc 与运行时匹配
 ```

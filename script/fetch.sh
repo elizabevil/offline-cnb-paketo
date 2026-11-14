@@ -58,7 +58,7 @@ parse_args() {
 # 读取单个物料到 ASSET_* 变量
 load_asset() {
   local out
-  out="$(cnb_query get "$1" "${PLATFORM}")" || die "物料 '$1' 在平台 ${PLATFORM} 上不可用"
+  out="$(cnb_query materials get "$1" "${PLATFORM}")" || die "物料 '$1' 在平台 ${PLATFORM} 上不可用"
   # shellcheck disable=SC2086
   eval "${out}"
 }
@@ -66,7 +66,7 @@ load_asset() {
 selected_ids() {
   if [ ${#IDS[@]} -eq 0 ]; then
     # 输出 id@version，保证同名多版本能被逐个处理
-    cnb_query list | awk -F'\t' '{print $1"@"$2}' 
+    cnb_query materials list | awk -F'\t' '{print $1"@"$2}' 
   else
     printf '%s\n' "${IDS[@]}"
   fi
@@ -210,7 +210,7 @@ cmd_list() {
         log_dim "跳过 ${id}（不支持 ${PLATFORM}）"
         ;;
     esac
-  done < <(cnb_query list)
+  done < <(cnb_query materials list)
 }
 
 cmd_fetch() {
@@ -220,17 +220,17 @@ cmd_fetch() {
     [ -n "${id}" ] || continue
     load_asset "${id}"
     if [ -z "${ASSET_URL}" ]; then
-      # 本地物料（[asset.local]）：由 `cnb publish` 放入 bundle，这里只校验
+      # 本地物料（[asset.local]）：由 `cnb materials publish` 放入 bundle，这里只校验
       expect_first="${ASSET_EXPECT%%,*}"   # 已是相对 binaries 的完整路径
       target="$(binaries_dir "${PLATFORM}")/${expect_first}"
-      [ -e "${target}" ] || die "本地物料 ${ASSET_REF} 尚未发布：先运行 cnb publish ${ASSET_ID}"
+      [ -e "${target}" ] || die "本地物料 ${ASSET_REF} 尚未发布：先运行 cnb materials publish ${ASSET_ID}"
       printf "  ✓  本地物料就绪: %s\n" "${ASSET_REF}"
       continue
     fi
     ensure_archive
     # 哈希自动固定：为空则写入，已有则校验（不一致直接失败）
     sha_actual="$(sha256_of "$(archive_path)")"
-    cnb_query lock set-sha "${ASSET_REF}" "${PLATFORM}" "${sha_actual}" \
+    cnb_query materials lock set-sha "${ASSET_REF}" "${PLATFORM}" "${sha_actual}" \
       || die "${ASSET_REF}: 哈希与 lock 不一致或写入失败"
     ensure_extract
   done < <(selected_ids)
@@ -238,7 +238,7 @@ cmd_fetch() {
 }
 
 cmd_verify() {
-  local -a args=(verify --platform "${PLATFORM}" --bundle "${BUNDLE_DIR}")
+  local -a args=(materials verify --platform "${PLATFORM}" --bundle "${BUNDLE_DIR}")
   [ "${STRICT}" -eq 1 ] && args+=(--strict)
   if [ ${#IDS[@]} -gt 0 ]; then
     args+=("${IDS[@]}")
@@ -247,7 +247,7 @@ cmd_verify() {
 }
 
 cmd_pin() {
-  local -a args=(pin --platform "${PLATFORM}" --bundle "${BUNDLE_DIR}")
+  local -a args=(materials pin --platform "${PLATFORM}" --bundle "${BUNDLE_DIR}")
   if [ ${#IDS[@]} -gt 0 ]; then
     args+=("${IDS[@]}")
   fi

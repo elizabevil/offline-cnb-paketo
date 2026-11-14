@@ -16,7 +16,7 @@
 > 判断顺序：先 `ldd <binary>`，再看 PATH。**"文件存在但报不存在"九成是动态链接器**。
 >
 > 这条规律在三个项目上都复现过（offline-paketo、offline-paketo-bk）；
-> 现在由 `cnb doctor` 静态检查：run 镜像含 alpine/musl 且项目含 Node/Python
+> 现在由 `cnb pipeline doctor` 静态检查：run 镜像含 alpine/musl 且项目含 Node/Python
 > 运行时即报错，不必等容器起不来。
 
 官方 Node 只有 glibc 构建（nodejs.org 与 fnm 均是），无静态版；
@@ -172,7 +172,7 @@ e2e 的新鲜度断言写死了路径，组件拆分后仍检查旧路径 → �
 
 现在 `buildpacks/` 位于仓库根并按格式分组（`paketo/`、`heroku/`，后续可加），
 项目用 `[docker] buildpacks_context` 声明用哪一组；Dockerfile 通过
-`COPY --from=buildpacks /<component>/ …` 引用，`cnb run` 传
+`COPY --from=buildpacks /<component>/ …` 引用，`cnb pipeline run` 传
 `--build-context buildpacks=<repo>/buildpacks`。
 
 ### 19. 本地构建产物也要走物料，别硬编码路径
@@ -185,6 +185,6 @@ source = "script/bin/cnb"   # 构建产物路径（相对仓库根）
 sha256 = ""                 # 发布后自动回填
 ```
 
-- `just tools` 编译后自动执行 `cnb publish cnb`，复制到
+- `just tools` 编译后自动执行 `cnb materials publish cnb`，复制到
   `bundle/<platform>/binaries/cnb/<version>/cnb` 并回填哈希
 - 本地物料的哈希是**构建指纹**，每次发布覆盖（不是下载物的校验语义）

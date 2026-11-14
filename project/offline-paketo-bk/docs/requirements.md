@@ -84,7 +84,7 @@ prepare(app_desc.yaml → 模块) → fetch(物料) → build(每模块四阶段
 
 ```
 project/offline-paketo-bk/
-├── build.sh                    # 入口：cnb run <profile>
+├── build.sh                    # 入口：cnb pipeline run <profile>
 ├── justfile                    # build / plan / fetch / verify
 ├── fixtures/                   # BK 结构测试项目（新增）
 │   ├── single/{app_desc.yaml, go.mod, main.go}
@@ -111,4 +111,4 @@ project/offline-paketo-bk/
 3. bksmartpacker 产出 `s-mart.tgz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
 4. `<module>.tgz` 只含应用层
 5. `fixtures/single` 与 `fixtures/multi` 均可构建
-6. `cnb doctor` / `dockerfile check` / `buildpack lint` 全绿
+6. `cnb pipeline doctor` / `dockerfile check` / `buildpack lint` 全绿

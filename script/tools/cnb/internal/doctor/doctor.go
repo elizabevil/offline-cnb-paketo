@@ -12,11 +12,13 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/buildmeta"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
+
+	"learn-cnb-paketo/tools/cnb/internal/cnbconst"
 )
 
 // 检查项常量。
 const (
-	stageKindImage = "image"
+	stageKindImage = cnbconst.KindImage
 	stageRun       = "run"
 	stageBuilder   = "builder"
 

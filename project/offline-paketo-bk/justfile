@@ -12,11 +12,11 @@ _default:
 
 # 按流水线配置执行（物料 → 镜像 → 打包）
 build *args:
-    @{{_dir}}/../../script/bin/cnb run {{_profile}} {{args}}
+    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} {{args}}
 
 # 只打印执行计划与命令，不真正构建
 plan:
-    @{{_dir}}/../../script/bin/cnb run {{_profile}} --dry-run
+    @{{_dir}}/../../script/bin/cnb pipeline run {{_profile}} --dry-run
 
 # ── 物料（委托仓库根基座）──────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ fetch *ids:
 
 # 校验本流程物料（范围与规则来自配置）
 verify:
-    @{{_dir}}/../../script/bin/cnb profile verify {{_profile}}
+    @{{_dir}}/../../script/bin/cnb pipeline profile verify {{_profile}}
 
 # 夹具构建与打包（BK 结构）
 fixtures *args:
@@ -56,11 +56,14 @@ mounts := runtimes_mount + cache_mount
 
 # 构建三个镜像（跳过打包阶段）
 smart-builder *args:
-    @{{_root}}/script/bin/cnb run {{_profile}} --no-commands {{args}}
+    @{{_root}}/script/bin/cnb pipeline run {{_profile}} --no-commands {{args}}
 
 # 编译 bksmartpacker（源码不入库，需本地存在）
 smart-bps:
-    @cd {{_root}}/script/tools/bksmartpacker_v3 && make build-cli
+    # 清掉可能残留的 GOROOT/GOPATH（如上一次在容器内使用过的路径），
+    # 否则 make 会拿容器路径去编宿主二进制
+    @cd {{_root}}/script/tools/bksmartpacker_v3 && \
+      env -u GOROOT -u GOPATH make build-cli
     @echo "  ✓ {{_bps}}"
 
 # 全链路：构建镜像 → 编译工具 → 打包夹具 → 校验产物

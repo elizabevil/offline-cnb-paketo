@@ -150,7 +150,7 @@ run_step() {
     1) 改用 docker（若可用）: CONTAINER_TOOL=docker just test-e2e-all
     2) 以 rootful podman 运行: sudo podman system service --time=0 unix:///run/podman.sock
        然后 DOCKER_HOST=unix:///run/podman.sock just test-e2e-all
-    3) 跳过 pack，直接用 cnb run + 手动 lifecycle 验证（当前环境不推荐）
+    3) 跳过 pack，直接用 cnb pipeline run + 手动 lifecycle 验证（当前环境不推荐）
 HINT
     fi
     return "${rc}"
@@ -166,7 +166,7 @@ e2e_pack() {
   [ "${tool}" != "none" ] || { bad "未找到 podman/docker"; return 1; }
   if ! builder_source_ref "${tool}" >/dev/null; then
     bad "builder 镜像不存在: ${BUILDER_IMAGE}"
-    printf '    先执行: cnb run %s/config/projects/offline-paketo.toml\n' "${REPO_ROOT}" >&2
+    printf '    先执行: cnb pipeline run %s/config/projects/offline-paketo.toml\n' "${REPO_ROOT}" >&2
     return 1
   fi
   BUILDER_REF="$(prepare_builder_ref)" || { bad "无法准备 builder 引用"; return 1; }

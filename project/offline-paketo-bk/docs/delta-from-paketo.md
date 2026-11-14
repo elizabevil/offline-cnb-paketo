@@ -7,7 +7,7 @@
 |---|---|---|
 | 目标平台 | CNB / pack | BK PaaS |
 | 产物 | 完整镜像（含 OS） | **只含应用层**（run=scratch） |
-| 入口契约 | `cnb run` | `cnb run` + `lifecycle-entrypoint.sh`（bksmartpacker 契约） |
+| 入口契约 | `cnb pipeline run` | `cnb pipeline run` + `lifecycle-entrypoint.sh`（bksmartpacker 契约） |
 | 交付形式 | 镜像 tag | s-mart.tgz（bksmartpacker 打包） |
 | 测试夹具 | `test/fixtures`（普通应用） | `fixtures/`（含 `app_desc.yaml`，BK 结构） |
 | 特有文档 | — | `docs/bk-build-logic.md` |
@@ -26,3 +26,20 @@
 | Dockerfile | `base.dockerfile` / `builder.dockerfile` | `builder-base.dockerfile` / `builder-build.dockerfile` |
 
 > 保持两项目原文件名，不做重命名或软链；新增能力一律用新文件表达。
+
+## 层包导出：不走 daemon
+
+podman 5.4 下 lifecycle 0.21 用 `-daemon` 导出会报
+`singleton connection already in use`，docker 下正常，两边不一致。
+
+现在的路径：
+
+```
+exporter -layout -layout-dir=/layers/oci      # 不连 daemon
+        ↓ cnb 转换
+BKS_LAYER_ARCHIVE=/cnb-layer/<module>.tgz     # docker-archive
+        ↓ 挂载目录回宿主
+<workspace>/layers/<module>.tgz               # bksmartpacker 直接取用
+```
+
+bksmartpacker 侧只在找不到该文件时才回退到 `docker image save`。

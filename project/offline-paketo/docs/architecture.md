@@ -20,7 +20,7 @@ Learn-cnb-paketo/
 ├── bundle/<platform>/binaries/<id>/<ver> # 共享物料（不入库）
 ├── script/                              # 执行器：cnb / fetch.sh / lib/
 └── project/offline-paketo/              # 本项目
-    ├── build.sh                         # 入口：cnb run <配置>
+    ├── build.sh                         # 入口：cnb pipeline run <配置>
     ├── justfile                         # build / plan / fetch / verify / test
     ├── docker/                          # Dockerfile、buildpacks、order.toml
     └── examples/                        # 测试应用（不入库）
@@ -30,7 +30,7 @@ Learn-cnb-paketo/
 
 ```
 build.sh
-  └─ cnb run config/projects/offline-paketo.toml
+  └─ cnb pipeline run config/projects/offline-paketo.toml
        ├─ cnb profile validate   校验镜像/命令/流程引用
        ├─ cnb profile render     渲染执行计划（fetch_assets / image_build）
        └─ eval 计划
@@ -103,5 +103,5 @@ just verify                 # 校验本项目物料（范围取自配置）
 | 2026-11 | 删除 `scripts/*.just`（config/download/docker/info/log），流程改为配置驱动 |
 | 2026-11 | `apps/` 改名 `examples/` 且不入库；物料统一到仓库根 `bundle/` |
 | 2026-11 | 构建改用 named build context（`--build-context bundle=…`），Dockerfile 不再写仓库路径 |
-| 2026-11 | 删除 `script/run.sh`，执行并入 `cnb run`；新增 `cnb dockerfile check` |
+| 2026-11 | 删除 `script/run.sh`，执行并入 `cnb pipeline run`；新增 `cnb pipeline dockerfile check` |
 | 2026-11 | 物料目录改为 `<id>/<version>`，URL 支持 `{version}` 占位 |
