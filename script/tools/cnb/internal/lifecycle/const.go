@@ -15,6 +15,13 @@ const (
 	// UserDatabase 是查询用户 uid/gid 的文件。
 	UserDatabase = "/etc/passwd"
 
+	// 传给 lifecycle/buildpack 的环境变量名。
+	envPlatformAPI  = "CNB_PLATFORM_API"
+	envAppDir       = "CNB_APP_DIR"
+	envLayersDir    = "CNB_LAYERS_DIR"
+	envPlatformDir  = "CNB_PLATFORM_DIR"
+	envExperimental = "CNB_EXPERIMENTAL_MODE"
+
 	// FileURLScheme 是本地源码的 URL 前缀。
 	FileURLScheme = "file://"
 )

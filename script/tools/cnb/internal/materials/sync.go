@@ -3,6 +3,7 @@ package materials
 
 import (
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -85,7 +86,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
 			_ = writeMarker(binDir, Marker{
 				ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
-				Size: fileSize(archive), Extractor: extractorID(a),
+				Size: fsutil.Size(archive), Extractor: extractorID(a),
 			})
 			return res
 		}
@@ -110,7 +111,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	}
 	res.Action = "extracted"
 
-	size := fileSize(archive)
+	size := fsutil.Size(archive)
 	if err := writeMarker(binDir, Marker{
 		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
 		Size: size, Extractor: extractorID(a), Files: files,
@@ -122,15 +123,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 
 // extractorID 由解包规则生成，规则变化时 marker 自动失效。
 func extractorID(a *lock.Asset) string {
-	return a.Unpack.Kind + "/v2"
-}
-
-// fileSize 返回文件大小（不存在为 0）。
-func fileSize(path string) int64 {
-	if st, err := os.Stat(path); err == nil {
-		return st.Size()
-	}
-	return 0
+	return string(a.Unpack.Kind) + "/v2"
 }
 
 func archivesDir(bundleDir, platform string) string {

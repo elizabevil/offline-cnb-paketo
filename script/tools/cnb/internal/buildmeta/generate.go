@@ -58,7 +58,7 @@ func findOfficial(plan *profile.Plan, meta *Metadata) bool {
 // applyRunImage 取流程中名为 run 的镜像阶段。
 func applyRunImage(plan *profile.Plan, meta *Metadata) {
 	for _, st := range plan.Stages {
-		if st.Kind == "image" && st.Name == StageRun {
+		if st.Kind == profile.StageImage && st.Name == StageRun {
 			meta.Stack.RunImage.Image = st.Tag
 		}
 	}

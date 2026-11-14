@@ -31,7 +31,7 @@ func ensureArchive(a *lock.Asset, dest string, opts Options) error {
 	if ok, err := verifyArchive(dest, want, a.Size(opts.Platform)); err == nil && ok {
 		return nil
 	}
-	if err := os.MkdirAll(dirOf(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
 	for _, url := range sources(a, opts.Platform) {
@@ -120,6 +120,3 @@ func verifyArchive(path, want string, wantSize int64) (bool, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)) == want, nil
 }
-
-// dirOf 返回文件所在目录。
-func dirOf(path string) string { return filepath.Dir(path) }

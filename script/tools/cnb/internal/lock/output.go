@@ -40,7 +40,7 @@ func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {
 		{"ASSET_REF", asset.Ref()},
 		{"ASSET_ID", asset.ID},
 		{"ASSET_VERSION", asset.Version},
-		{"ASSET_KIND", asset.Unpack.Kind},
+		{"ASSET_KIND", string(asset.Unpack.Kind)},
 		{"ASSET_URL", url},
 		{"ASSET_SHA256", asset.SHA256(platform)},
 		{"ASSET_EXTRACT_TO", dir},

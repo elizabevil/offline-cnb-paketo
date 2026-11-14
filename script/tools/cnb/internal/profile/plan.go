@@ -34,22 +34,32 @@ type Plan struct {
 
 // AssetInfo 描述单个物料的解析结果与落盘状态。
 type AssetInfo struct {
-	Ref       string   `json:"ref" yaml:"ref"`
-	ID        string   `json:"id" yaml:"id"`
-	Version   string   `json:"version" yaml:"version"`
-	Kind      string   `json:"kind" yaml:"kind"`
-	Platforms []string `json:"platforms" yaml:"platforms"`
-	SHA256    string   `json:"sha256,omitempty" yaml:"sha256,omitempty"`
-	URL       string   `json:"url,omitempty" yaml:"url,omitempty"`
-	Local     bool     `json:"local,omitempty" yaml:"local,omitempty"`
-	Present   bool     `json:"present" yaml:"present"`
-	Size      int64    `json:"size,omitempty" yaml:"size,omitempty"`
+	Ref       string    `json:"ref" yaml:"ref"`
+	ID        string    `json:"id" yaml:"id"`
+	Version   string    `json:"version" yaml:"version"`
+	Kind      lock.Kind `json:"kind" yaml:"kind"`
+	Platforms []string  `json:"platforms" yaml:"platforms"`
+	SHA256    string    `json:"sha256,omitempty" yaml:"sha256,omitempty"`
+	URL       string    `json:"url,omitempty" yaml:"url,omitempty"`
+	Local     bool      `json:"local,omitempty" yaml:"local,omitempty"`
+	Present   bool      `json:"present" yaml:"present"`
+	Size      int64     `json:"size,omitempty" yaml:"size,omitempty"`
 }
 
-// PlanStage 是计划中的一个执行阶段（镜像或命令）。
+// StageKind 是阶段类型，属于计划协议的一部分。
+type StageKind string
+
+// 支持的阶段类型。
+const (
+	// StageImage 表示构建镜像。
+	StageImage StageKind = "image"
+	// StageCommand 表示执行命令。
+	StageCommand StageKind = "command"
+)
+
 // PlanStage 是计划中的一个执行阶段（镜像或命令）。
 type PlanStage struct {
-	Kind          string            `json:"kind" yaml:"kind"` // fetch | image | command
+	Kind          StageKind         `json:"kind" yaml:"kind"` // fetch | image | command
 	Name          string            `json:"name" yaml:"name"`
 	Desc          string            `json:"desc,omitempty" yaml:"desc,omitempty"`
 	Base          string            `json:"base,omitempty" yaml:"base,omitempty"`
@@ -134,7 +144,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 				}
 			}
 			plan.Stages = append(plan.Stages, PlanStage{
-				Kind: "image", Name: st.Image, Desc: img.Desc, Base: img.Base,
+				Kind: StageImage, Name: st.Image, Desc: img.Desc, Base: img.Base,
 				Context: plan.Context, BundleCtx: plan.BundleDir,
 				BuildpacksCtx: abs(mustDefault(p.Docker.BuildpacksContext, "buildpacks")),
 				Dockerfile:    filepath.Join(plan.Context, img.Dockerfile), Tag: tag, Args: merged,
@@ -147,7 +157,7 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 			env[k] = expandVars(resolveRefs(v, tags), platform)
 		}
 		plan.Stages = append(plan.Stages, PlanStage{
-			Kind: "command", Name: st.Command, Run: c.Run,
+			Kind: StageCommand, Name: st.Command, Run: c.Run,
 			Workdir: abs(mustDefault(c.Workdir, p.Project.Dir)), Env: env,
 		})
 	}
@@ -212,7 +222,7 @@ func (pl *Plan) Shell() string {
 	}
 	for _, st := range pl.Stages {
 		switch st.Kind {
-		case "image":
+		case StageImage:
 			args := make([]string, 0, len(st.Args))
 			for _, k := range slices.Sorted(maps.Keys(st.Args)) {
 				args = append(args, shell.Quote(k+"="+st.Args[k]))
@@ -222,7 +232,7 @@ func (pl *Plan) Shell() string {
 				line += " " + strings.Join(args, " ")
 			}
 			b.WriteString(line + "\n")
-		case "command":
+		case StageCommand:
 			envs := make([]string, 0, len(st.Env))
 			for _, k := range slices.Sorted(maps.Keys(st.Env)) {
 				envs = append(envs, shell.Quote(k+"="+st.Env[k]))
@@ -254,9 +264,9 @@ func (pl *Plan) Text() string {
 	fmt.Fprintf(&b, "\n阶段（%d）\n", len(pl.Stages))
 	for i, st := range pl.Stages {
 		switch st.Kind {
-		case "image":
+		case StageImage:
 			fmt.Fprintf(&b, "  %d. image   %-10s → %s\n", i+1, st.Name, st.Tag)
-		case "command":
+		case StageCommand:
 			fmt.Fprintf(&b, "  %d. command %-10s cd %s && %s\n", i+1, st.Name, st.Workdir, st.Run)
 		}
 	}

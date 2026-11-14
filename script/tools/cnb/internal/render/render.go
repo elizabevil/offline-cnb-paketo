@@ -4,6 +4,7 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -63,7 +64,7 @@ func toView(p *profile.Plan) view {
 		ToolCommit:   shortCommit(version.Get().Commit),
 	}
 	for _, st := range p.Stages {
-		if st.Kind != "image" {
+		if st.Kind != profile.StageImage {
 			continue
 		}
 		if strings.HasSuffix(st.Name, "builder") {
@@ -75,7 +76,7 @@ func toView(p *profile.Plan) view {
 	}
 	for i, st := range p.Stages {
 		r := row{
-			Index: i + 1, Kind: st.Kind, Name: st.Name, Desc: st.Desc,
+			Index: i + 1, Kind: string(st.Kind), Name: st.Name, Desc: st.Desc,
 			Dockerfile: st.Dockerfile, Base: st.Base, Context: st.Context, BundleCtx: st.BundleCtx,
 			Tag: st.Tag, Workdir: st.Workdir, Run: st.Run,
 		}
@@ -223,7 +224,7 @@ func assetViews(p *profile.Plan) []AssetView {
 	out := make([]AssetView, 0, len(p.AssetDetails))
 	for _, a := range p.AssetDetails {
 		out = append(out, AssetView{
-			Ref: a.Ref, Version: a.Version, Kind: a.Kind, Platforms: a.Platforms,
+			Ref: a.Ref, Version: a.Version, Kind: string(a.Kind), Platforms: a.Platforms,
 			Local: a.Local, Present: a.Present, Size: a.Size, SHA256: a.SHA256,
 		})
 	}
@@ -264,20 +265,20 @@ func CompactPlan(p *profile.Plan, format string) (string, error) {
 	}
 	s := Summary{Project: p.Project, Platform: p.Platform, Runtime: p.Runtime}
 	for i, st := range p.Stages {
-		b := StageBrief{Index: i + 1, Kind: st.Kind, Name: st.Name}
+		b := StageBrief{Index: i + 1, Kind: string(st.Kind), Name: st.Name}
 		switch st.Kind {
-		case "image":
+		case profile.StageImage:
 			b.Input = shortPath(p.RepoRoot, st.Dockerfile) + " (context " + shortPath(p.RepoRoot, st.Context) + ")"
 			b.Action = "docker build"
 			b.Output = st.Tag
-		case "command":
+		case profile.StageCommand:
 			b.Input = shortPath(p.RepoRoot, st.Workdir)
-			b.Action = "run " + truncate(st.Run, 60)
+			b.Action = "run " + strutil.Shorten(st.Run, 60)
 		}
 		s.Stages = append(s.Stages, b)
 	}
 	for _, a := range p.AssetDetails {
-		s.Assets = append(s.Assets, AssetBrief{Ref: a.Ref, Kind: a.Kind, Platforms: a.Platforms, Present: a.Present})
+		s.Assets = append(s.Assets, AssetBrief{Ref: a.Ref, Kind: string(a.Kind), Platforms: a.Platforms, Present: a.Present})
 	}
 	if format == "json" {
 		b, err := json.MarshalIndent(s, "", "  ")
@@ -300,12 +301,4 @@ func shortPath(root, path string) string {
 		return rel
 	}
 	return path
-}
-
-// truncate 截断过长文本。
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

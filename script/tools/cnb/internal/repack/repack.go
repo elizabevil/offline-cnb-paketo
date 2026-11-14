@@ -167,7 +167,7 @@ func normalizePackageTarball(pkgTar string) error {
 
 	// 先写临时文件再 rename，避免中途失败留下半个包
 	tmp := pkgTar + ".tmp"
-	if err := copyFile(rebuilt, tmp); err != nil {
+	if err := fsutil.CopyFile(rebuilt, tmp); err != nil {
 		return err
 	}
 	return os.Rename(tmp, pkgTar)
@@ -221,10 +221,10 @@ func normalizeWebTar(webTar string) error {
 		return err
 	}
 
-	if err := copyFile(configSrc, filepath.Join(blobsDir, configDigest)); err != nil {
+	if err := fsutil.CopyFile(configSrc, filepath.Join(blobsDir, configDigest)); err != nil {
 		return errs.Wrap("copy config", err)
 	}
-	configSize, err := fileSizeOf(configSrc)
+	configSize, err := fsutil.SizeOf(configSrc)
 	if err != nil {
 		return err
 	}
@@ -245,10 +245,10 @@ func normalizeWebTar(webTar string) error {
 		lastLayerDigest = layerDigest
 
 		layerSrc := filepath.Join(legacyDir, layerName)
-		if err := copyFile(layerSrc, filepath.Join(blobsDir, layerDigest)); err != nil {
+		if err := fsutil.CopyFile(layerSrc, filepath.Join(blobsDir, layerDigest)); err != nil {
 			return errs.Wrap("copy layer "+layerName, err)
 		}
-		size, err := fileSizeOf(layerSrc)
+		size, err := fsutil.SizeOf(layerSrc)
 		if err != nil {
 			return err
 		}
@@ -567,35 +567,6 @@ func writeJSONFile(path string, v any) error {
 func sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-
-	if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {
-		return err
-	}
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close() // 写入已完成，关闭错误不影响产物
-		return err
-	}
-	return out.Close()
-}
-
-func fileSizeOf(path string) (int64, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-	return info.Size(), nil
 }
 
 func fileExists(path string) bool {

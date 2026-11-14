@@ -2,6 +2,7 @@
 package workspace
 
 import (
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -51,7 +52,7 @@ func Open(o Options) (Context, error) {
 	}
 	lockPath := o.LockPath
 	if lockPath == "" {
-		lockPath = firstNonEmpty(os.Getenv(EnvLockFile), filepath.Join(root, DefaultLockName))
+		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), filepath.Join(root, DefaultLockName))
 	}
 	l, err := lock.Load(lockPath)
 	if err != nil {
@@ -111,13 +112,4 @@ func UserProfilePath(root, configDir, name string) string {
 		return filepath.Join(root, name)
 	}
 	return ProfilePath(root, configDir, name)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

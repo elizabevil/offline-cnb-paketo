@@ -10,6 +10,7 @@ package repack
 //  5. 目录模式与 *.tar.gz 模式等价
 
 import (
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -149,7 +150,7 @@ func TestRepackPackageTarball(t *testing.T) {
 
 	// 外层包：pkg.tar.gz 内含 web.tgz
 	outerDir := t.TempDir()
-	if err := copyFile(filepath.Join(pkgDir, "web.tgz"), filepath.Join(outerDir, "web.tgz")); err != nil {
+	if err := fsutil.CopyFile(filepath.Join(pkgDir, "web.tgz"), filepath.Join(outerDir, "web.tgz")); err != nil {
 		t.Fatal(err)
 	}
 	pkgTar := filepath.Join(t.TempDir(), "pkg.tar.gz")

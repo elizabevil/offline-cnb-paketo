@@ -9,7 +9,7 @@ import (
 // StackID 从构建该镜像的 Dockerfile 里读 stack id 标签。
 func StackID(plan *profile.Plan) string {
 	for _, st := range plan.Stages {
-		if st.Kind != "image" {
+		if st.Kind != profile.StageImage {
 			continue
 		}
 		data, err := os.ReadFile(st.Dockerfile)

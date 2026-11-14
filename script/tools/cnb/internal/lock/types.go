@@ -54,11 +54,26 @@ type Info struct {
 	License  string `toml:"license"`
 }
 
+// Kind 是解包方式，属于清单协议的一部分。
+type Kind string
+
+// 支持的解包方式。
+const (
+	// KindTGZ 是 gzip 压缩的 tar。
+	KindTGZ Kind = "tgz"
+	// KindTarGz 是 KindTGZ 的别名写法。
+	KindTarGz Kind = "tar.gz"
+	// KindZip 是 zip 压缩包。
+	KindZip Kind = "zip"
+	// KindBin 是单文件二进制。
+	KindBin Kind = "bin"
+)
+
 // Unpack 描述如何解包；Dir 支持 {version}。
 type Unpack struct {
 	// Include 是解压白名单（通配符）；为空表示全部。
 	Include []string `toml:"include,omitempty"`
-	Kind    string   `toml:"kind"`
+	Kind    Kind     `toml:"kind"`
 	Strip   int      `toml:"strip"`
 	Dir     string   `toml:"dir"`
 	Expect  []string `toml:"expect"`

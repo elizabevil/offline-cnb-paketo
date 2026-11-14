@@ -36,9 +36,9 @@ func (f *File) Validate() int {
 			errs = append(errs, a.ID+": 缺少 version")
 		}
 		switch a.Unpack.Kind {
-		case "tgz", "tar.gz", "zip", "bin":
+		case KindTGZ, KindTarGz, KindZip, KindBin:
 		default:
-			errs = append(errs, fmt.Sprintf("%s: unpack.kind 必须是 tgz / tar.gz / zip / bin，实际 %q", a.ID, a.Unpack.Kind))
+			errs = append(errs, fmt.Sprintf("%s: unpack.kind must be one of tgz / tar.gz / zip / bin, got %q", a.ID, a.Unpack.Kind))
 		}
 		if a.Unpack.Strip < 0 {
 			errs = append(errs, fmt.Sprintf("%s: unpack.strip 不能为负（%d）", a.ID, a.Unpack.Strip))

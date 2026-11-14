@@ -3,6 +3,7 @@ package doctor
 
 import (
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,7 +142,7 @@ func checkRunLibc(plan *profile.Plan, add func(Level, string, string)) {
 	base := ""
 	for _, st := range plan.Stages {
 		if st.Kind == stageKindImage && st.Name == stageRun {
-			base = firstNonEmpty(st.Args[baseImageKey], st.Args[baseImageTagKey])
+			base = strutil.FirstNonEmpty(st.Args[baseImageKey], st.Args[baseImageTagKey])
 		}
 	}
 	if base == "" {
@@ -207,13 +208,4 @@ func inspect(tool, image, format string) string {
 		_ = cmd.Process.Kill()
 		return ""
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

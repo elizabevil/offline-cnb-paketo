@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/strutil"
 	"strings"
 	"text/tabwriter"
 
@@ -38,11 +39,11 @@ func Table(p *profile.Plan) string {
 // stageColumns 返回阶段的三列：输入、动作、输出。
 func stageColumns(p *profile.Plan, st profile.PlanStage) (input, action, output string) {
 	switch st.Kind {
-	case "image":
+	case profile.StageImage:
 		return shortPath(p.RepoRoot, st.Dockerfile), "docker build", st.Tag
-	case "command":
-		return shortPath(p.RepoRoot, st.Workdir), "run " + truncate(st.Run, 40), "-"
+	case profile.StageCommand:
+		return shortPath(p.RepoRoot, st.Workdir), "run " + strutil.Shorten(st.Run, 40), "-"
 	default:
-		return "-", st.Kind, "-"
+		return "-", string(st.Kind), "-"
 	}
 }
