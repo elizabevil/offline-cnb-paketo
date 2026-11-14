@@ -60,7 +60,7 @@ func TestToDockerArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 	f, _ := os.Open(out)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	tr := tar.NewReader(f)
 	names := map[string]bool{}
 	for {

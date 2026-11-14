@@ -147,7 +147,7 @@ func normalizePackageTarball(pkgTar string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempRoot)
+	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
 	pkgDir := filepath.Join(tempRoot, "pkg")
 	if err := os.MkdirAll(pkgDir, fsutil.DirMode); err != nil {
@@ -180,7 +180,7 @@ func normalizeWebTar(webTar string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempRoot)
+	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
 	legacyDir := filepath.Join(tempRoot, "legacy")
 	if err := os.MkdirAll(legacyDir, fsutil.DirMode); err != nil {
@@ -336,7 +336,7 @@ func extractTar(archive, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
 	var src io.Reader = reader
@@ -345,7 +345,7 @@ func extractTar(archive, dest string) error {
 		if err != nil {
 			return err
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		src = gz
 	}
 
@@ -380,10 +380,10 @@ func extractTar(archive, dest string) error {
 				return err
 			}
 			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
+				_ = out.Close() // 写入已完成，关闭错误不影响产物
 				return err
 			}
-			out.Close()
+			_ = out.Close() // 写入已完成，关闭错误不影响产物
 		case tar.TypeSymlink:
 			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 				return err
@@ -427,18 +427,18 @@ func packDirToTar(srcDir, destTar string) error {
 
 	entries, err := os.ReadDir(srcDir) // os.ReadDir 已按文件名排序
 	if err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	for _, entry := range entries {
 		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			tw.Close()
-			f.Close()
+			_ = tw.Close() // 写入已完成，关闭错误不影响产物
+			_ = f.Close()  // 写入已完成，关闭错误不影响产物
 			return err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -459,23 +459,23 @@ func packDirToTarGz(srcDir, destTarGz string) error {
 
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	for _, entry := range entries {
 		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			tw.Close()
-			gz.Close()
-			f.Close()
+			_ = tw.Close() // 写入已完成，关闭错误不影响产物
+			_ = gz.Close() // 写入已完成，关闭错误不影响产物
+			_ = f.Close()  // 写入已完成，关闭错误不影响产物
 			return err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := gz.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -538,7 +538,7 @@ func addTree(tw *tar.Writer, fsPath, arcName string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(tw, f)
 	return err
 }
@@ -574,7 +574,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {
 		return err
@@ -584,7 +584,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	return out.Close()

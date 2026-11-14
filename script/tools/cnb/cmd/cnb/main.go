@@ -16,16 +16,18 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/bundle"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/repack"
+	"learn-cnb-paketo/tools/cnb/internal/reporoot"
 	"learn-cnb-paketo/tools/cnb/internal/version"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // 版本由 internal/version 的 buildinfo 提供
@@ -57,8 +59,7 @@ var opts options
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		var ee *exitError
-		if errors.As(err, &ee) {
+		if ee, ok := errors.AsType[*exitError](err); ok {
 			if ee.msg != "" {
 				fmt.Fprintf(os.Stderr, "cnb: %s\n", ee.msg)
 			}
@@ -78,7 +79,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.Get().Short(),
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			root, err := resolveRepo()
 			if err != nil {
 				return err
@@ -108,24 +109,14 @@ func newRootCmd() *cobra.Command {
 
 // ── 公共上下文 ──────────────────────────────────────────────────────────────
 
-func open() (*lock.File, string, string, error) {
-	path, err := resolveLockPath(opts.lockPath)
+func open() (*lock.File, lock.Platform, string, error) {
+	ctx, err := workspace.Open(workspace.Options{
+		Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: opts.platform,
+	})
 	if err != nil {
 		return nil, "", "", err
 	}
-	l, err := lock.Load(path)
-	if err != nil {
-		return nil, "", "", err
-	}
-	platform := opts.platform
-	if platform == "" {
-		platform = hostPlatform()
-	}
-	bundleDir := opts.bundle
-	if bundleDir == "" {
-		bundleDir = filepathDir(path) + "/bundle"
-	}
-	return l, platform, bundleDir, nil
+	return ctx.Lock, ctx.Platform, ctx.Bundle, nil
 }
 
 // ── 子命令 ──────────────────────────────────────────────────────────────────
@@ -199,7 +190,11 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := bundle.Verify(l, bundleDir, platform, ids, opts.strict, opts.quiet); err != nil {
+			rep, err := bundle.Check(l, bundleDir, platform, ids)
+			if err != nil {
+				return &exitError{code: 1, msg: err.Error()}
+			}
+			if !printReport(rep, opts.strict, opts.quiet) {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -215,7 +210,11 @@ func newPinCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := bundle.Pin(l, bundleDir, platform, ids); err != nil {
+			suggests, err := bundle.Suggestions(l, bundleDir, platform, ids)
+			if err != nil {
+				return &exitError{code: 1, msg: err.Error()}
+			}
+			if !printSuggestions(suggests) {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -260,7 +259,7 @@ func newProfileCmd() *cobra.Command {
 			if _, err := os.Stat(out); err == nil {
 				return &exitError{code: 1, msg: fmt.Sprintf("已存在，拒绝覆盖: %s", out)}
 			}
-			if err := os.MkdirAll(filepathDir(out), fsutil.DirMode); err != nil {
+			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
 				return err
 			}
 			if err := os.WriteFile(out, []byte(profile.Template(name, dir, platform)), fsutil.FileMode); err != nil {
@@ -280,7 +279,7 @@ func newProfileCmd() *cobra.Command {
 						fmt.Fprintf(cmd.OutOrStdout(), "  = 已存在，跳过 %s\n", f.Path)
 						continue
 					}
-					if err := os.MkdirAll(filepathDir(target), fsutil.DirMode); err != nil {
+					if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 						return err
 					}
 					if err := os.WriteFile(target, []byte(f.Content), os.FileMode(f.Mode)); err != nil {
@@ -331,7 +330,11 @@ func newProfileCmd() *cobra.Command {
 				return &exitError{code: 1}
 			}
 			_, _, bundleDir, _ := open()
-			if err := bundle.Verify(l, bundleDir, platform, p.Refs(platform), opts.strict, opts.quiet); err != nil {
+			rep, err := bundle.Check(l, bundleDir, platform, p.Refs(platform))
+			if err != nil {
+				return &exitError{code: 1, msg: err.Error()}
+			}
+			if !printReport(rep, opts.strict, opts.quiet) {
 				return &exitError{code: 1}
 			}
 			return nil
@@ -387,7 +390,7 @@ func newLockCmd() *cobra.Command {
 	parent.AddCommand(&cobra.Command{
 		Use: "set-sha <ref> <platform> <sha256>", Short: "写入/校验某平台哈希", Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := resolveLockPath(opts.lockPath)
+			path, err := workspaceLockPath(opts.lockPath)
 			if err != nil {
 				return err
 			}
@@ -439,39 +442,23 @@ func resolveRepo() (string, error) {
 	if env := os.Getenv("CNB_REPO_ROOT"); env != "" {
 		return filepath.Abs(env)
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("无法定位可执行文件: %w", err)
+	if root, err := reporoot.FindFromExecutable(); err == nil {
+		return root, nil
 	}
-	return filepath.Dir(filepath.Dir(filepath.Dir(exe))), nil
+	root, err := reporoot.FindFromWorkingDir()
+	if err != nil {
+		return "", errs.Wrap("定位仓库根", err)
+	}
+	return root, nil
 }
 
-func resolveLockPath(explicit string) (string, error) {
-	if explicit != "" {
-		return explicit, nil
-	}
-	if env := os.Getenv("LOCK_FILE"); env != "" {
-		return env, nil
-	}
-	root, err := resolveRepo()
+// workspaceLockPath 是 workspace 解析的薄包装，供少数只取路径的调用点复用。
+func workspaceLockPath(explicit string) (string, error) {
+	ctx, err := workspace.Open(workspace.Options{Repo: opts.repo, LockPath: explicit})
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, DefaultLockName), nil
-}
-
-func filepathDir(path string) string {
-	if i := strings.LastIndex(path, "/"); i >= 0 {
-		return path[:i]
-	}
-	return "."
-}
-
-func hostPlatform() string {
-	if runtime.GOARCH == "arm64" {
-		return "linux-arm64"
-	}
-	return "linux-amd64"
+	return ctx.LockPath, nil
 }
 
 // mustProfilePath 返回 config/projects/<name>.toml（相对仓库根）。

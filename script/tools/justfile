@@ -10,6 +10,10 @@ _cfg := _dir / ".golangci.yml"
 _mods := "cnb"          # 本目录下的 Go 模块
 _cache := _dir / "../.." / ".cache"
 
+# 统一缓存位置：HOME 可能只读
+export GOCACHE := _cache / "go-build"
+export GOLANGCI_LINT_CACHE := _cache / "golangci-lint"
+
 # 默认列出用法
 default:
     @just --justfile {{_dir}}/justfile --list
@@ -33,14 +37,14 @@ lint:
     @command -v {{_lint}} >/dev/null || { echo "  ✗ 缺少 golangci-lint"; exit 1; }
     @for m in {{_mods}}; do \
       echo "• lint $m"; \
-      ( cd {{_dir}}/$m && GOLANGCI_LINT_CACHE={{_cache}}/golangci-lint GOCACHE={{_cache}}/go-build {{_lint}} run --config {{_cfg}} ./... ); \
+      ( cd {{_dir}}/$m && {{_lint}} run --config {{_cfg}} ./... ); \
     done
 
 # 所有模块：单元测试
 test:
     @for m in {{_mods}}; do \
       echo "• test $m"; \
-      ( cd {{_dir}}/$m && GOCACHE={{_cache}}/go-build {{_go}} test ./... ); \
+      ( cd {{_dir}}/$m && {{_go}} test ./... ); \
     done
 
 # 依赖整理
@@ -50,6 +54,16 @@ tidy:
       ( cd {{_dir}}/$m && {{_go}} mod tidy ); \
     done
 
+# 校验自有结构的 json 标签为 snake_case（外部格式文件除外）
+tags:
+    @cd {{_dir}}/cnb && \
+      bad=$(grep -rn 'json:"' --include='*.go' . \
+        | grep -v _test | grep -v 'internal/oci/' | grep -v 'internal/buildmeta/' \
+        | grep -v 'internal/repack/' \
+        | grep -oE 'json:"[^",]+' | grep -vE 'json:"[a-z0-9_]+$' || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 非 snake_case 的 json 标签:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ json 标签均为 snake_case"
+
 # 编译检查
 build:
     @for m in {{_mods}}; do \
@@ -58,5 +72,5 @@ build:
     done
 
 # 提交前总检：格式 + vet + lint + 测试
-check: fmt vet lint test
+check: fmt vet lint test tags
     @echo "  ✓ tools check 通过"

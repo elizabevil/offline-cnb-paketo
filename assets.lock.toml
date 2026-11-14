@@ -211,7 +211,7 @@ default = true
 
   [asset.platform.linux-amd64]
   url    = "https://mirrors.aliyun.com/golang/go{version}.linux-amd64.tar.gz"
-  sha256 = "e330e5d977bf4f3bdc157bc46cf41afa5b13d66c914e12fd6b694ccda65fcf92"
+  sha256 = "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840"
 
   [asset.platform.linux-arm64]
   url    = "https://mirrors.aliyun.com/golang/go{version}.linux-arm64.tar.gz"
@@ -229,7 +229,7 @@ default = true
 
   [asset.local]
   source = "script/bin/cnb"
-  sha256 = "a3c90c10705446397756e9787891ff3f8c81bb16ecc6fae93d3385893799f0c0"
+  sha256 = "9eb3a3d416fc2791ff8e6338881653149155c0d8c53dcb6154d46a8effbbf1aa"
 
   [asset.unpack]
   kind   = "bin"

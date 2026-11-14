@@ -47,17 +47,17 @@ func SetSHA(path, ref, platform, actual string) (bool, error) {
 				match = false // 等 version 行确认
 			}
 		}
-		if strings.HasPrefix(trimmed, "version = ") && match == false && hasVer {
+		if strings.HasPrefix(trimmed, "version = ") && !match && hasVer {
 			if strings.Contains(trimmed, `"`+version+`"`) {
 				match = true
 			}
 		}
 		if match && section == platform && strings.HasPrefix(trimmed, "sha256 = ") {
 			current := strings.Trim(strings.TrimPrefix(trimmed, "sha256 = "), `"`)
-			switch {
-			case current == actual:
+			switch current {
+			case actual:
 				return false, nil
-			case current == "":
+			case "":
 				indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
 				lines[i] = indent + `sha256 = "` + actual + `"`
 				if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), fsutil.FileMode); err != nil {

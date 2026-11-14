@@ -13,8 +13,17 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 )
 
-// Config 是 CNB lifecycle 一次执行的完整参数（来自环境变量或 flags）。
+// Bins 指定四个 lifecycle 二进制的位置（由调用方决定）。
+type Bins struct {
+	Detector string
+	Builder  string
+	Analyzer string
+	Exporter string
+}
+
+// Config 是一次 lifecycle 执行的全部输入；不含任何项目假设。
 type Config struct {
+	Bins         Bins
 	App          string
 	Layers       string
 	Platform     string
@@ -28,61 +37,51 @@ type Config struct {
 	User         string
 	ExportLayout bool
 	LayoutDir    string
-	LayerArchive string // detect/build 使用的非 root 用户（默认 cnb）
-	DryRun       bool
-}
-
-// FromEnv 读取 bksmartpacker / BK 平台约定的环境变量。
-func FromEnv() Config {
-	get := func(k, def string) string {
-		if v := os.Getenv(k); v != "" {
-			return v
-		}
-		return def
-	}
-	return Config{
-		App:          get("CNB_APP_DIR", DefaultAppDir),
-		Layers:       get("CNB_LAYERS_DIR", DefaultLayersDir),
-		Platform:     get("CNB_PLATFORM_DIR", DefaultPlatformDir),
-		Order:        "/cnb/order.toml",
-		RunImage:     get("CNB_RUN_IMAGE", DefaultRunImage),
-		OutputImage:  os.Getenv("OUTPUT_IMAGE"),
-		CacheImage:   os.Getenv("CACHE_IMAGE"),
-		SourceURL:    os.Getenv("SOURCE_GET_URL"),
-		Required:     os.Getenv("REQUIRED_BUILDPACKS"),
-		PlatformAPI:  get("CNB_PLATFORM_API", DefaultPlatformAPI),
-		User:         get("CNB_RUN_USER", DefaultRunUser),
-		ExportLayout: true,
-		LayoutDir:    get("CNB_LAYOUT_DIR", DefaultLayoutDir),
-		LayerArchive: os.Getenv("BKS_LAYER_ARCHIVE"),
-	}
+	LayerArchive string
+	// Aliases 可把外部平台的 buildpack 名映射到 order 里的 id（可为空）。
+	Aliases map[string]string // detect/build 使用的非 root 用户（默认 cnb）
+	DryRun  bool
 }
 
 // Prepare 解包源码、生成过滤后的 order。
 func (c Config) Prepare() error {
-	if c.SourceURL != "" {
-		src := strings.TrimPrefix(c.SourceURL, "file://")
-		if src == c.SourceURL {
-			return fmt.Errorf("暂不支持的 SOURCE_GET_URL: %s", c.SourceURL)
-		}
-		if err := os.MkdirAll(c.App, fsutil.DirMode); err != nil {
-			return err
-		}
-		if err := ExtractTarGz(src, c.App); err != nil {
-			return errs.Wrap("解包源码", err)
-		}
+	if err := c.extractSource(); err != nil {
+		return err
 	}
-	if c.Required != "" {
-		out, err := FilterOrder(c.Order, c.Required)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(c.Layers, fsutil.DirMode); err != nil {
-			return err
-		}
-		return os.WriteFile(filepath.Join(c.Layers, OrderFileName), out, fsutil.FileMode)
+	return c.writeOrder()
+}
+
+// extractSource 从 SOURCE_GET_URL 解包源码到应用目录。
+func (c Config) extractSource() error {
+	if c.SourceURL == "" {
+		return nil
+	}
+	src := strings.TrimPrefix(c.SourceURL, FileURLScheme)
+	if src == c.SourceURL {
+		return fmt.Errorf("暂不支持的 SOURCE_GET_URL: %s", c.SourceURL)
+	}
+	if err := os.MkdirAll(c.App, fsutil.DirMode); err != nil {
+		return err
+	}
+	if err := ExtractTarGz(src, c.App); err != nil {
+		return errs.Wrap("解包源码", err)
 	}
 	return nil
+}
+
+// writeOrder 按 REQUIRED_BUILDPACKS 生成过滤后的 order.toml。
+func (c Config) writeOrder() error {
+	if c.Required == "" {
+		return nil
+	}
+	out, err := FilterOrder(c.Order, c.Required, c.Aliases)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(c.Layers, fsutil.DirMode); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(c.Layers, OrderFileName), out, fsutil.FileMode)
 }
 
 // ExtractTarGz 把 tar.gz 解到 dst。
@@ -91,12 +90,12 @@ func ExtractTarGz(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	tr := tar.NewReader(gz)
 	for {
 		h, err := tr.Next()
@@ -109,19 +108,27 @@ func ExtractTarGz(src, dst string) error {
 		target := filepath.Join(dst, h.Name)
 		switch h.Typeflag {
 		case tar.TypeDir:
-			os.MkdirAll(target, fsutil.DirMode)
+			if err := os.MkdirAll(target, fsutil.DirMode); err != nil {
+				return err
+			}
 		case tar.TypeReg:
-			os.MkdirAll(filepath.Dir(target), fsutil.DirMode)
+			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
+				return err
+			}
 			out, err := os.Create(target)
 			if err != nil {
 				return err
 			}
 			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
+				_ = out.Close() // 复制失败时关闭错误无意义，返回原始错误
 				return err
 			}
-			out.Close()
-			os.Chmod(target, os.FileMode(h.Mode))
+			if err := out.Close(); err != nil {
+				return err
+			}
+			if err := os.Chmod(target, os.FileMode(h.Mode)); err != nil {
+				return err
+			}
 		}
 	}
 }

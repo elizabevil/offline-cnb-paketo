@@ -9,6 +9,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // newPublishCmd — 把本地构建产物发布成物料（复制 + 回填 sha256）
@@ -17,8 +18,8 @@ func newPublishCmd() *cobra.Command {
 		Use:   "publish <id[@version]>",
 		Short: "把 [asset.local] 的构建产物发布到 bundle 并回填哈希",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := resolveLockPath(opts.lockPath)
+		RunE: func(_ *cobra.Command, args []string) error {
+			path, err := workspaceLockPath(opts.lockPath)
 			if err != nil {
 				return err
 			}
@@ -48,7 +49,7 @@ func newPublishCmd() *cobra.Command {
 			}
 			platform := opts.platform
 			if platform == "" {
-				platform = hostPlatform()
+				platform = workspace.HostPlatform()
 			}
 			dst := filepath.Join(root, bundleDir, platform, "binaries", a.Dir(), name)
 			if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {

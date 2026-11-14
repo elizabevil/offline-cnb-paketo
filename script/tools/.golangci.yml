@@ -5,6 +5,16 @@ run:
   tests: true
 
 linters:
+  settings:
+    errcheck:
+      # CLI 输出到 stdout/stderr，写失败无补救手段，不纳入检查
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
   enable:
     - errcheck
     - govet
@@ -14,6 +24,12 @@ linters:
     - revive
     - gocritic
     - misspell
+
+  exclusions:
+    rules:
+      # 测试代码里构造夹具时的写入失败会由后续断言暴露，不单独检查
+      - path: _test\.go
+        linters: [errcheck]
 
 issues:
   # Report every finding: the defaults silently cap repeated issues per linter.

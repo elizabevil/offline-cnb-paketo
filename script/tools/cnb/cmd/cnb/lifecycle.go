@@ -12,24 +12,25 @@ import (
 func newLifecycleCmd() *cobra.Command {
 	parent := &cobra.Command{Use: "lifecycle", Short: "CNB lifecycle 执行器"}
 	var (
-		cfg        lifecycle.Config
-		app        string
-		layers     string
-		platform   string
-		output     string
-		runImage   string
-		cacheImage string
-		required   string
-		dryRun     bool
-		orderPath  string
-		exportMode string
-		layerArch  string
+		cfg          lifecycle.Config
+		app          string
+		layers       string
+		platform     string
+		output       string
+		runImage     string
+		cacheImage   string
+		required     string
+		dryRun       bool
+		orderPath    string
+		exportMode   string
+		lifecycleDir string
+		layerArch    string
 	)
 	run := &cobra.Command{
 		Use:   "run",
 		Short: "按环境变量执行 detect → build → analyze → export",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg = lifecycle.FromEnv()
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg = configFromEnv()
 			if app != "" {
 				cfg.App = app
 			}
@@ -60,6 +61,14 @@ func newLifecycleCmd() *cobra.Command {
 			if layerArch != "" {
 				cfg.LayerArchive = layerArch
 			}
+			if lifecycleDir != "" {
+				cfg.Bins = lifecycle.Bins{
+					Detector: lifecycleDir + "/detector",
+					Builder:  lifecycleDir + "/builder",
+					Analyzer: lifecycleDir + "/analyzer",
+					Exporter: lifecycleDir + "/exporter",
+				}
+			}
 			cfg.DryRun = dryRun
 
 			if err := cfg.Prepare(); err != nil {
@@ -79,6 +88,7 @@ func newLifecycleCmd() *cobra.Command {
 	run.Flags().StringVar(&runImage, "run-image", "", "run 镜像（默认 CNB_RUN_IMAGE）")
 	run.Flags().StringVar(&cacheImage, "cache-image", "", "缓存镜像（默认 CACHE_IMAGE）")
 	run.Flags().StringVar(&required, "required-buildpacks", "", "限定 buildpack（默认 REQUIRED_BUILDPACKS）")
+	run.Flags().StringVar(&lifecycleDir, "lifecycle-dir", "", "lifecycle 二进制目录（默认 /cnb/lifecycle）")
 	run.Flags().StringVar(&orderPath, "order", "", "order.toml 路径（默认 /cnb/order.toml）")
 	run.Flags().StringVar(&exportMode, "export-mode", "layout", "导出方式：layout（不依赖 daemon）| daemon")
 	run.Flags().StringVar(&layerArch, "layer-archive", "", "把 layout 转成 docker-archive 写到此路径")
