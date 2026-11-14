@@ -2,6 +2,8 @@ package lock
 
 import (
 	"fmt"
+
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
 	"strings"
 )
@@ -43,7 +45,7 @@ func SetLocalSHA(path, ref, actual string) (bool, error) {
 			}
 			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
 			lines[i] = indent + `sha256 = "` + actual + `"`
-			return true, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+			return true, os.WriteFile(path, []byte(strings.Join(lines, "\n")), fsutil.FileMode)
 		}
 	}
 	return false, fmt.Errorf("未找到 %s 的 [asset.local] 段", ref)

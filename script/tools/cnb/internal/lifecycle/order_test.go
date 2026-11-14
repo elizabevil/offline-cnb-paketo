@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+var testAliases = map[string]string{
+	"bk-buildpack-go":     "paketo-buildpacks/go",
+	"bk-buildpack-nodejs": "paketo-buildpacks/nodejs",
+}
+
 const sample = `[[order]]
   [[order.group]]
     id = "paketo-buildpacks/go"
@@ -34,7 +39,7 @@ func writeTemp(t *testing.T, body string) string {
 
 func TestFilterOrderByAlias(t *testing.T) {
 	src := writeTemp(t, sample)
-	out, err := FilterOrder(src, "oci-embedded bk-buildpack-go ... v191")
+	out, err := FilterOrder(src, "oci-embedded bk-buildpack-go ... v191", testAliases)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +53,7 @@ func TestFilterOrderByAlias(t *testing.T) {
 
 func TestFilterOrderByRawID(t *testing.T) {
 	src := writeTemp(t, sample)
-	out, err := FilterOrder(src, "x paketo-buildpacks/nodejs y v1")
+	out, err := FilterOrder(src, "x paketo-buildpacks/nodejs y v1", testAliases)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +64,7 @@ func TestFilterOrderByRawID(t *testing.T) {
 
 func TestFilterOrderEmptyKeepsAll(t *testing.T) {
 	src := writeTemp(t, sample)
-	out, err := FilterOrder(src, "")
+	out, err := FilterOrder(src, "", testAliases)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +75,7 @@ func TestFilterOrderEmptyKeepsAll(t *testing.T) {
 
 func TestFilterOrderNoMatch(t *testing.T) {
 	src := writeTemp(t, sample)
-	if _, err := FilterOrder(src, "x bk-buildpack-ruby y v1"); err == nil {
+	if _, err := FilterOrder(src, "x bk-buildpack-ruby y v1", testAliases); err == nil {
 		t.Fatal("无交集应报错")
 	}
 }

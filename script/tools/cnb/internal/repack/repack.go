@@ -22,7 +22,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
 	"io"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
 	"os/user"
 	"path"
@@ -145,10 +147,10 @@ func normalizePackageTarball(pkgTar string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempRoot)
+	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
 	pkgDir := filepath.Join(tempRoot, "pkg")
-	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+	if err := os.MkdirAll(pkgDir, fsutil.DirMode); err != nil {
 		return err
 	}
 	if err := extractTar(pkgTar, pkgDir); err != nil {
@@ -178,10 +180,10 @@ func normalizeWebTar(webTar string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempRoot)
+	defer func() { _ = os.RemoveAll(tempRoot) }() // 临时目录清理失败不影响结果
 
 	legacyDir := filepath.Join(tempRoot, "legacy")
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
+	if err := os.MkdirAll(legacyDir, fsutil.DirMode); err != nil {
 		return err
 	}
 	if err := extractTar(webTar, legacyDir); err != nil {
@@ -215,7 +217,7 @@ func normalizeWebTar(webTar string) error {
 
 	outDir := filepath.Join(tempRoot, "oci")
 	blobsDir := filepath.Join(outDir, "blobs", "sha256")
-	if err := os.MkdirAll(blobsDir, 0o755); err != nil {
+	if err := os.MkdirAll(blobsDir, fsutil.DirMode); err != nil {
 		return err
 	}
 
@@ -271,7 +273,7 @@ func normalizeWebTar(webTar string) error {
 		return err
 	}
 	manifestDigest := sha256Hex(manifestJSON)
-	if err := os.WriteFile(filepath.Join(blobsDir, manifestDigest), manifestJSON, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(blobsDir, manifestDigest), manifestJSON, fsutil.FileMode); err != nil {
 		return err
 	}
 
@@ -334,7 +336,7 @@ func extractTar(archive, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
 	var src io.Reader = reader
@@ -343,7 +345,7 @@ func extractTar(archive, dest string) error {
 		if err != nil {
 			return err
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		src = gz
 	}
 
@@ -370,7 +372,7 @@ func extractTar(archive, dest string) error {
 				return err
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 				return err
 			}
 			out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(hdr.Mode))
@@ -378,22 +380,24 @@ func extractTar(archive, dest string) error {
 				return err
 			}
 			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
+				_ = out.Close() // 写入已完成，关闭错误不影响产物
 				return err
 			}
-			out.Close()
+			_ = out.Close() // 写入已完成，关闭错误不影响产物
 		case tar.TypeSymlink:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 				return err
 			}
+			// 覆盖已存在文件时忽略删除失败（随后会重建）
 			_ = os.Remove(target)
 			if err := os.Symlink(hdr.Linkname, target); err != nil {
 				return err
 			}
 		case tar.TypeLink:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 				return err
 			}
+			// 覆盖已存在文件时忽略删除失败（随后会重建）
 			_ = os.Remove(target)
 			if err := os.Link(filepath.Join(dest, filepath.FromSlash(hdr.Linkname)), target); err != nil {
 				return err
@@ -405,6 +409,7 @@ func extractTar(archive, dest string) error {
 		}
 
 		if hdr.Typeflag != tar.TypeSymlink && !hdr.ModTime.IsZero() {
+			// 保留时间戳失败不影响内容正确性
 			_ = os.Chtimes(target, hdr.ModTime, hdr.ModTime)
 		}
 	}
@@ -422,18 +427,18 @@ func packDirToTar(srcDir, destTar string) error {
 
 	entries, err := os.ReadDir(srcDir) // os.ReadDir 已按文件名排序
 	if err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	for _, entry := range entries {
 		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			tw.Close()
-			f.Close()
+			_ = tw.Close() // 写入已完成，关闭错误不影响产物
+			_ = f.Close()  // 写入已完成，关闭错误不影响产物
 			return err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -454,23 +459,23 @@ func packDirToTarGz(srcDir, destTarGz string) error {
 
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	for _, entry := range entries {
 		if err := addTree(tw, filepath.Join(srcDir, entry.Name()), entry.Name()); err != nil {
-			tw.Close()
-			gz.Close()
-			f.Close()
+			_ = tw.Close() // 写入已完成，关闭错误不影响产物
+			_ = gz.Close() // 写入已完成，关闭错误不影响产物
+			_ = f.Close()  // 写入已完成，关闭错误不影响产物
 			return err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := gz.Close(); err != nil {
-		f.Close()
+		_ = f.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -533,7 +538,7 @@ func addTree(tw *tar.Writer, fsPath, arcName string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(tw, f)
 	return err
 }
@@ -556,7 +561,7 @@ func writeJSONFile(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, fsutil.FileMode)
 }
 
 func sha256Hex(data []byte) string {
@@ -569,9 +574,9 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {
 		return err
 	}
 	out, err := os.Create(dst)
@@ -579,7 +584,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close() // 写入已完成，关闭错误不影响产物
 		return err
 	}
 	return out.Close()

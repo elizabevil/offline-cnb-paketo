@@ -91,7 +91,7 @@ gofmt -l . ; go vet ./... ; go test ./...
 
 规则：
 
-- 不改已有命令的输出格式；确需改，**同时**改 `script/fetch.sh` 与 `docs/base.md`。
+- 不改已有命令的输出格式；确需改，**同时**改 `script/fetch.sh` 与 `docs/design/base.md`。
 - 需要网络/容器/外部命令的，不要放进来（这类留在 shell）。
 - 新增第三方依赖前先问：stdlib 能不能做？现在全仓只有 1 个依赖。
 

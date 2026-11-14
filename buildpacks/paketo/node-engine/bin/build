@@ -68,4 +68,5 @@ cat > "${layer}.sbom.cdx.json" <<JSON
 }
 JSON
 
-echo "  ✅ node-engine complete (${ver:-${version}})" >&2
+arch_now="$(uname -m)"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
+echo "  ✅ node-engine complete: node${ver:-${version}} linux/${arch_now}" >&2

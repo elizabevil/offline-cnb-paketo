@@ -62,6 +62,18 @@ CNB_RUNTIMES=/opt/cnb-runtimes just smart
 容器内挂到 `/cnb/runtimes`（只读），组件按
 挂载 → `/layers/cache` → 镜像源 的优先级取用。
 
+## 四·六、导出不依赖 daemon
+
+为同时兼容 docker 与 podman，导出改走 OCI layout：
+
+```
+detect → build → export -layout -layout-dir=/layers/oci
+                       → 转 docker-archive（cnb 内置转换）
+```
+
+理由：podman 5.4 下 lifecycle 0.21 走 daemon 会报
+`singleton connection already in use`；docker 与 podman 在 layout 模式下行为一致。
+
 ## 五、流水线
 
 ```

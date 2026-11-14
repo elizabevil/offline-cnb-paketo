@@ -1,7 +1,7 @@
 # offline-paketo 架构说明
 
 > 本文描述 `project/offline-paketo` 的**当前实现**。
-> 仓库级流程见 [`docs/pipeline.md`](../../../docs/pipeline.md)，配置字段见 [`config/projects/offline-paketo.toml`](../../../config/projects/offline-paketo.toml)。
+> 仓库级流程见 [`docs/design/pipeline.md`](../../../docs/design/pipeline.md)，配置字段见 [`config/projects/offline-paketo.toml`](../../../config/projects/offline-paketo.toml)。
 
 ## 一、定位
 
@@ -94,7 +94,7 @@ just verify                 # 校验本项目物料（范围取自配置）
 3. **Python 重复进程类型**：`launch.toml` 写了 3 条 `type = "web"`
 4. **并非真离线**：`fnm install` / `uv venv --python` 仍会联网下载 SDK
 
-前三条会导致“构建成功但应用起不来”，修复计划见仓库 `docs/base.md` 的 P1。
+前三条会导致“构建成功但应用起不来”，修复计划见仓库 `docs/design/base.md` 的 P1。
 
 ## 八、历史变更
 

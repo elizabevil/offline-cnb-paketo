@@ -50,7 +50,7 @@ func newBuildpackCmd() *cobra.Command {
 	return parent
 }
 
-func lintBuildpack(cmd *cobra.Command, dir string, res *lintResult) {
+func lintBuildpack(_ *cobra.Command, dir string, res *lintResult) {
 	// 两种布局：扁平 <id>/buildpack.toml 与官方 <id>/<version>/buildpack.toml
 	origDir := dir
 	leaf := filepath.Base(origDir)

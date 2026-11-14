@@ -87,4 +87,5 @@ cat > "${layer}.sbom.cdx.json" <<JSON
   "components": [{ "type": "application", "name": "go", "version": "${ver}",
     "purl": "pkg:generic/go@${ver}" }] }
 JSON
-echo "  ✅ go-dist complete (${ver})" >&2
+arch_now="$(uname -m)"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
+echo "  ✅ go-dist complete: go${ver} linux/${arch_now} (GOROOT=${go_root})" >&2

@@ -3,6 +3,8 @@ package profile
 import (
 	"embed"
 	"fmt"
+
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"strings"
 	"text/template"
 )
@@ -25,11 +27,11 @@ func Scaffold(name, dir string) ([]ScaffoldFile, error) {
 		out  string
 		mode uint32
 	}{
-		{"templates/Dockerfile.base.tmpl", dir + "/docker/Dockerfile.base", 0o644},
-		{"templates/Dockerfile.run.tmpl", dir + "/docker/Dockerfile.run", 0o644},
-		{"templates/Dockerfile.tmpl", dir + "/docker/Dockerfile", 0o644},
-		{"templates/build.sh.tmpl", dir + "/build.sh", 0o755},
-		{"templates/justfile.tmpl", dir + "/justfile", 0o644},
+		{"templates/Dockerfile.base.tmpl", dir + "/docker/Dockerfile.base", fsutil.FileMode},
+		{"templates/Dockerfile.run.tmpl", dir + "/docker/Dockerfile.run", fsutil.FileMode},
+		{"templates/Dockerfile.tmpl", dir + "/docker/Dockerfile", fsutil.FileMode},
+		{"templates/build.sh.tmpl", dir + "/build.sh", fsutil.DirMode},
+		{"templates/justfile.tmpl", dir + "/justfile", fsutil.FileMode},
 	}
 
 	data := struct{ Name, Dir string }{Name: name, Dir: dir}

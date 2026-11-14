@@ -40,9 +40,9 @@ inspect case:
 
 # 检查层包是否只含应用层（列出镜像内路径，不应出现 debian/ubuntu 根层标记）
 layers case:
-    @tmp="$$(mktemp -d)"; tar -xzf {{_out}}/s-mart-{{case}}.tgz -C "$$tmp"
-    @for f in "$$tmp"/*.tgz; do echo "== $$(basename "$$f")"; tar -tzf "$$f" | head -8 | sed 's/^/  /'; done
-    @rm -rf "$$tmp"
+    @tmp="$(mktemp -d)"; tar -xzf {{_out}}/s-mart-{{case}}.tgz -C "$tmp"
+    @for f in "$tmp"/*.tgz; do echo "== $(basename "$f")"; tar -tzf "$f" | head -8 | sed 's/^/  /'; done
+    @rm -rf "$tmp"
 
 # 清理产物
 clean:

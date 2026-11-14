@@ -167,7 +167,7 @@ just fetch lifecycle && ls bundle/linux-amd64/binaries/lifecycle | head -3
 ## 7. 不在本手册范围
 
 - `just docker-build` / `pack build`：需要容器运行时。当前沙箱里 podman 无法创建
-  user namespace、docker socket 无权限，**必须在你的宿主机或 CI 上验**（见 `docs/base.md` 环境边界）。
+  user namespace、docker socket 无权限，**必须在你的宿主机或 CI 上验**（见 `docs/design/base.md` 环境边界）。
 - 镜像内部的 buildpack 行为：属于 P1/P2 阶段的工作，尚待修复。
 
 ---

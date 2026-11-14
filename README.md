@@ -23,7 +23,7 @@ Learn-cnb-paketo/
 │   └── <platform>/            # 架构先行：linux-amd64 / linux-arm64
 │       ├── archives/          #   原始归档
 │       ├── binaries/          #   解压产物
-│       └── sdk/               #   预置 SDK（规划中，见 docs/base.md）
+│       └── sdk/               #   预置 SDK（规划中，见 docs/design/base.md）
 ├── docs/                 # 设计文档
 ├── project/              # 子项目目录
 │   ├── offline-paketo/       # Paketo 离线 builder
@@ -70,8 +70,8 @@ cp .env.example .env    # 写入 PROXY_URL
 
 文档：
 
-- [docs/pipeline.md](docs/pipeline.md) — **完整流水线**：一图看懂执行链路与改动入口
-- [docs/base.md](docs/base.md) — 设计、字段含义、踩坑清单
-- [docs/verify.md](docs/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
+- [docs/design/pipeline.md](docs/design/pipeline.md) — **完整流水线**：一图看懂执行链路与改动入口
+- [docs/design/base.md](docs/design/base.md) — 设计、字段含义、踩坑清单
+- [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
 - [assets.lock.toml.example](assets.lock.toml.example) — 新增物料的填写模板

@@ -45,6 +45,11 @@ smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:l
 runtimes := env_var_or_default("CNB_RUNTIMES", "")
 # 跨构建缓存：宿主目录挂到 /layers/cache，首次下载、后续命中
 cache_dir := env_var_or_default("CNB_CACHE_DIR", _root / ".cache/bk-cache")
+# 容器网络：host 可直接访问宿主机内网（如 192.168.11.4 镜像源）
+network := env_var_or_default("CNB_NETWORK", "host")
+# 容器运行时 socket：podman 用户态 socket（不存在则用默认 docker.sock）
+podman_sock := env_var_or_default("XDG_RUNTIME_DIR", "/run/user/1000") / "podman/podman.sock"
+docker_sock := env_var_or_default("CNB_DOCKER_SOCK", podman_sock)
 runtimes_mount := if runtimes != "" { "--mount type=bind,source=" + runtimes + ",target=/cnb/runtimes,readonly " } else { "" }
 cache_mount := "--mount type=bind,source=" + cache_dir + ",target=/layers/cache"
 mounts := runtimes_mount + cache_mount
@@ -64,7 +69,7 @@ smart: smart-builder smart-bps
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
-    @BKS_CONTAINER_CLI=podman BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tgz
     @echo
@@ -73,10 +78,11 @@ smart: smart-builder smart-bps
     @tar -tzf {{_out}}/s-mart.tgz | sed 's/^/  /'
     @echo "== .Version =="
     @tar -xzOf {{_out}}/s-mart.tgz .Version 2>/dev/null | sed 's/^/  /' || echo "  ✗ 缺少 .Version"
+    @echo
     @echo "== 层包（应只含应用层）=="
-    @tmp="$$(mktemp -d)"; tar -xzf {{_out}}/s-mart.tgz -C "$$tmp"; \
-      for f in "$$tmp"/*.tgz; do echo "  $$(basename "$$f")"; tar -tzf "$$f" | head -6 | sed 's/^/    /'; done; \
-      rm -rf "$$tmp"
+    @tmp="$(mktemp -d)"; tar -xzf {{_out}}/s-mart.tgz -C "$tmp"; \
+      for f in "$tmp"/*.tgz; do echo "  $(basename "$f")"; tar -tzf "$f" | head -6 | sed 's/^/    /'; done; \
+      rm -rf "$tmp"
 
 # 清理打包产物
 smart-clean:

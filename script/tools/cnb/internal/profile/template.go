@@ -1,6 +1,10 @@
 package profile
 
-import "fmt"
+import (
+	"fmt"
+
+	"learn-cnb-paketo/tools/cnb/internal/lock"
+)
 
 // Template 生成一份可直接使用的新项目配置模板。
 // 只写结构，不猜业务：物料、镜像、命令都留成带注释的占位。
@@ -65,7 +69,7 @@ func (p *File) Show() string {
 
 	add("\n构建\n")
 	add("  context       %s\n", mustDefault(p.Docker.Context, "."))
-	add("  bundle_layout %s\n", mustDefault(p.Docker.BundleLayout, "arch-first"))
+	add("  bundle_layout %s\n", mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst))
 	if p.Docker.BundleDir != "" {
 		add("  bundle_dir    %s\n", p.Docker.BundleDir)
 	}

@@ -19,7 +19,7 @@ func newDoctorCmd() *cobra.Command {
 		Use:   "doctor <profile>",
 		Short: "环境与镜像契约体检（pack 前置条件）",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			p, l, platform, err := openProfile(args[0])
 			if err != nil {
 				return err
@@ -105,12 +105,13 @@ func newDoctorCmd() *cobra.Command {
 					}
 				}
 			}
-			if runBase == "" {
+			switch {
+			case runBase == "":
 				fmt.Printf("  · run 镜像未声明 BASE_IMAGE，跳过 libc 检查\n")
-			} else if musl && glibcRuntime {
+			case musl && glibcRuntime:
 				check(false, "run 镜像为 musl（"+runBase+"），但项目含 Node/Python 运行时",
 					"改用 debian/ubuntu 基础镜像；glibc 二进制在 musl 下会报 ENOENT")
-			} else {
+			default:
 				check(true, "run 镜像 libc 与运行时匹配", "")
 			}
 

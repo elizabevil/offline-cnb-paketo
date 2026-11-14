@@ -62,8 +62,8 @@ func (p *File) BuildPlan(platform string, l *lock.File) (*Plan, error) {
 		Dir:          abs(p.Project.Dir),
 		Platform:     platform,
 		Context:      abs(mustDefault(p.Docker.Context, ".")),
-		BundleDir:    abs(mustDefault(p.Docker.BundleDir, "bundle")),
-		BundleLayout: mustDefault(p.Docker.BundleLayout, "arch-first"),
+		BundleDir:    abs(mustDefault(p.Docker.BundleDir, lock.DefaultBundleDir)),
+		BundleLayout: mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst),
 		Runtime:      detectRuntime(),
 		BuildpacksDir: func() string {
 			if p.Docker.BuildpacksDir != "" {

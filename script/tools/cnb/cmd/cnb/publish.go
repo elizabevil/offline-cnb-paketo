@@ -1,15 +1,13 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
@@ -19,7 +17,7 @@ func newPublishCmd() *cobra.Command {
 		Use:   "publish <id[@version]>",
 		Short: "把 [asset.local] 的构建产物发布到 bundle 并回填哈希",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			path, err := resolveLockPath(opts.lockPath)
 			if err != nil {
 				return err
@@ -53,13 +51,13 @@ func newPublishCmd() *cobra.Command {
 				platform = hostPlatform()
 			}
 			dst := filepath.Join(root, bundleDir, platform, "binaries", a.Dir(), name)
-			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {
 				return err
 			}
-			if err := copyFile(src, dst); err != nil {
+			if err := fsutil.CopyExec(src, dst); err != nil {
 				return err
 			}
-			sum, err := sha256File(dst)
+			sum, err := fsutil.SHA256(dst)
 			if err != nil {
 				return err
 			}
@@ -74,34 +72,4 @@ func newPublishCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	return os.Chmod(dst, 0o755)
-}
-
-func sha256File(p string) (string, error) {
-	f, err := os.Open(p)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }

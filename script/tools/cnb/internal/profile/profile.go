@@ -13,13 +13,16 @@ package profile
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/reporoot"
 	"learn-cnb-paketo/tools/cnb/internal/shell"
 
 	"github.com/pelletier/go-toml/v2"
@@ -138,7 +141,7 @@ func (p *File) Validate(platform string, l *lock.File) []string {
 		errs = append(errs, fmt.Sprintf("不支持的平台: %s", platform))
 	}
 	switch p.Docker.BundleLayout {
-	case "", "arch-first", "kind-first":
+	case "", lock.LayoutArchFirst, lock.LayoutKindFirst:
 	default:
 		errs = append(errs, fmt.Sprintf("[docker].bundle_layout 只能是 arch-first 或 kind-first，实际 %q", p.Docker.BundleLayout))
 	}
@@ -286,8 +289,8 @@ func (p *File) render(l *lock.File, platform string) string {
 	fmt.Fprintf(&b, "PROFILE_DIR=%s\n", shell.Quote(filepath.ToSlash(p.Project.Dir)))
 	fmt.Fprintf(&b, "PLATFORM=%s\n", shell.Quote(platform))
 	fmt.Fprintf(&b, "PROFILE_CONTEXT=%s\n", shell.Quote(filepath.ToSlash(mustDefault(p.Docker.Context, "."))))
-	fmt.Fprintf(&b, "BUNDLE_DIR=%s\n", shell.Quote(filepath.ToSlash(filepath.Join(repoRoot(), mustDefault(p.Docker.BundleDir, "bundle")))))
-	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", shell.Quote(mustDefault(p.Docker.BundleLayout, "arch-first")))
+	fmt.Fprintf(&b, "BUNDLE_DIR=%s\n", shell.Quote(filepath.ToSlash(filepath.Join(repoRoot(), mustDefault(p.Docker.BundleDir, lock.DefaultBundleDir)))))
+	fmt.Fprintf(&b, "BUNDLE_LAYOUT=%s\n", shell.Quote(mustDefault(p.Docker.BundleLayout, lock.LayoutArchFirst)))
 	fmt.Fprintf(&b, "export BUNDLE_DIR BUNDLE_LAYOUT\n")
 
 	// 物料：按名字排序，输出显式 id@version
@@ -315,9 +318,7 @@ func (p *File) render(l *lock.File, platform string) string {
 					merged[versionVar(id)] = v
 				}
 			}
-			for k, v := range img.Args {
-				merged[k] = v
-			}
+			maps.Copy(merged, img.Args)
 			if img.Base != "" {
 				if _, ok := merged["BASE_IMAGE"]; !ok {
 					merged["BASE_IMAGE"] = img.Base
@@ -358,12 +359,7 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 func containsStr(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, v)
 }
 
 func resolveRefs(s string, tags map[string]string) string {
@@ -404,11 +400,13 @@ func repoRoot() string {
 	if repoRootOverride != "" {
 		return repoRootOverride
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return "."
+	if root, err := reporoot.FindFromExecutable(); err == nil {
+		return root
 	}
-	return filepath.Dir(filepath.Dir(filepath.Dir(exe)))
+	if root, err := reporoot.FindFromWorkingDir(); err == nil {
+		return root
+	}
+	return "."
 }
 
 // tagRefNames 返回字符串里引用的镜像名（${image.<name>.tag}）。
