@@ -1,5 +1,5 @@
 // Package lock 的物料访问方法。
-package lock
+package manifest
 
 import (
 	"strings"

@@ -1,4 +1,4 @@
-package lock
+package manifest
 
 import "strings"
 

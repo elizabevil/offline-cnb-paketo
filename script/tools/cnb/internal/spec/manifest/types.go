@@ -1,5 +1,5 @@
-// Package lock 定义物料清单（assets.lock.toml）的结构与读取逻辑。
-package lock
+// Package manifest 定义物料清单（assets.lock.toml）的结构、解析与校验。
+package manifest
 
 // 语义别名：让函数签名自解释，且与 string 互通、无需类型转换。
 type (

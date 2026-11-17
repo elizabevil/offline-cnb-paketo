@@ -1,4 +1,4 @@
-package lock
+package manifest
 
 // 平台与目录约定（lock 作用域）。
 const (

@@ -57,11 +57,10 @@ check: tools
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} vet ./... && echo "  ✓ go vet 通过"
-    @echo "── 协议边界（迁移白名单：阶段 2/4 后移除 lock、profile）──"
+    @echo "── 协议边界（迁移白名单：阶段 4 后移除 profile）──"
     @cd {{_script}}/tools/cnb && \
       bad=$(grep -rn 'toml.Unmarshal' --include='*.go' internal \
         | grep -v '^internal/spec/' \
-        | grep -v '^internal/lock/' \
         | grep -v '^internal/profile/' || true); \
       if [ -n "$bad" ]; then echo "  ✗ 只允许 spec 包解析 TOML:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ TOML 解析只在 spec 包"

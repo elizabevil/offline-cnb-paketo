@@ -1,4 +1,4 @@
-package lock
+package manifest
 
 // CNB 与仓库共享的常量（原 internal/cnbconst）。
 const (

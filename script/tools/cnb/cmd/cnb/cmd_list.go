@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 func newListCmd() *cobra.Command {
@@ -12,7 +13,7 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			l.WriteList(cmd.OutOrStdout())
+			lock.WriteList(cmd.OutOrStdout(), l)
 			return nil
 		},
 	}

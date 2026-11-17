@@ -6,6 +6,9 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 )
 
+// errFieldRef 是错误信息里的字段名。
+const errFieldRef = "ref"
+
 // AssetRef 是解析后的物料引用 id@version。
 type AssetRef struct {
 	ID      string
@@ -15,14 +18,14 @@ type AssetRef struct {
 // ParseRef 解析 "id@version"；没有 @ 时 Version 为空。
 func ParseRef(s string) (AssetRef, error) {
 	if s == "" {
-		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty"}
+		return AssetRef{}, &errs.Invalid{Field: errFieldRef, Value: s, Reason: "empty"}
 	}
 	id, version, hasVer := strings.Cut(s, "@")
 	if id == "" {
-		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty id"}
+		return AssetRef{}, &errs.Invalid{Field: errFieldRef, Value: s, Reason: "empty id"}
 	}
 	if hasVer && version == "" {
-		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty version"}
+		return AssetRef{}, &errs.Invalid{Field: errFieldRef, Value: s, Reason: "empty version"}
 	}
 	return AssetRef{ID: id, Version: version}, nil
 }

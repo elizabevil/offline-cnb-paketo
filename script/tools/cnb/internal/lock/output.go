@@ -14,7 +14,7 @@ import (
 )
 
 // WriteList 以 TSV 输出清单（id、version、kind、平台）。
-func (f *File) WriteList(w io.Writer) {
+func WriteList(w io.Writer, f *File) {
 	for _, a := range f.Assets {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", a.ID, a.Version, a.Unpack.Kind, strings.Join(slices.Sorted(maps.Keys(a.Platform)), ","))
 	}
@@ -23,14 +23,14 @@ func (f *File) WriteList(w io.Writer) {
 // Get 输出 shell 赋值，供脚本 eval。字段名是契约，勿改。
 
 // WriteShell 输出 shell 赋值语句，供脚本 eval。
-func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {
+func WriteShell(w io.Writer, f *File, ref Ref, platform Platform) error {
 	asset, err := Find(f, ref)
 	if err != nil {
 		return err
 	}
 	url, ok := asset.URL(platform)
 	if !ok && !asset.IsLocal() {
-		return &errs.Invalid{Field: fieldPlatform, Value: string(platform), Reason: fmt.Sprintf("not supported by %s (supported: %s)", ref, strings.Join(slices.Sorted(maps.Keys(asset.Platform)), ", "))}
+		return &errs.Invalid{Field: "platform", Value: string(platform), Reason: fmt.Sprintf("not supported by %s (supported: %s)", ref, strings.Join(slices.Sorted(maps.Keys(asset.Platform)), ", "))}
 	}
 	dir := asset.Dir()
 	if dir == "" {

@@ -14,7 +14,7 @@ func newGetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := l.WriteShell(cmd.OutOrStdout(), args[0], lock.Platform(args[1])); err != nil {
+			if err := lock.WriteShell(cmd.OutOrStdout(), l, args[0], lock.Platform(args[1])); err != nil {
 				return &exitError{code: 2, msg: err.Error()}
 			}
 			return nil

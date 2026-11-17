@@ -1,5 +1,5 @@
 // Package lock 的结构校验。
-package lock
+package manifest
 
 import (
 	"fmt"

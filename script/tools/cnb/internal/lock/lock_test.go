@@ -41,7 +41,7 @@ func TestValidate(t *testing.T) {
 func TestListColumns(t *testing.T) {
 	f := &File{Assets: []Asset{asset("fnm", "1.39.0", true)}}
 	var buf bytes.Buffer
-	f.WriteList(&buf)
+	WriteList(&buf, f)
 	want := "fnm\t1.39.0\ttgz\tlinux-amd64\n"
 	if buf.String() != want {
 		t.Fatalf("list 输出不符合契约\n got: %q\nwant: %q", buf.String(), want)
@@ -50,7 +50,7 @@ func TestListColumns(t *testing.T) {
 
 func TestGetUnknownAsset(t *testing.T) {
 	f := &File{Assets: []Asset{asset("a", "1", true)}}
-	if err := f.WriteShell(io.Discard, "nope", "linux-amd64"); err == nil {
+	if err := WriteShell(io.Discard, f, "nope", "linux-amd64"); err == nil {
 		t.Fatal("未知物料应返回错误")
 	}
 }
