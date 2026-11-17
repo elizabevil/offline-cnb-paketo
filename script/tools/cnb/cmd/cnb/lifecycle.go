@@ -18,7 +18,10 @@ func newLifecycleCmd() *cobra.Command {
 	}
 	flags := bindLifecycleFlags(run)
 	run.RunE = func(*cobra.Command, []string) error {
-		cfg := flags.resolve()
+		cfg, err := flags.resolve()
+		if err != nil {
+			return &exitError{code: ExitUsage, msg: err.Error()}
+		}
 		cfg.Log = render.NewLogger(os.Stderr, flags.logLevel)
 		if err := cfg.Prepare(); err != nil {
 			return &exitError{code: ExitFailure, msg: err.Error()}

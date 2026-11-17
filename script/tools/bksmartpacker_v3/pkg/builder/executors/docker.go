@@ -186,7 +186,7 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	// run image 以 docker-archive 形式落盘并挂载，容器内不再需要 daemon
 	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
-		args = append(args, "-e", "BKS_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
+		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
 	}
 
 	// 网络模式：BKS_NETWORK=host 可让容器直接访问宿主机网络

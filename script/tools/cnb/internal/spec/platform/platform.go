@@ -1,0 +1,133 @@
+// Package platform 定义平台（CNB / SmartPacker）注入的环境契约。
+package platform
+
+import (
+	"strings"
+
+	"learn-cnb-paketo/tools/cnb/internal/errs"
+	"learn-cnb-paketo/tools/cnb/internal/spec/warn"
+)
+
+// 环境变量名（唯一来源）。
+const (
+	EnvSourceURL   = "SOURCE_GET_URL"
+	EnvRequired    = "REQUIRED_BUILDPACKS"
+	EnvOutputImage = "OUTPUT_IMAGE"
+	EnvRunImage    = "CNB_RUN_IMAGE"
+	EnvCacheImage  = "CACHE_IMAGE"
+	EnvAppDir      = "CNB_APP_DIR"
+	EnvLayersDir   = "CNB_LAYERS_DIR"
+	EnvPlatformDir = "CNB_PLATFORM_DIR"
+	EnvPlatformAPI = "CNB_PLATFORM_API"
+	EnvExportMode  = "CNB_EXPORT_MODE"
+	EnvRunArchive  = "CNB_RUN_IMAGE_ARCHIVE"
+	EnvLayoutDir   = "CNB_LAYOUT_DIR"
+)
+
+// 默认值。
+const (
+	DefaultAppDir      = "/app"
+	DefaultLayersDir   = "/layers"
+	DefaultPlatformDir = "/platform"
+	DefaultRunImage    = "fake-cnb-runner:latest"
+	DefaultPlatformAPI = "0.15"
+	DefaultLayoutDir   = "/layers/oci"
+)
+
+// ExportMode 是导出方式。
+type ExportMode string
+
+const (
+	// ExportDaemon 写进容器运行时。
+	ExportDaemon ExportMode = "daemon"
+	// ExportLayout 写 OCI layout 目录。
+	ExportLayout ExportMode = "layout"
+	// ExportNone 只构建不导出。
+	ExportNone ExportMode = "none"
+)
+
+// Env 是平台契约的结构化表示。
+type Env struct {
+	SourceURL       string
+	Required        []string
+	OutputImage     string
+	RunImage        string
+	CacheImage      string
+	AppDir          string
+	LayersDir       string
+	PlatformDir     string
+	PlatformAPI     string
+	ExportMode      ExportMode
+	RunImageArchive string
+	LayoutDir       string
+}
+
+// Parse 读取环境变量并填默认值。
+func Parse(getenv func(string) string) (Env, []warn.Warning, error) {
+	env := Env{
+		SourceURL:       getenv(EnvSourceURL),
+		Required:        splitList(getenv(EnvRequired)),
+		OutputImage:     getenv(EnvOutputImage),
+		RunImage:        valueOr(getenv(EnvRunImage), DefaultRunImage),
+		CacheImage:      getenv(EnvCacheImage),
+		AppDir:          valueOr(getenv(EnvAppDir), DefaultAppDir),
+		LayersDir:       valueOr(getenv(EnvLayersDir), DefaultLayersDir),
+		PlatformDir:     valueOr(getenv(EnvPlatformDir), DefaultPlatformDir),
+		PlatformAPI:     valueOr(getenv(EnvPlatformAPI), DefaultPlatformAPI),
+		ExportMode:      ExportMode(valueOr(getenv(EnvExportMode), string(ExportLayout))),
+		RunImageArchive: getenv(EnvRunArchive),
+		LayoutDir:       valueOr(getenv(EnvLayoutDir), DefaultLayoutDir),
+	}
+	if err := env.Validate(); err != nil {
+		return Env{}, nil, err
+	}
+	return env, nil, nil
+}
+
+// Validate 校验取值组合。
+func (e Env) Validate() error {
+	switch e.ExportMode {
+	case ExportDaemon:
+		if e.RunImage == "" {
+			return &errs.Missing{What: "run image (export mode daemon)"}
+		}
+	case ExportLayout:
+		if e.LayoutDir == "" {
+			return &errs.Missing{What: "layout dir (export mode layout)"}
+		}
+	case ExportNone:
+	default:
+		return &errs.Invalid{Field: "export mode", Value: string(e.ExportMode), Reason: "expect daemon | layout | none"}
+	}
+	return nil
+}
+
+// SourcePath 返回 SOURCE_GET_URL 中的本地路径；非 file:// 时返回空。
+func (e Env) SourcePath() string {
+	if after, ok := strings.CutPrefix(e.SourceURL, "file://"); ok {
+		return after
+	}
+	return ""
+}
+
+// splitList 按空白切分（REQUIRED_BUILDPACKS 是以 ; 分隔的条目，条目内是空格分列）。
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var out []string
+	for entry := range strings.SplitSeq(s, ";") {
+		if f := strings.TrimSpace(entry); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// valueOr 返回非空值或默认值。
+func valueOr(v, def string) string {
+	if v != "" {
+		return v
+	}
+	return def
+}

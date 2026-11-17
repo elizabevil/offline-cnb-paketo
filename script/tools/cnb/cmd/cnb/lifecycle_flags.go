@@ -43,8 +43,11 @@ func bindLifecycleFlags(cmd *cobra.Command) *lifecycleFlags {
 }
 
 // resolve 把环境变量默认值与 flags 合并成一份 Config。
-func (f lifecycleFlags) resolve() lifecycle.Config {
-	cfg := configFromEnv()
+func (f lifecycleFlags) resolve() (lifecycle.Config, error) {
+	cfg, err := configFromEnv()
+	if err != nil {
+		return lifecycle.Config{}, err
+	}
 	if f.app != "" {
 		cfg.Paths.App = f.app
 	}
@@ -81,5 +84,5 @@ func (f lifecycleFlags) resolve() lifecycle.Config {
 		}
 	}
 	cfg.DryRun = f.dryRun
-	return cfg
+	return cfg, nil
 }
