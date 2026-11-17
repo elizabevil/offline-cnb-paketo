@@ -67,3 +67,28 @@ _repo := _root / "../../.."     # fixtures → <name> → project → 仓库根
 
 `project/<name>/justfile` 则是两层（`_dir / ".." / ".."`）。
 两处写错都会出现 `failed to read justfile at .../project/justfile` 这类错误。
+
+## 八、切换到其它项目 / 夹具
+
+所有子项目共用同一套环境变量，不必改 justfile：
+
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `CNB_PROFILE` | 各项目自己的配置 | 被测流水线配置；相对路径相对仓库根，也可写绝对路径 |
+| `S_MART_SRC` | `project/<name>/fixtures/single` | BK 打包的夹具目录（可指向 `fixtures/multi`） |
+| `S_MART_OUT` | `project/<name>/dist` | s-mart 产物目录 |
+| `BUILDER_IMAGE` | 各项目默认镜像 | 覆盖 builder 镜像 |
+| `CNB_RUNTIMES` / `CNB_CACHE_DIR` / `CNB_NETWORK` / `CNB_DOCKER_SOCK` | 见 bk justfile | 运行时、缓存、网络与 socket |
+
+示例：
+
+```bash
+# 用 bk 的入口跑 offline-paketo 的配置
+CNB_PROFILE=config/projects/offline-paketo.toml just smart
+
+# 用 multi 夹具打包
+S_MART_SRC=project/offline-paketo-bk/fixtures/multi just smart
+
+# 产物另存
+S_MART_OUT=/tmp/out just smart
+```

@@ -5,7 +5,11 @@
 _dir := justfile_directory()
 _root := _dir / ".." / ".."
 _cnb := _root / "script" / "bin" / "cnb"
-_profile := _root / "config" / "projects" / "offline-paketo-bk.toml"
+# 被测流水线配置：默认本项目；CNB_PROFILE 可指向任意项目
+#   CNB_PROFILE=config/projects/other.toml just smart   （相对仓库根）
+#   CNB_PROFILE=/abs/path/other.toml just smart        （绝对路径）
+_profile_env := env_var_or_default("CNB_PROFILE", "")
+_profile := if _profile_env == "" { _root / "config" / "projects" / "offline-paketo-bk.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
 
 _default:
     @just --list
@@ -36,7 +40,8 @@ fixtures *args:
 # ── bksmartpacker 全链路（一条命令）────────────────────────────────────────
 
 _bps  := _root / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
-_fx   := _dir / "fixtures/single"
+# 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
+_fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
 _out  := env_var_or_default("S_MART_OUT", _dir / "dist")
 smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:latest")
 # 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：

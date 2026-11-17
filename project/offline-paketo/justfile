@@ -5,7 +5,9 @@
 _dir := justfile_directory()
 _root := _dir / ".." / ".."
 _cnb := _root / "script" / "bin" / "cnb"
-_profile := _root / "config" / "projects" / "offline-paketo.toml"
+# 被测配置：默认本项目；CNB_PROFILE 可指向任意项目（相对仓库根或绝对路径）
+_profile_env := env_var_or_default("CNB_PROFILE", "")
+_profile := if _profile_env == "" { _root / "config" / "projects" / "offline-paketo.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
 
 _default:
     @just --list
