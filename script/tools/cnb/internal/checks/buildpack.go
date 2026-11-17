@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
+
+	speclifecycle "learn-cnb-paketo/tools/cnb/internal/spec/lifecycle"
 )
 
 // 检查规则与约定。
@@ -27,17 +28,6 @@ var Providers = map[string]bool{
 	"cpython":     true,
 	"go-dist":     true,
 }
-
-var (
-	bpAPIRe  = regexp.MustCompile(`(?m)^\s*api\s*=\s*"([^"]+)"`)
-	bpIDRe   = regexp.MustCompile(`(?m)^\s*id\s*=\s*"([^"]+)"`)
-	bpVerRe  = regexp.MustCompile(`(?m)^\s*version\s*=\s*"([^"]+)"`)
-	bpNameRe = regexp.MustCompile(`(?m)^\s*name\s*=\s*"([^"]+)"`)
-	orderRe  = regexp.MustCompile(`(?m)^\s*\[\[order\]\]`)
-	groupRe  = regexp.MustCompile(`(?ms)\[\[order\.group\]\](.*?)(?:\[\[|\z)`)
-	sbomRe   = regexp.MustCompile(`(?m)^\s*sbom-formats\s*=`)
-	depsRe   = regexp.MustCompile(`(?m)^\s*\[\[metadata\.dependencies\]\]`)
-)
 
 // Finding 是一条检查结果。
 type Finding struct {
@@ -88,20 +78,27 @@ func CheckBuildpack(dir string) BuildpackReport {
 		add(false, "missing "+ManifestName)
 		return rep
 	}
-	text := string(data)
-
-	add(bpAPIRe.MatchString(text), "missing api")
-	id := firstOf(bpIDRe, text)
-	add(id != "", "missing [buildpack] id")
-	add(bpVerRe.MatchString(text), "missing [buildpack] version")
-	add(bpNameRe.MatchString(text), "missing [buildpack] name")
-	add(idMatchesDir(id, leaf), fmt.Sprintf("dir %s does not match id %s", leaf, id))
-
-	if orderRe.MatchString(text) {
-		checkMeta(&rep, versionDir, text)
+	bp, warns, err := speclifecycle.ParseBuildpack(data)
+	if err != nil {
+		add(false, "invalid "+ManifestName+": "+err.Error())
 		return rep
 	}
-	checkComponent(&rep, versionDir, leaf, text, warn)
+	for _, w := range warns {
+		rep.Findings = append(rep.Findings, Finding{Name: leaf, Message: w.String()})
+	}
+
+	add(bp.API != "", "missing api")
+	add(bp.BuildpackInfo.ID != "", "missing [buildpack] id")
+	add(bp.BuildpackInfo.Version != "", "missing [buildpack] version")
+	add(bp.BuildpackInfo.Name != "", "missing [buildpack] name")
+	add(idMatchesDir(bp.BuildpackInfo.ID, leaf),
+		fmt.Sprintf("dir %s does not match id %s", leaf, bp.BuildpackInfo.ID))
+
+	if len(bp.Order) > 0 {
+		checkMeta(&rep, versionDir, bp.Order)
+		return rep
+	}
+	checkComponent(&rep, versionDir, leaf, bp, warn)
 	return rep
 }
 
@@ -125,7 +122,7 @@ func locate(dir string) (string, string) {
 }
 
 // checkMeta 检查 meta buildpack：不得含脚本，order 引用的组件需存在。
-func checkMeta(rep *BuildpackReport, dir, text string) {
+func checkMeta(rep *BuildpackReport, dir string, order []speclifecycle.Group) {
 	add := func(ok bool, msg string) {
 		if !ok {
 			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})
@@ -136,8 +133,8 @@ func checkMeta(rep *BuildpackReport, dir, text string) {
 	add(!exists(detect) && !exists(build), "meta buildpack must not contain bin scripts")
 
 	root := filepath.Dir(dir)
-	for _, g := range groupRe.FindAllStringSubmatch(text, -1) {
-		gid := firstOf(bpIDRe, g[1])
+	for _, g := range order {
+		gid := g.ID
 		if gid == "" {
 			continue
 		}
@@ -149,7 +146,7 @@ func checkMeta(rep *BuildpackReport, dir, text string) {
 }
 
 // checkComponent 检查实现型 buildpack：脚本、权限、SBOM 与依赖声明。
-func checkComponent(rep *BuildpackReport, dir, leaf, text string, warn func(bool, string)) {
+func checkComponent(rep *BuildpackReport, dir, leaf string, bp *speclifecycle.Buildpack, warn func(bool, string)) {
 	add := func(ok bool, msg string) {
 		if !ok {
 			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})
@@ -165,10 +162,10 @@ func checkComponent(rep *BuildpackReport, dir, leaf, text string, warn func(bool
 		}
 	}
 	if writesSBOM(detect, build) {
-		warn(sbomRe.MatchString(text), "writes SBOM but declares no sbom-formats")
+		warn(len(bp.SBOMFormats) > 0, "writes SBOM but declares no sbom-formats")
 	}
 	if Providers[leaf] {
-		warn(depsRe.MatchString(text), "provider buildpack without [[metadata.dependencies]]")
+		warn(len(bp.MetadataSection.Dependencies) > 0, "provider buildpack without [[metadata.dependencies]]")
 	}
 }
 
@@ -193,10 +190,3 @@ func idMatchesDir(id, leaf string) bool {
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
-
-func firstOf(re *regexp.Regexp, s string) string {
-	if m := re.FindStringSubmatch(s); m != nil {
-		return m[1]
-	}
-	return ""
-}
