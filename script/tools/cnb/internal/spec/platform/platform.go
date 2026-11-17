@@ -23,6 +23,7 @@ const (
 	EnvRunArchive       = "CNB_RUN_IMAGE_ARCHIVE"
 	EnvLayoutDir        = "CNB_LAYOUT_DIR"
 	EnvBuildpackAliases = "CNB_BUILDPACK_ALIASES"
+	EnvLayerArchive     = "CNB_LAYER_ARCHIVE"
 )
 
 // 默认值。
@@ -64,6 +65,8 @@ type Env struct {
 	// BuildpackAliases 把平台侧 buildpack 名映射到 order 里的 id
 	// （格式 "a=b,c=d"，由调用方注入；cnb 不内置任何平台名称）。
 	BuildpackAliases map[string]string
+	// LayerArchive 非空时，layout 导出后把目录打包为该路径（OCI archive）。
+	LayerArchive string
 }
 
 // Parse 读取环境变量并填默认值。
@@ -82,6 +85,7 @@ func Parse(getenv func(string) string) (Env, []warn.Warning, error) {
 		RunImageArchive:  getenv(EnvRunArchive),
 		LayoutDir:        valueOr(getenv(EnvLayoutDir), DefaultLayoutDir),
 		BuildpackAliases: parseAliases(getenv(EnvBuildpackAliases)),
+		LayerArchive:     getenv(EnvLayerArchive),
 	}
 	if err := env.Validate(); err != nil {
 		return Env{}, nil, err

@@ -32,7 +32,7 @@
 ## 四、输出
 
 ```
-s-mart.tgz
+s-mart.tar.gz
 ├── app_desc.yaml
 ├── .Version = "cnb-image-layers"
 ├── logo.png / artifact.json（若源码包内存在）
@@ -108,7 +108,7 @@ project/offline-paketo-bk/
 
 1. `./build.sh` 从空 bundle 产出三个镜像
 2. 二次构建出现 cache hit，不再下载
-3. bksmartpacker 产出 `s-mart.tgz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
+3. bksmartpacker 产出 `s-mart.tar.gz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
 4. `<module>.tgz` 只含应用层
 5. `fixtures/single` 与 `fixtures/multi` 均可构建
 6. `cnb pipeline doctor` / `dockerfile check` / `buildpack lint` 全绿

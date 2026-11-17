@@ -81,6 +81,8 @@ type ExportTarget struct {
 	CacheImage string
 	// LayoutDir 是 layout 输出目录（Mode=layout 时使用）。
 	LayoutDir string
+	// OutputArchive 非空时，layout 导出成功后打包为该 tar.gz（OCI archive）。
+	OutputArchive string
 }
 
 // Validate 校验导出配置的组合合法性。

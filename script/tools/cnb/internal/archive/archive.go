@@ -36,8 +36,12 @@ func ExtractTarGz(archive, dest string, opts Options) ([]string, error) {
 	}
 	defer func() { _ = gz.Close() }()
 
+	return extractTarReader(tar.NewReader(gz), dest, opts)
+}
+
+// extractTarReader 从 tar.Reader 解包。
+func extractTarReader(tr *tar.Reader, dest string, opts Options) ([]string, error) {
 	var files []string
-	tr := tar.NewReader(gz)
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {

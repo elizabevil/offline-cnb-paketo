@@ -55,7 +55,12 @@ func (c Config) analyzeArgs() []string {
 	var a args
 	a.flag("layers", c.Paths.Layers)
 	a.flag("run-image", c.Export.RunImage)
-	a.boolFlag("daemon", true)
+	if c.Export.Mode == ExportLayout || c.Export.Mode == "" {
+		a.boolFlag("layout", true)
+		a.flag("layout-dir", c.layoutDir())
+	} else {
+		a.boolFlag("daemon", true)
+	}
 	a.positional(c.Export.OutputImage)
 	return a
 }
@@ -79,10 +84,11 @@ func (c Config) exportArgs() []string {
 		a.flag("layout-dir", c.layoutDir())
 	case ExportDaemon:
 		a.boolFlag("daemon", true)
+		a.flag("run-image", c.Export.RunImage)
 	case ExportNone:
 		// 不导出：调用方不应执行 exporter
 	}
-	a.flag("run-image", c.Export.RunImage)
+	// layout 模式不接受 -run-image：run 镜像信息来自 analyzed.toml
 	a.flag("cache-image", c.Export.CacheImage)
 	a.positional(c.Export.OutputImage)
 	return a

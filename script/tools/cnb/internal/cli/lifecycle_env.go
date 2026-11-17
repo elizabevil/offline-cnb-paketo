@@ -46,6 +46,7 @@ func configFromEnv() (lifecycle.Config, error) {
 			RunImageArchive: env.RunImageArchive,
 			CacheImage:      env.CacheImage,
 			LayoutDir:       env.LayoutDir,
+			OutputArchive:   env.LayerArchive,
 		},
 		Runtime: lifecycle.RuntimeOptions{
 			PlatformAPI: env.PlatformAPI,

@@ -3,10 +3,12 @@ package lifecycle
 import (
 	"context"
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/archive"
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -14,6 +16,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
+	"learn-cnb-paketo/tools/cnb/internal/spec/imagefmt"
 	"learn-cnb-paketo/tools/cnb/internal/user"
 )
 
@@ -52,14 +55,14 @@ func (c Config) Phases() []Phase {
 //
 // BK 模式（Export.LayerArchive 非空）下导出走 daemon：exporter 把完整镜像写进
 // 容器运行时，随后由 bksmartpacker 执行 image save，产物格式与平台一致。
-func (c Config) Run() error {
+func (c *Config) Run() error {
 	if c.Export.OutputImage == "" {
 		return &errs.Missing{What: "output image"}
 	}
 	if err := c.prepareWorkDirs(); err != nil {
 		return err
 	}
-	if err := c.loadRunImage(); err != nil {
+	if err := c.prepareRunImage(); err != nil {
 		return err
 	}
 	for _, p := range c.Phases() {
@@ -67,13 +70,77 @@ func (c Config) Run() error {
 			return err
 		}
 	}
-	return nil
+	return c.packLayout()
 }
 
-// loadRunImage 把 run 镜像载入容器运行时（BK 以 docker-archive 形式提供）。
-func (c Config) loadRunImage() error {
+// packLayout 在 layout 导出后把目录打包为 OCI archive（如调用方要求）。
+func (c Config) packLayout() error {
+	if c.Export.Mode != ExportLayout || c.Export.OutputArchive == "" {
+		return nil
+	}
+	repo, tag, digest, err := NormalizeRef(c.Export.OutputImage)
+	if err != nil {
+		return err
+	}
+	imageDir := filepath.Join(c.layoutDir(), repo, tag)
+	if digest != "" {
+		imageDir = filepath.Join(c.layoutDir(), repo, "sha256", strings.TrimPrefix(digest, imagefmt.DigestPrefix))
+	}
+	if _, statErr := os.Stat(filepath.Join(imageDir, "index.json")); statErr != nil {
+		return &errs.NotFound{Kind: "layout image", Ref: imageDir}
+	}
+	c.log().Info("pack layout", "dir", imageDir, "archive", c.Export.OutputArchive)
+	// 重新写出一次：imagefmt 会补 docker 兼容文件（manifest.json / repositories），
+	// 与参考包保持一致；同时避免把 layout 根下的其它镜像带进包。
+	img, _, err := imagefmt.Read(imageDir)
+	if err != nil {
+		return err
+	}
+	// 补齐 PATH：lifecycle 从 run 镜像继承 PATH，fake runner 没有标准目录
+	if err := img.EnsureStandardPath(); err != nil {
+		return err
+	}
+	// lifecycle layout 不带标签，用导出镜像名补上（影响 manifest.json / repositories）
+	if len(img.RepoTags) == 0 && c.Export.OutputImage != "" {
+		img.RepoTags = []string{c.Export.OutputImage}
+	}
+	tmp, err := os.MkdirTemp("", "cnb-pack-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	if err := imagefmt.Write(img, imagefmt.FormatOCILayout, tmp); err != nil {
+		return err
+	}
+	return archive.PackTar(tmp, c.Export.OutputArchive)
+}
+
+// chownLayout 把 layout 目录交给 detect/build 使用的非 root 用户。
+func (c *Config) chownLayout() error {
+	if c.Runtime.User == "" || os.Geteuid() != 0 {
+		return nil
+	}
+	uid, gid, ok := user.Lookup(c.Runtime.User)
+	if !ok {
+		return nil
+	}
+	return fsutil.ChownTree(c.layoutDir(), int(uid), int(gid))
+}
+
+// prepareRunImage 在 layout 模式下把 run 镜像预置到 layout 目录，
+// 并把 Export.RunImage 换成 layout 内引用。daemon 模式仍载入运行时。
+func (c *Config) prepareRunImage() error {
 	if c.Export.RunImageArchive == "" || c.DryRun {
 		return nil
+	}
+	if c.Export.Mode == ExportLayout {
+		ref, err := PrepareRunImage(c.layoutDir(), c.Export.RunImage, c.Export.RunImageArchive, c.log())
+		if err != nil {
+			return err
+		}
+		c.Export.RunImage = ref
+		// 预置目录由 root 创建，需交给运行时用户，否则 exporter 无法写入
+		return c.chownLayout()
 	}
 	tool := containerTool()
 	if tool == "" {

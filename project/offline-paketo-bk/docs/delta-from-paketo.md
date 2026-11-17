@@ -8,7 +8,7 @@
 | 目标平台 | CNB / pack | BK PaaS |
 | 产物 | 完整镜像（含 OS） | **只含应用层**（run=scratch） |
 | 入口契约 | `cnb pipeline run` | `cnb pipeline run` + `lifecycle-entrypoint.sh`（bksmartpacker 契约） |
-| 交付形式 | 镜像 tag | s-mart.tgz（bksmartpacker 打包） |
+| 交付形式 | 镜像 tag | s-mart.tar.gz（bksmartpacker 打包） |
 | 测试夹具 | `test/fixtures`（普通应用） | `fixtures/`（含 `app_desc.yaml`，BK 结构） |
 | 特有文档 | — | `docs/bk-build-logic.md` |
 

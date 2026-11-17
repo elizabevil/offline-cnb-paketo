@@ -77,27 +77,27 @@ smart src="{{_fx}}": smart-builder smart-bps
     @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
-    @echo "  · 输出: {{_out}}/s-mart.tgz"
-    @rm -f {{_out}}/s-mart.tgz
+    @echo "  · 输出: {{_out}}/s-mart.tar.gz"
+    @rm -f {{_out}}/s-mart.tar.gz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
     @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
         --builder-image "{{smart_builder}}" \
-        --dest {{_out}}/s-mart.tgz
+        --dest {{_out}}/s-mart.tar.gz
     @echo
-    @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tgz
+    @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tar.gz
     @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
     @echo "== 包结构 ==" 
-    @{{_bps}} --inspect {{_out}}/s-mart.tgz
+    @{{_bps}} --inspect {{_out}}/s-mart.tar.gz
 
 # 只打包指定目录（跳过建镜像，复用已有 builder）：just pack-case /path/to/app
 pack-case src:
     @test -d "{{src}}" || { echo "  ✗ 目录不存在: {{src}}"; exit 1; }
     @mkdir -p {{_out}} {{cache_dir}}
-    @rm -f {{_out}}/s-mart.tgz
+    @rm -f {{_out}}/s-mart.tar.gz
     @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
         --builder-image "{{smart_builder}}" \
-        --dest {{_out}}/s-mart.tgz
-    @{{_bps}} --inspect {{_out}}/s-mart.tgz
+        --dest {{_out}}/s-mart.tar.gz
+    @{{_bps}} --inspect {{_out}}/s-mart.tar.gz
 
 # 清理打包产物
 smart-clean:

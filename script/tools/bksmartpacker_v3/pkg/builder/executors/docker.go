@@ -182,8 +182,10 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 
 	// 挂载源码压缩包
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
-	// 导出方式：镜像写进容器运行时，构建后由本工具执行 image save
-	args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
+	// 导出方式：容器内导出 OCI layout，再打包为层包写回宿主目录
+	args = append(args, "-e", "CNB_EXPORT_MODE=layout")
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
+	args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s.tgz", step.ModuleName))
 	// run image 以 docker-archive 形式落盘并挂载，容器内不再需要 daemon
 	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
@@ -210,10 +212,15 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 }
 
 func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
-	args := []string{
-		"image", "save", "-o", fmt.Sprintf("%s/%s.tgz", workspace, step.ModuleName), step.OutputImage(),
+	produced := filepath.Join(workspace, "layers", step.ModuleName+".tgz")
+	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
+		fmt.Printf("using layer archive from cnb: %s\n", produced)
+		if err := utils.Copy(produced, filepath.Join(workspace, step.ModuleName+".tgz")); err != nil {
+			return err
+		}
+		return os.RemoveAll(filepath.Join(workspace, "layers"))
 	}
-
+	args := saveArgs(e.dockerExecPath, fmt.Sprintf("%s/%s.tgz", workspace, step.ModuleName), step.OutputImage())
 	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -327,4 +334,15 @@ func buildpackAliases() string {
 		return v
 	}
 	return defaultBuildpackAliases
+}
+
+// saveArgs 生成镜像导出参数。
+// podman 使用 --format oci-archive 直接产出 OCI layout（蓝鲸平台期望的格式）；
+// docker 无该参数，保持默认（容器存储为 containerd 时本身即 OCI layout）。
+func saveArgs(runtime, dest, image string) []string {
+	args := []string{"image", "save"}
+	if filepath.Base(runtime) == "podman" {
+		args = append(args, "--format", "oci-archive")
+	}
+	return append(args, "-o", dest, image)
 }

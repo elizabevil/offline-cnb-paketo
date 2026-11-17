@@ -60,6 +60,6 @@ func Group(v ...interface{}) {
 func EndGroup(v ...interface{}) {
 	lock.Lock()
 	log.Print("##[endgroup]")
-	log.Println(v)
+	log.Println(v...)
 	lock.Unlock()
 }

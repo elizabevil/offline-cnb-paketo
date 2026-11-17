@@ -48,7 +48,7 @@
                                                   │
                          /cnb-layer/<module>.tgz ──挂载─▶ 宿主 workspace/layers/
                                                   │
-                                   bksmartpacker 组装 s-mart.tgz
+                                   bksmartpacker 组装 s-mart.tar.gz
 ```
 
 ## 四、关键约束
