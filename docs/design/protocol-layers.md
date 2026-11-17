@@ -112,7 +112,43 @@ name = "offline-paketo-bk"
 dir      = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
+# ── 物料：本项目锁定的版本（省略则取 lock 的 default）────────
+[spec.assets.lifecycle]
+version = "0.21.29"
+
+[spec.assets.fnm]
+version = "1.39.0"
+
+[spec.assets.cnb]
+version = "3.0.0"
+
 # ── 阶段：列表顺序 = 执行顺序 ───────────────────────────────
+
+# ── 物料版本 ───────────────────────────────────────────────
+[spec.assets.lifecycle]
+version = "0.21.29"
+
+[spec.assets.fnm]
+version = "1.39.0"
+
+[spec.assets.uv]
+version = "0.13.8"
+
+[spec.assets.docker]
+version = "27.0.3"
+
+[spec.assets.jq]
+version = "1.8.2"
+
+[spec.assets.yq]
+version = "4.54.3"
+
+[spec.assets.pack]
+version = "0.40.11"
+
+[spec.assets.cnb]
+version = "3.0.0"
+
 [[spec.stages]]
 name    = "base"
 workdir = "."
@@ -136,8 +172,12 @@ name    = "builder"
 workdir = "."
 run = ["podman", "build", "-f", "project/offline-paketo-bk/docker/builder.dockerfile",
        "-t", "offline-builder-build-bk:latest",
-       "--build-context", "bundle=bundle/linux-amd64",
-       "--build-context", "buildpacks=buildpacks", "."]
+       "--build-context", "bundle=${bundle}/${platform}",
+       "--build-context", "buildpacks=buildpacks/paketo",
+       "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
+       "--build-arg", "FNM_VERSION=${asset.fnm.version}",
+       "--build-arg", "CNB_VERSION=${asset.cnb.version}",
+       "."]
 
 [[spec.stages]]
 name    = "package"
@@ -174,6 +214,8 @@ run  = ["python3", "tools/check.py"]
 | `metadata.name` | ✅ | 与文件名一致 |
 | `spec.project.dir` | ✅ | 项目目录（相对仓库根） |
 | `spec.project.platform` | ✅ | 默认平台 |
+| `spec.assets.<id>.version` | | 省略取 lock 的 `default` |
+| `spec.assets.<id>.platforms` | | 省略表示该版本支持的全部平台 |
 | `spec.stages[].name` | ✅ | 唯一，重复报错 |
 | `spec.stages[].run` | ✅ | 非空字符串数组；**不自动加 shell** |
 | `spec.stages[].workdir` | ✅ | 执行目录（相对仓库根）；argv 内的相对路径按此解析 |
@@ -195,6 +237,8 @@ run  = ["python3", "tools/check.py"]
 4. `run` 非空、元素非空
 5. `workdir` 必填且目录存在
 6. `timeout` 可解析为 duration
+7. `spec.assets` 的 id 必须存在于 lock；声明的版本必须存在且支持 `spec.project.platform`
+8. `run` 中的 `${asset.<id>.version}` 必须能在 `spec.assets` 或 lock 默认值中解析
 
 docker 相关检查（`-f` 是否存在、`-t` 是否为空）放 `cnb lint`：从 argv 识别 `podman build` / `docker build`，属于尽力而为的检查，不是协议约束。
 
@@ -256,6 +300,96 @@ func RunStage(st Stage) error {
 
 命令仍是 `cnb pipeline run` / `pipeline plan` / `pipeline profile validate`。
 
+#### 5.2.2 变量：四个受控占位符
+
+`run` 数组**不做通用模板展开**，只支持四个有明确来源的占位符：
+
+| 占位符 | 取值 | 约束 |
+|---|---|---|
+| `${platform}` | `spec.project.platform` | — |
+| `${arch}` | `${platform}` 的架构段（amd64 / arm64） | — |
+| `${bundle}` | lock `[storage].root` 解析后的绝对路径 | — |
+| `${asset.<id>.version}` | `spec.assets.<id>.version`；未声明时取 lock 的 default | `<id>` 必须存在于 lock，且该版本支持当前平台 |
+
+规则：
+
+- 未知占位符 → 校验错误（不静默保留）
+- `${asset.<id>...}` 引用未在 lock 中定义的 id → 校验错误
+- 替换发生在“配置 → argv”阶段，`--dry-run` 打印替换后的 argv
+- 不提供任意表达式（无运算、无函数、无嵌套）
+
+#### 为什么保留按项目锁版本
+
+不同项目可能需要不同物料版本，例如：
+
+- 某项目需固定 lifecycle 0.20（其 podman 兼容行为不同）
+- 新项目先用默认版本，稳定后再提升
+
+因此 `spec.assets` 保留，锁版本方式与旧结构一致（`version` 省略即取 lock default），
+但注入方式从 `inject_versions` 改为在 `run` 里显式写占位符：
+
+```toml
+[spec.assets.lifecycle]
+version = "0.20.2"
+
+[[spec.stages]]
+name = "builder"
+run = ["podman", "build", "-f", "…", "-t", "…",
+       "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}", "."]
+```
+
+Dockerfile 侧保持参数化：
+
+```dockerfile
+ARG LIFECYCLE_VERSION
+COPY --from=bundle /binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb/lifecycle/
+```
+
+#### 5.2.3 `pipeline run` 的语义
+
+```bash
+cnb pipeline run <file>              # 执行
+cnb pipeline run <file> --dry-run    # 只打印，不执行
+cnb pipeline profile validate <file> # 只校验
+```
+
+| 模式 | 行为 | 退出码 |
+|---|---|---|
+| 默认 | 校验 → 按 stages 顺序执行 | 0 成功 / 1 失败 / 2 用法错误 |
+| `--dry-run` | 校验 → 打印每个 stage 的最终 argv → 退出 | 0 / 1 / 2（同左） |
+| `validate` | 只校验，不打印计划 | 0 / 1 / 2 |
+
+执行规则：
+
+- 任一 stage 失败：默认立即停止，输出失败 stage 与重跑命令
+  （`cnb pipeline run <file> --from <stage>`）
+- `continueOnError = true` 的 stage 失败后继续执行后续 stage，但最终退出码仍为 1
+- `--dry-run` 与真实执行共用同一份 argv 生成代码，不允许两套逻辑
+- 执行不写状态文件，不记录历史；产物由 stage 自身决定
+- 执行前按 `spec.assets` 拉取物料（未声明的 id 不拉取）；版本取 profile 声明，缺省取 lock default
+
+#### 5.2.4 `cnb lint` 检查项
+
+`lint` 是“尽力检查”，不阻断执行，用于发现常见错误：
+
+| 检查 | 规则 |
+|---|---|
+| docker 构建 | argv 匹配 `podman build` / `docker build` 时：`-f` 文件存在、`-t` 非空、上下文目录存在 |
+| 构建上下文 | `--build-context name=path` 的 path 存在 |
+| 命令脚本 | `run[0]` 是 `bash`/`sh` 且第二个参数是脚本时，脚本文件存在 |
+| 路径占位符 | argv 中出现 `${...}` 必须是允许的三个 |
+| 镜像引用 | `--build-arg` 中引用的镜像 tag 若在本 profile 其他 stage 出现过，提示可提取复用 |
+| 重复 stage | stage 名称重复（同时是 validate 的硬错误） |
+
+输出格式：
+
+```
+$ cnb lint config/projects/offline-paketo-bk.toml
+  ✓ base      podman build -f .../base.dockerfile
+  ⚠ builder   --build-arg BASE_IMAGE_TAG=offline-builder-base-bk:latest（与 base 的 tag 重复，可共用变量）
+  ✗ package   scripts/build.sh 不存在
+```
+
 ### 5.3 spec/lifecycle —— 6 个 lifecycle 协议
 
 统一在一个包，按文件名分文件：
@@ -311,81 +445,79 @@ spec/lifecycle/
 
 ### 5.4 spec/platform —— 平台契约与参数优先级
 
-**目标**：解决“环境变量与命令行参数冲突”，给出唯一、可解释的优先级。
+**参考 helm / helmfile 的做法**：配置分层显式，而不是“每个参数一张表”。
 
-#### 优先级（从低到高）
+| 工具 | 分层方式 |
+|---|---|
+| helm | `values.yaml` < `-f extra.yaml` < `--set` |
+| helmfile | `environments.<name>.values` < `--state-values-set`；环境用 `-e` 选择 |
+| kubectl | kubeconfig / context 为默认，`--flag` 覆盖 |
+| 本方案 | 内置默认 < 环境变量 `CNB_*` < 生命周期命令的 flag |
 
-```
-1. 内置默认值（代码里的常量）
-2. 环境变量（CNB_*，平台/SmartPacker 注入）
-3. 命令行参数（--xxx，人工覆盖）
-4. 显式禁用（--no-xxx / 空值语义，见下）
-```
-
-规则：
-
-- 任何字段的**来源可追踪**：解析结果带 `Source`，`cnb config show` 能打印“来自 env / flag / default”
-- 高优先级覆盖低优先级时，若两者都非空且值不同，返回 `Warn`（不静默）
-- **空值不等于未设置**：flag 用 `Changed` 判断，env 用“存在性”判断
-
-#### 参数表驱动
+#### 做法：一个结构体 + 显式覆盖，不做参数表
 
 ```go
-type Source string
-
-const (
-    SourceDefault Source = "default"
-    SourceEnv     Source = "env"
-    SourceFlag    Source = "flag"
-)
-
-type Param struct {
-    Name    string   // 展示名，如 "export"
-    Env     string   // 环境变量名，如 "CNB_EXPORT_MODE"
-    Flag    string   // 参数名，如 "export"
-    Default string
-    Kind    Kind     // string | bool | duration | enum
+// spec/platform/env.go
+type Env struct {
+    SourceURL    string   // SOURCE_GET_URL（仅 file://）
+    Required     []string // REQUIRED_BUILDPACKS
+    OutputImage  string   // OUTPUT_IMAGE
+    RunImage     string   // CNB_RUN_IMAGE
+    CacheImage   string   // CACHE_IMAGE
+    AppDir       string   // CNB_APP_DIR
+    LayersDir    string   // CNB_LAYERS_DIR
+    PlatformDir  string   // CNB_PLATFORM_DIR
+    PlatformAPI  string   // CNB_PLATFORM_API
+    ExportMode   Mode     // CNB_EXPORT_MODE
 }
 
-var Params = []Param{
-    {"export",       "CNB_EXPORT_MODE", "export",       "layout", KindEnum},
-    {"platform-api", "CNB_PLATFORM_API", "platform-api", "0.15",  KindSemver},
-    {"app",          "CNB_APP_DIR",      "app",          "/app",  KindPath},
-    {"output",       "OUTPUT_IMAGE",     "output-image", "",      KindString},
-    // …
-}
+// Parse 读取环境变量并填默认值；未知 CNB_* 以 Warn 返回。
+func Parse(getenv func(string) string) (Env, []Warn)
 ```
 
-解析流程：
+CLI 覆盖只在真正需要人工干预的地方提供，不镜像每个环境变量：
+
+| flag | 对应 | 说明 |
+|---|---|---|
+| `--app` / `--layers` / `--platform` | 三个目录 | 调试用 |
+| `--run-image` / `--output-image` | 镜像 | 本地试跑 |
+| `--export` | `CNB_EXPORT_MODE` | 显式覆盖导出方式 |
+| `--log-level` | — | 日志 |
+| `--dry-run` | — | 只打印 |
+
+覆盖函数集中在一个文件，语义只有一条：
 
 ```go
-type Value struct {
-    Raw    string
-    Source Source
+// cmd/cnb/lifecycle_flags.go
+func (f lifecycleFlags) apply(env *platform.Env) {
+    setIfNotZero(&env.AppDir, f.app)
+    setIfNotZero(&env.RunImage, f.runImage)
+    …
 }
-
-func Resolve(getenv func(string) string, changed func(string) bool, get func(string) string) (map[string]Value, []warn.Warning)
 ```
 
-- 遍历 `Params`：默认值 → env → flag，逐级覆盖并记录 `Source`
-- 覆盖冲突（env 与 flag 都设置且不同）→ `Warn("env X overridden by --flag")`
-- 未知 env（`CNB_*` 中不在表内）→ `Warn("unknown platform env: CNB_XXX")`
-- 枚举非法（`CNB_EXPORT_MODE=foo`）→ 错误，指出允许值
+#### 冲突处理（只在对人有用时告警）
 
-#### 业务侧只接受解析结果
+- env 与 flag 同时设置且值不同 → `Warn`，以 flag 为准
+- `CNB_*` 出现未知变量 → `Warn`（拼写错误最常见的信号）
+- 枚举非法（如 `CNB_EXPORT_MODE=foo`）→ 错误，列出允许值
 
-```go
-env, warns, err := platform.ParseEnv(os.Getenv)
-mode := env.ExportMode      // 已校验的枚举
-app  := env.AppDir          // 已解析的默认值
-```
+#### 与旧“参数表”方案的对比
 
-`internal/lifecycle`、`materials`、`plan` 都不再调用 `os.Getenv`；只有 `internal/spec/platform` 读环境变量。
+| 维度 | 参数表（旧） | 结构体 + 覆盖（新） |
+|---|---|---|
+| 新增参数成本 | 表里加一行 + 泛型解析 | 结构体加字段 + 一处赋值 |
+| 可读性 | 间接（表驱动） | 直接（Go 字段） |
+| 来源追踪 | 免费获得 | 只在告警里说明，不建 model |
+| 复杂度 | 高（泛型、Kind 枚举、注册） | 低 |
 
-#### 与 flags 的关系
+结论：**参数表是过度设计**。只有“数量多且属性一致”时才值得表驱动；我们的参数不到 15 个，且类型各异。
 
-- `cnb lifecycle run` 只注册 `Params` 里的 flag，注册与解析共用同一张表
-- 新增参数 = 在表里加一行，自然获得：env 支持、flag 支持、帮助文本、冲突检测、来源追踪
+#### 边界
+
+- `spec/platform` 是**唯一**读取 `os.Getenv` 的地方（`getenv` 由调用方注入，便于测试）
+- 业务包只接收 `platform.Env`
+- BK 的 `BKS_*` 不进入本包（由 bksmartpacker 自己的适配层处理）
 
 ### 5.5 spec/imagefmt —— 镜像格式接口（两种实现）
 
@@ -495,9 +627,10 @@ script/tools/cnb/internal/
 | `repack` 内部的 manifest / index 结构体 | 改用 `spec/imagefmt` |
 | profile 的 `[docker].bundle_dir` | 物料位置只由 `manifest.[storage]` 决定 |
 | `lifecycle_env.go` 的 `defaultAliases` | 移到 profile `[build].aliases` |
-| 各处零散的 `os.Getenv("CNB_*")` | 只允许 `spec/platform` 读取 |
+| 各处零散的 `os.Getenv("CNB_*")` | 只允许 `spec/platform` 读取（getenv 注入，便于测试） |
 | `if format == "oci" ... else ...` 分支 | 统一由 `imagefmt.Format` 接口承担 |
 | profile 的 `[[stage]] + image/command 字段猜类型` | 改为 `spec.stages[].run` 统一 exec，单执行器 |
+| profile 的 `[docker].bundle_layout` | 由 lock `[storage].layout` 决定 |
 | `cnb materials get` 的 shell 赋值格式 | 只保留结构化输出（旧消费者已删除） |
 
 ## 八、验收方式
@@ -518,9 +651,220 @@ script/tools/cnb/internal/
 |---|---|---|
 | 1 | `spec/lifecycle`：迁 `order`、`buildpack`，`checks` 改用 | `buildpack lint` 与 `lifecycle run` 都通过同一结构体 |
 | 2 | `spec/manifest`：迁 lock 结构与校验 | `materials validate` 金样本一致 |
-| 3 | `spec/platform`：参数表 + 优先级解析（default < env < flag） | `lifecycle run` 只用 `platform.Env`；冲突有 Warn；来源可查 |
+| 3 | `spec/platform`：结构体 + 显式覆盖（default < env < flag），不做参数表 | `lifecycle run` 只用 `platform.Env`；冲突有 Warn |
 | 4 | `spec/profile`（K8s 结构 + 统一 exec stage）+ `plan` 拆包 | 未知 apiVersion/kind 报错；`run`/`workdir` 必填；顺序只来自 stages 列表 |
 | 5 | `spec/imagefmt`：接口 + 两种实现 + 自动探测 | `repack` 与 `package inspect` 读同一模型，结果一致；新增格式不改调用方 |
-| 6 | 删除清单逐项清理 | `just check` 含新增边界检查 |
+| 6 | `cnb lint` 与 `pipeline run --dry-run` 对齐文档语义 | 三个项目样例可 validate + dry-run |
+| 7 | 删除清单逐项清理 | `just check` 含新增边界检查 |
 
 每阶段独立提交，附带金样本与边界检查；前一阶段未绿不进下一阶段。
+
+## 附录 A：三个项目的完整样例（新结构）
+
+### A.1 offline-paketo（自建 paketo 组件，3 个镜像）
+
+```toml
+apiVersion = "cnb/v1"
+kind       = "Pipeline"
+
+[metadata]
+name = "offline-paketo"
+
+[spec.project]
+dir      = "project/offline-paketo"
+platform = "linux-amd64"
+
+# ── 物料版本 ───────────────────────────────────────────────
+[spec.assets.cnb]
+version = "3.0.0"
+
+[spec.assets.lifecycle]
+version = "0.21.29"
+
+[spec.assets.fnm]
+version = "1.39.0"
+
+[spec.assets.uv]
+version = "0.13.8"
+
+[[spec.stages]]
+name    = "base"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/base.dockerfile",
+  "-t", "offline-builder-base:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "run"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/run.dockerfile",
+  "-t", "offline-run:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "builder"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/builder.dockerfile",
+  "-t", "offline-builder:latest",
+  "--build-context", "bundle=${bundle}/${platform}",
+  "--build-context", "buildpacks=buildpacks/paketo",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
+  "--build-arg", "PROCFILE_BP_TAG=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4",
+  "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
+  "--build-arg", "FNM_VERSION=${asset.fnm.version}",
+  "--build-arg", "UV_VERSION=${asset.uv.version}",
+  "--build-arg", "CNB_VERSION=${asset.cnb.version}",
+  ".",
+]
+```
+
+### A.2 offline-paketo-bk（BK 契约，3 个镜像）
+
+```toml
+apiVersion = "cnb/v1"
+kind       = "Pipeline"
+
+[metadata]
+name = "offline-paketo-bk"
+
+[spec.project]
+dir      = "project/offline-paketo-bk"
+platform = "linux-amd64"
+
+[[spec.stages]]
+name    = "base"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo-bk/docker/builder-base.dockerfile",
+  "-t", "offline-builder-base-bk:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "run"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo-bk/docker/run.dockerfile",
+  "-t", "offline-run-bk:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "builder"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo-bk/docker/builder-build.dockerfile",
+  "-t", "offline-builder-build-bk:latest",
+  "--build-context", "bundle=${bundle}/${platform}",
+  "--build-context", "buildpacks=buildpacks/paketo",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:latest",
+  "--build-arg", "BP_GO_MIRROR=http://192.168.11.4:5000/",
+  "--build-arg", "BUNDLE_ARCH=${platform}",
+  ".",
+]
+```
+
+### A.3 offline-heroku-bk（heroku buildpacks + go-sdk）
+
+```toml
+apiVersion = "cnb/v1"
+kind       = "Pipeline"
+
+[metadata]
+name = "offline-heroku-bk"
+
+[spec.project]
+dir      = "project/offline-heroku-bk"
+platform = "linux-amd64"
+
+# ── 物料版本 ───────────────────────────────────────────────
+[spec.assets.lifecycle]
+version = "0.21.29"
+
+[spec.assets.fnm]
+version = "1.39.0"
+
+[spec.assets.uv]
+version = "0.13.8"
+
+[spec.assets.docker]
+version = "27.0.3"
+
+[spec.assets.jq]
+version = "1.8.2"
+
+[spec.assets.yq]
+version = "4.54.3"
+
+[spec.assets.pack]
+version = "0.40.11"
+
+[spec.assets.go-sdk]
+version = "1.27.4"
+
+[[spec.stages]]
+name    = "base"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-heroku-bk/docker/builder-base.dockerfile",
+  "-t", "localhost/offline-heroku-bk/base:0.1.0-${arch}",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "run"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-heroku-bk/docker/run.dockerfile",
+  "-t", "localhost/offline-heroku-bk/run:0.1.0-${arch}",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
+
+[[spec.stages]]
+name    = "builder"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-heroku-bk/docker/builder-build.dockerfile",
+  "-t", "localhost/offline-heroku-bk/builder:0.1.0-${arch}",
+  "--build-context", "bundle=${bundle}/${platform}",
+  "--build-context", "buildpacks=buildpacks/heroku",
+  "--build-arg", "BASE_IMAGE_TAG=localhost/offline-heroku-bk/base:0.1.0-${arch}",
+  "--build-arg", "ARCH=${arch}",
+  "--build-arg", "GO_VERSION=go1.26.5",
+  ".",
+]
+```
+
+### A.4 旧结构里消失的东西
+
+| 旧字段 | 去处 |
+|---|---|
+| `schema = 1` | `apiVersion = "cnb/v1"` |
+| `[project]` / `[docker]` | `spec.project`；`bundle_layout` 由 lock `[storage].layout` 决定 |
+| `[assets.*]` | 改为 `spec.assets.*`：仍按项目锁版本，省略取 lock default |
+| `[images.*]` | 删除：直接写进 `spec.stages[].run` |
+| `[commands.*]` | 删除：同上 |
+| `inject_versions` | 删除：改为在 `run` 里显式 `--build-arg X_VERSION=${asset.x.version}` |
+| `desc` | 删除：注释即可 |
+| `after` | 删除：`stages` 列表顺序即顺序 |
+| `${image.base.tag}` | 改为字面量（与 base stage 的 `-t` 相同） |
