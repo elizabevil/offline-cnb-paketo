@@ -53,6 +53,8 @@
 
 ## 六、协议常量归属
 
+协议的解析器归属见 [协议分层](../design/protocol-layers.md)：每个协议只有一个解析器，统一放在 `internal/spec/*`。
+
 - 清单相关（平台、解包方式、段落名、默认文件名）→ `lock`
 - 计划相关（阶段类型）→ `profile`
 - 同步动作 → `materials`

@@ -20,8 +20,8 @@ const (
 	envPlatformAPI = "CNB_PLATFORM_API"
 	envRunUser     = "CNB_RUN_USER"
 	envLayoutDir   = "CNB_LAYOUT_DIR"
-	envLayerArch   = "BKS_LAYER_ARCHIVE"
 	envRunArchive  = "BKS_RUN_IMAGE_ARCHIVE"
+	envExportMode  = "CNB_EXPORT_MODE"
 
 	// lifecycle 二进制的默认位置（可在 flags 覆盖）。
 	defaultLifecycleDir = "/cnb/lifecycle"
@@ -64,13 +64,12 @@ func configFromEnv() lifecycle.Config {
 			SourceURL: os.Getenv(envSourceURL),
 		},
 		Export: lifecycle.ExportTarget{
+			Mode:            lifecycle.ExportMode(envOr(envExportMode, string(lifecycle.ExportLayout))),
 			OutputImage:     os.Getenv(envOutputImage),
 			RunImage:        envOr(envRunImage, "fake-cnb-runner:latest"),
 			RunImageArchive: os.Getenv(envRunArchive),
 			CacheImage:      os.Getenv(envCacheImage),
-			Layout:          true,
 			LayoutDir:       envOr(envLayoutDir, "/layers/oci"),
-			LayerArchive:    os.Getenv(envLayerArch),
 		},
 		Runtime: lifecycle.RuntimeOptions{
 			PlatformAPI: envOr(envPlatformAPI, "0.15"),

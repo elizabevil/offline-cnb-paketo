@@ -34,6 +34,9 @@ func (c Config) Phases() []Phase {
 		{Name: PhaseDetect, Bin: c.Bins.Detector, Args: c.detectArgs(), User: c.Runtime.User},
 		{Name: PhaseBuild, Bin: c.Bins.Builder, Args: c.buildArgs(), User: c.Runtime.User},
 	}
+	if c.Export.Mode == ExportNone {
+		return phases
+	}
 	if c.Export.RunImage != "" {
 		phases = append(phases, Phase{
 			Name: PhaseAnalyze, Bin: c.Bins.Analyzer, Args: c.analyzeArgs(),
@@ -130,7 +133,7 @@ func (c Config) runPhase(p Phase) error {
 		envPlatformDir + "=" + c.Paths.Platform,
 	}
 	// OCI layout 在 lifecycle 里仍标记为实验特性
-	if c.Export.Layout {
+	if c.Export.Mode == ExportLayout || c.Export.Mode == "" {
 		env = append(env, envExperimental+"=warn")
 	}
 	cmd.Env = append(os.Environ(), env...)
@@ -152,7 +155,7 @@ const minLayoutPlatformAPI = "0.12"
 
 // effectivePlatformAPI 在 layout 模式下抬高 Platform API 下限。
 func (c Config) effectivePlatformAPI() string {
-	if !c.Export.Layout {
+	if c.Export.Mode != ExportLayout && c.Export.Mode != "" {
 		return c.Runtime.PlatformAPI
 	}
 	if semver.Compare("v"+c.Runtime.PlatformAPI, "v"+minLayoutPlatformAPI) < 0 {
