@@ -16,6 +16,14 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/version"
 )
 
+// 输出格式名（命令行与内部共用）。
+const (
+	// FormatJSON 是 JSON 输出。
+	FormatJSON = "json"
+	// FormatYAML 是 YAML 输出。
+	FormatYAML = "yaml"
+)
+
 type row struct {
 	Index      int      `json:"index" yaml:"index"`
 	Kind       string   `json:"kind" yaml:"kind"`
@@ -182,7 +190,7 @@ func Format(p *profile.Plan, format string) (string, error) {
 		return Table(p), nil
 	case "shell":
 		return Shell(p), nil
-	case "json":
+	case FormatJSON:
 		b, err := JSON(p)
 		if err != nil {
 			return "", err
@@ -306,13 +314,13 @@ func shortPath(root, path string) string {
 // FormatStruct 把任意结构体按 yaml / json 输出。
 func FormatStruct(v any, format string) (string, error) {
 	switch format {
-	case "json":
+	case FormatJSON:
 		b, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
 			return "", err
 		}
 		return string(b) + "\n", nil
-	case "yaml", "":
+	case FormatYAML, "":
 		b, err := yaml.Marshal(v)
 		if err != nil {
 			return "", err

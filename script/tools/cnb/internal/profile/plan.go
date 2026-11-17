@@ -74,6 +74,8 @@ type PlanStage struct {
 }
 
 // BuildPlan 校验配置并生成计划。
+//
+//nolint:funlen // TODO(protocol-layers): 资产信息与阶段展开拆成独立函数
 func (p *File) BuildPlan(platform lock.Platform, l *lock.File) (*Plan, error) {
 	if errs := p.Validate(string(platform), l); len(errs) > 0 {
 		return nil, fmt.Errorf("%s", strings.Join(errs, "; "))

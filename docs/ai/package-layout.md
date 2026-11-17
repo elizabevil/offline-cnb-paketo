@@ -6,12 +6,15 @@
 
 | 层 | 包 | 允许依赖 |
 |---|---|---|
+| 协议 | `spec/*`（manifest、profile、lifecycle、platform、imagefmt） | 仅标准库、`errs`、`spec/warn` |
 | 基础设施 | `errs` `fsutil` `strutil` `timefmt` `tomledit` `user` `version` `workspace` `render` | 仅标准库与同层 |
 | 领域模型 | `lock` `materials` `profile` `checks` | 基础设施 + 同层 |
 | 执行 | `lifecycle` `pipeline` `archive` `repack` | 以上全部 |
 | 入口 | `cmd/cnb` | 任意 internal |
 
-依赖方向只能自上而下。出现反向依赖（领域包 import 执行包）说明职责放错了。
+依赖方向只能自上而下：入口 → 执行 → 领域 → 基础设施 → 协议。
+**协议包不得依赖任何业务包**；业务包只能消费协议包的结构体，禁止二次解析。
+协议包开发规范见 [protocol-spec.md](protocol-spec.md)。
 
 ## 二、什么时候该新建包
 

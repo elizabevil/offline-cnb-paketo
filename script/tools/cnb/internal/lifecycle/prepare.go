@@ -33,7 +33,7 @@ func (c Config) extractSource() error {
 		return err
 	}
 	if err := ExtractTarGz(src, c.Paths.App); err != nil {
-		return errs.Wrap("解包源码", err)
+		return errs.Wrap("extract source", err)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 )
 
+//nolint:funlen // TODO(protocol-layers): 拆分为每个子命令一个构造函数
 func newProfileCmd() *cobra.Command {
 	parent := &cobra.Command{Use: "profile", Short: "流水线配置：校验与渲染"}
 

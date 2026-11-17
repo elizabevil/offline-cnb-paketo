@@ -15,14 +15,14 @@ type AssetRef struct {
 // ParseRef 解析 "id@version"；没有 @ 时 Version 为空。
 func ParseRef(s string) (AssetRef, error) {
 	if s == "" {
-		return AssetRef{}, &errs.Invalid{Field: "ref", Value: s, Reason: "empty"}
+		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty"}
 	}
 	id, version, hasVer := strings.Cut(s, "@")
 	if id == "" {
-		return AssetRef{}, &errs.Invalid{Field: "ref", Value: s, Reason: "empty id"}
+		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty id"}
 	}
 	if hasVer && version == "" {
-		return AssetRef{}, &errs.Invalid{Field: "ref", Value: s, Reason: "empty version"}
+		return AssetRef{}, &errs.Invalid{Field: fieldRef, Value: s, Reason: "empty version"}
 	}
 	return AssetRef{ID: id, Version: version}, nil
 }

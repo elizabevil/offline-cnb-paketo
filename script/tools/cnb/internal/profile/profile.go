@@ -120,6 +120,7 @@ func (p *File) Name() string { return p.Project.Name }
 // DefaultPlatform 返回配置里的默认平台。
 func (p *File) DefaultPlatform() string { return p.Project.Platform }
 
+//nolint:funlen // TODO(protocol-layers): 按 image/command 分别渲染
 func (p *File) render(l *lock.File, platform string) string {
 	tags := map[string]string{}
 	// 物料版本自动注入为 <ID>_VERSION，供 Dockerfile 拼路径，避免版本写两处

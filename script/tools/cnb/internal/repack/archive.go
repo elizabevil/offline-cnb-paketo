@@ -16,6 +16,8 @@ import (
 )
 
 // extractTar 解包 tar / tar.gz 到 dest（按文件头类型还原目录、链接、权限、mtime）。
+//
+//nolint:cyclop,funlen // TODO(protocol-layers): 条目类型分支拆成处理函数
 func extractTar(archive, dest string) error {
 	f, err := os.Open(archive)
 	if err != nil {

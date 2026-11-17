@@ -57,6 +57,37 @@ check: tools
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} vet ./... && echo "  ✓ go vet 通过"
+    @echo "── 协议边界（迁移白名单：阶段 2/4 后移除 lock、profile）──"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rn 'toml.Unmarshal' --include='*.go' internal \
+        | grep -v '^internal/spec/' \
+        | grep -v '^internal/lock/' \
+        | grep -v '^internal/profile/' || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 只允许 spec 包解析 TOML:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ TOML 解析只在 spec 包"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rn 'BKS_\|app_desc\|cnb-image-layers' --include='*.go' internal || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 通用包不得出现平台私有协议:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ internal 无平台私有协议"
+
+    @echo "── Go 语言约束 ──"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rn 'io/ioutil' --include='*.go' . || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 禁止 io/ioutil:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ 无 io/ioutil"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(find internal cmd -type d \( -name util -o -name common -o -name misc -o -name types -o -name api \) 2>/dev/null || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 禁止无意义包名:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ 包名无 util/common/misc/types/api"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rnE 'errs\.(New|Wrap|Invalid|NotFound|Missing).*"[^"]*[一-龥]' --include='*.go' internal cmd || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 错误信息必须为英文:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ 错误信息为英文"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rn 'tlsunsafeekm\|tlsrsakex\|tls3des\|tls10server\|x509keypairleaf\|gotypesalias' --include='*.go' . || true); \
+      if [ -n "$bad" ]; then echo "  ✗ 禁止已移除的 GODEBUG:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ 无已移除的 GODEBUG"
+
     @echo "── go 单测 ──"
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} test ./...

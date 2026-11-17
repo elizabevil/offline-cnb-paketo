@@ -29,13 +29,13 @@ var (
 func ParsePlatform(s string) (Platform, error) {
 	osName, arch, ok := strings.Cut(s, "-")
 	if !ok {
-		return "", &errs.Invalid{Field: "platform", Value: s, Reason: "expect <os>-<arch>"}
+		return "", &errs.Invalid{Field: fieldPlatform, Value: s, Reason: "expect <os>-<arch>"}
 	}
 	if !knownOS[osName] {
-		return "", &errs.Invalid{Field: "platform", Value: s, Reason: "unsupported os " + osName}
+		return "", &errs.Invalid{Field: fieldPlatform, Value: s, Reason: "unsupported os " + osName}
 	}
 	if !knownArch[arch] {
-		return "", &errs.Invalid{Field: "platform", Value: s, Reason: "unsupported arch " + arch}
+		return "", &errs.Invalid{Field: fieldPlatform, Value: s, Reason: "unsupported arch " + arch}
 	}
 	return Platform(s), nil
 }

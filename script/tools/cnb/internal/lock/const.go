@@ -11,3 +11,9 @@ const (
 	// LayoutKindFirst 是 bundle/binaries/<platform>/... 布局。
 	LayoutKindFirst = "kind-first"
 )
+
+// 常用字段名（错误信息与校验共用，避免重复字面量）。
+const (
+	fieldRef      = "ref"
+	fieldPlatform = "platform"
+)

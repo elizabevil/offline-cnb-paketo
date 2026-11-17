@@ -67,7 +67,7 @@ func Find(f *File, ref Ref) (*Asset, error) {
 		for _, i := range matches {
 			versions = append(versions, f.Assets[i].Version)
 		}
-		return nil, &errs.Invalid{Field: "ref", Value: id, Reason: fmt.Sprintf("multiple versions, use id@version (available: %s)", strings.Join(versions, ", "))}
+		return nil, &errs.Invalid{Field: fieldRef, Value: id, Reason: fmt.Sprintf("multiple versions, use id@version (available: %s)", strings.Join(versions, ", "))}
 	}
 }
 

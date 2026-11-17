@@ -8,6 +8,8 @@ import (
 )
 
 // Validate 检查清单结构，返回错误条数。
+//
+//nolint:gocognit,cyclop,funlen // TODO(protocol-layers): 按 storage/asset/引用分节校验
 func (f *File) Validate() int {
 	var errs []string
 	switch f.Storage.Layout {

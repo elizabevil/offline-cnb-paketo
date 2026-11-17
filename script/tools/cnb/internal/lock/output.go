@@ -30,7 +30,7 @@ func (f *File) WriteShell(w io.Writer, ref Ref, platform Platform) error {
 	}
 	url, ok := asset.URL(platform)
 	if !ok && !asset.IsLocal() {
-		return &errs.Invalid{Field: "platform", Value: string(platform), Reason: fmt.Sprintf("not supported by %s (supported: %s)", ref, strings.Join(slices.Sorted(maps.Keys(asset.Platform)), ", "))}
+		return &errs.Invalid{Field: fieldPlatform, Value: string(platform), Reason: fmt.Sprintf("not supported by %s (supported: %s)", ref, strings.Join(slices.Sorted(maps.Keys(asset.Platform)), ", "))}
 	}
 	dir := asset.Dir()
 	if dir == "" {

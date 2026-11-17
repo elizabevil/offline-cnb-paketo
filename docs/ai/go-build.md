@@ -4,6 +4,8 @@ Go 开发规范
 适用范围：团队所有 Go 项目
 强制工具：gofmt、go vet、golangci-lint
 
+相关规范：协议解析见 [protocol-spec.md](protocol-spec.md)，包分层见 [package-layout.md](package-layout.md)。
+
 一、常量与字面量
 1.1 禁止魔法字面量
 代码中不得直接出现含义不明的数字或字符串字面量。以下类型必须定义为常量：
@@ -246,3 +248,38 @@ go mod tidy 行为变化：Go 1.27 起，go mod tidy 会自动将 go.mod 中多�
 □ 升级 Go 版本后执行过 go fix ./...
 □ go.mod 中 require 块由 go mod tidy 维护，无手动分散块
 参考：Go Code Review Comments、Effective Go、Go 1.27 Release Notes、Go 1.27 Blog。本规范未覆盖的细节以上述来源为准。
+
+九、约束的自动化验证
+
+规范由 `just check` 强制执行，不依赖人工记忆。
+
+| 规则 | 工具 / 检查 | 阈值或范围 |
+|---|---|---|
+| 1.1 禁止魔法字面量 | `goconst`（min-occurrences=3，忽略测试） | 重复 3 次以上必须常量化 |
+| 2.1 重复逻辑 | `dupl`（threshold=150） | 超过 150 token 的重复块 |
+| 2.2 函数边界 | `funlen`（80 行 / 50 语句）、`gocognit`（45）、`cyclop`（22） | 超限需拆分或 `//nolint` 说明 |
+| 3.1 接口定义位置 | 人工评审 | — |
+| 3.3 接口编译期断言 | 人工评审 | — |
+| 4.1 缩写词大小写 | `revive`（var-naming） | — |
+| 4.2 包名 | `just check`：禁止 util/common/misc/types/api 目录 | 硬失败 |
+| 5.1 错误流程缩进 | `revive` / `gocritic` | — |
+| 5.2 禁止丢弃错误 | `errcheck` | 仅排除 fmt 输出 |
+| 7.1 禁止 io/ioutil | `just check` grep | 硬失败 |
+| 7.1 已移除的 GODEBUG | `just check` grep（tlsunsafeekm 等 6 个） | 硬失败 |
+| 团队约定：错误信息为英文 | `just check` grep 中文错误 | 硬失败 |
+| 协议单一解析器 | `just check` grep `toml.Unmarshal` | 仅允许 `internal/spec/` |
+| 平台私有协议不进通用包 | `just check` grep `BKS_` / `app_desc` / `cnb-image-layers` | 硬失败 |
+
+复杂度阈值是当前基线，只降不升。已知待拆分函数用 `//nolint:<linter> // TODO(protocol-layers): 原因` 标注，
+`nolintlint` 要求必须带原因，避免变成永久豁免。
+
+当前待拆分清单（随重构递减）：
+
+| 函数 | 问题 |
+|---|---|
+| `cmd/cnb.newProfileCmd` | 137 行，按子命令拆分 |
+| `profile.BuildPlan` | 85 行，资产信息与阶段展开拆开 |
+| `profile.render` | 56 语句，按 image/command 分开渲染 |
+| `repack.normalizeWebTar` | 73 语句，manifest/层复制/索引写入拆开 |
+| `lock.Validate` | 认知复杂度 46，按 storage/asset/引用分节 |
+| `repack.extractTar` | 圈复杂度 26，条目类型分支拆成处理函数 |

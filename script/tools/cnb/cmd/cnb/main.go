@@ -100,7 +100,7 @@ func resolveRepo() (string, error) {
 	}
 	root, err := workspace.FindFromWorkingDir()
 	if err != nil {
-		return "", errs.Wrap("定位仓库根", err)
+		return "", errs.Wrap("locate repo root", err)
 	}
 	return root, nil
 }

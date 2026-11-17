@@ -29,5 +29,8 @@ func FilterOrder(src, required string, aliases map[string]string) ([]byte, error
 	if required == "" {
 		return data, nil
 	}
+	if len(kept.Order) == 0 {
+		return nil, &errs.Invalid{Field: "REQUIRED_BUILDPACKS", Value: required, Reason: "no matching order entries"}
+	}
 	return kept.Encode()
 }

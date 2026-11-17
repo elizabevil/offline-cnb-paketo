@@ -93,6 +93,7 @@ func normalizePackageTarball(pkgTar string) error {
 
 // ── web.tgz 规范化 ──────────────────────────────────────────────────────────
 
+//nolint:funlen // TODO(protocol-layers): manifest 解析、层复制、索引写入拆开
 func normalizeWebTar(webTar string) error {
 	tempRoot, err := os.MkdirTemp("", TempWebPrefix)
 	if err != nil {
