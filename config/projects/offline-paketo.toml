@@ -1,59 +1,61 @@
-# ─── offline-paketo 流水线 ───────────────────────────────────────────────────
-# 分区：项目信息 / 构建参数 / 物料 / 镜像 / 命令
-# 改版本 → [assets.*]；改镜像 → [images.*]；改流程顺序 → after
+apiVersion = "cnb/v1"
+kind       = "Pipeline"
 
-schema = 1
+[metadata]
+name = "offline-paketo"
 
-[project]
-name     = "offline-paketo"
+[spec.project]
 dir      = "project/offline-paketo"
 platform = "linux-amd64"
 
-[docker]
-buildpacks_context = "buildpacks/paketo"
-context       = "project/offline-paketo"   # docker build 上下文（项目目录）
-bundle_layout = "arch-first"  # bundle/<platform>/{archives,binaries}
-
-# ── 物料：键名即 id；version 省略则取 lock 的 default ───────────────────────
-[assets.cnb]
+[spec.assets.cnb]
 version = "3.0.0"
 
-[assets.lifecycle]
+[spec.assets.lifecycle]
 version = "0.21.29"
 
-[assets.fnm]
+[spec.assets.fnm]
 version = "1.39.0"
 
-[assets.uv]
+[spec.assets.uv]
 version = "0.13.8"
 
-# ── 镜像：键名即阶段名；after 决定顺序 ──────────────────────────────────────
-[images.base]
-desc       = "系统依赖层：apt / CA 证书 / curl / unzip"
-dockerfile = "docker/base.dockerfile"
-tag        = "offline-builder-base:latest"
-args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
+[[spec.stages]]
+name    = "base"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/base.dockerfile",
+  "-t", "offline-builder-base:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
 
-[images.run]
-desc       = "运行时层：glibc 基础镜像（Node/Python 二进制需要 glibc，不能用 alpine/musl）"
-dockerfile = "docker/run.dockerfile"
-tag        = "offline-run:latest"
-args       = { BASE_IMAGE = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
+[[spec.stages]]
+name    = "run"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/run.dockerfile",
+  "-t", "offline-run:latest",
+  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  ".",
+]
 
-[images.builder]
-inject_versions = ["lifecycle", "fnm", "uv", "cnb"]
-desc       = "构建层：lifecycle + node/python/procfile buildpack"
-dockerfile = "docker/builder.dockerfile"
-tag        = "offline-builder:latest"
-args       = { BASE_IMAGE_TAG = "${image.base.tag}", PROCFILE_BP_TAG = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4" }
-
-# ── 流程：顺序即数组顺序 ──────────────────────────────────────────────────
-
-[[stage]]
-image = "base"
-
-[[stage]]
-image = "run"
-
-[[stage]]
-image = "builder"
+[[spec.stages]]
+name    = "builder"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "project/offline-paketo/docker/builder.dockerfile",
+  "-t", "offline-builder:latest",
+  "--build-context", "bundle=${bundle}/${platform}",
+  "--build-context", "buildpacks=buildpacks/paketo",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
+  "--build-arg", "PROCFILE_BP_TAG=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4",
+  "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
+  "--build-arg", "FNM_VERSION=${asset.fnm.version}",
+  "--build-arg", "UV_VERSION=${asset.uv.version}",
+  "--build-arg", "CNB_VERSION=${asset.cnb.version}",
+  ".",
+]

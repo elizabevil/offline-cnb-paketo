@@ -17,22 +17,22 @@ const (
 	PlaceholderSuffix = "}"
 )
 
-// vars 保存受控占位符的取值。
+// vars 保存受控占位符的替换表。
 type vars struct {
-	values map[string]string
+	replacer *strings.Replacer
 }
 
-// newVars 构建占位符表：platform/arch/bundle + 每个已声明物料的 version。
+// newVars 构建替换表：platform/arch/bundle + 每个已声明物料的 version。
 func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 	platform := manifest.Platform(f.Spec.Project.Platform)
 	if _, err := manifest.ParsePlatform(string(platform)); err != nil {
 		return vars{}, err
 	}
-	v := vars{values: map[string]string{
-		"platform": string(platform),
-		"arch":     manifest.ArchOf(platform),
-		"bundle":   opts.Bundle,
-	}}
+	pairs := []string{
+		PlaceholderPrefix + "platform" + PlaceholderSuffix, string(platform),
+		PlaceholderPrefix + "arch" + PlaceholderSuffix, manifest.ArchOf(platform),
+		PlaceholderPrefix + "bundle" + PlaceholderSuffix, opts.Bundle,
+	}
 	for _, id := range slices.Sorted(maps.Keys(f.Spec.Assets)) {
 		version := f.Spec.Assets[id].Version
 		if version == "" {
@@ -42,39 +42,29 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 			}
 			version = a.Version
 		}
-		v.values["asset."+id+".version"] = version
+		pairs = append(pairs, PlaceholderPrefix+"asset."+id+".version"+PlaceholderSuffix, version)
 	}
-	return v, nil
+	return vars{replacer: strings.NewReplacer(pairs...)}, nil
 }
 
-// expand 替换字符串中的占位符；未知占位符报错。
+// expand 一次性替换已知占位符；出现未知占位符时报错。
 func (v vars) expand(s string) (string, error) {
-	var b strings.Builder
-	rest := s
-	for {
-		start := strings.Index(rest, PlaceholderPrefix)
-		if start < 0 {
-			b.WriteString(rest)
-			break
-		}
-		b.WriteString(rest[:start])
-		body := rest[start+len(PlaceholderPrefix):]
-		name, tail, ok := strings.Cut(body, PlaceholderSuffix)
-		if !ok {
-			return "", &errs.Invalid{Field: "placeholder", Value: s, Reason: "missing closing brace"}
-		}
-		value, known := v.values[name]
-		if !known {
-			return "", &errs.Invalid{Field: "placeholder", Value: name, Reason: "unknown placeholder"}
-		}
-		b.WriteString(value)
-		rest = tail
+	out := v.replacer.Replace(s)
+	if i := strings.Index(out, PlaceholderPrefix); i >= 0 {
+		return "", &errs.Invalid{Field: "placeholder", Value: placeholderAt(out, i), Reason: "unknown placeholder"}
 	}
-	return b.String(), nil
+	return out, nil
 }
 
-// sortedKeys 返回有序的 env 键。
-func sortedKeys(m map[string]string) []string { return slices.Sorted(maps.Keys(m)) }
+// placeholderAt 取出 out[i:] 处的占位符名称，仅用于错误信息。
+func placeholderAt(out string, i int) string {
+	body := out[i+len(PlaceholderPrefix):]
+	name, _, ok := strings.Cut(body, PlaceholderSuffix)
+	if !ok {
+		return out[i:]
+	}
+	return PlaceholderPrefix + name + PlaceholderSuffix
+}
 
 // BundlePath 返回物料在 bundle 内的路径（供调用方拼接，避免重复规则）。
 func BundlePath(bundle, platform, id, version string) string {

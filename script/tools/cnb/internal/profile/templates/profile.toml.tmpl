@@ -1,50 +1,30 @@
-# ─── {{.Name}} 流水线 ────────────────────────────────────────────────────────
-# 改版本 → [assets.*]；改镜像 → [images.*]；改流程顺序 → after
-# 所有路径都相对仓库根；校验：cnb pipeline profile validate config/projects/{{.Name}}.toml
-#
-# 发行版：{{.Distro}}（debian / ubuntu / alpine，影响 base 镜像与包管理器）
-#   debian → debian:trixie-slim / apt
-#   ubuntu → ubuntu:24.04 / apt
-#   alpine → alpine:3.20 / apk
+# ─── {{.Name}} 流水线 ──────────────────────────────────────────────────────
+# 结构：apiVersion / kind / metadata / spec（K8s 风格，TOML 格式）
+# 顺序：spec.stages 列表顺序即执行顺序
+# 校验：cnb pipeline profile validate config/projects/{{.Name}}.toml
 
-schema = 1
+apiVersion = "cnb/v1"
+kind       = "Pipeline"
 
-[project]
-name     = "{{.Name}}"
-dir      = "{{.Dir}}"          # 项目目录（相对仓库根）
+[metadata]
+name = "{{.Name}}"
+
+[spec.project]
+dir      = "{{.Dir}}"
 platform = "{{.Platform}}"
 
-[docker]
-context       = "."             # docker build 上下文（相对仓库根）
-bundle_layout = "arch-first"    # bundle/<platform>/{archives,binaries}
-
-# ── 物料：键名即 id，version 省略则取 lock 的 default ───────────────────────
-[assets.lifecycle]
+# ── 物料：本项目锁定的版本（省略则取 assets.lock.toml 的 default）──────────
+[spec.assets.lifecycle]
 version = "0.21.29"
 
-# [assets.fnm]
-# version = "1.39.0"
-
-# ── 镜像：键名即阶段名，after 决定顺序 ──────────────────────────────────────
-[images.base]
-dockerfile = "{{.Dir}}/docker/Dockerfile.base"
-tag        = "{{.Name}}-builder-base:latest"
-args       = { BASE_IMAGE = "{{.BaseImage}}" }
-
-# [images.builder]
-# dockerfile = "{{.Dir}}/docker/Dockerfile"
-# tag        = "{{.Name}}-builder:latest"
-# after      = ["base"]
-# args       = {}
-
-# ── 命令：构建完成后执行（打包、测试等），workdir 默认 = project.dir ─────────
-# [commands.package]
-# run     = "project/{{.Name}}/scripts/build.sh"
-# workdir = "{{.Dir}}"
-
-# ── 流程：顺序即数组顺序 ────────────────────────────────────────────────────
-[[stage]]
-image = "base"
-
-# [[stage]]
-# command = "package"
+# ── 阶段：一条命令 + 运行位置 ──────────────────────────────────────────────
+[[spec.stages]]
+name    = "base"
+workdir = "."
+run = [
+  "podman", "build",
+  "-f", "{{.Dir}}/docker/Dockerfile.base",
+  "-t", "{{.Name}}-base:latest",
+  "--build-arg", "BASE_IMAGE={{.BaseImage}}",
+  ".",
+]

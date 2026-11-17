@@ -2,19 +2,21 @@ package main
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
-	"learn-cnb-paketo/tools/cnb/internal/materials"
-	"learn-cnb-paketo/tools/cnb/internal/profile"
-	"learn-cnb-paketo/tools/cnb/internal/render"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/spf13/cobra"
+
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
+	"learn-cnb-paketo/tools/cnb/internal/profile"
+	"learn-cnb-paketo/tools/cnb/internal/render"
+	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-//nolint:funlen // TODO(protocol-layers): 拆分为每个子命令一个构造函数
+// newProfileCmd — 流水线配置的生成、校验与展示。
 func newProfileCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "profile", Short: "流水线配置：校验与渲染"}
+	parent := &cobra.Command{Use: "profile", Short: "流水线配置：生成 / 校验 / 查看"}
 
 	var (
 		initDir      string
@@ -33,9 +35,9 @@ func newProfileCmd() *cobra.Command {
 			if platform == "" {
 				platform = "linux-amd64"
 			}
-			out := mustProfilePath(name)
+			out := filepath.Join("config", "projects", name+".toml")
 			if _, err := os.Stat(out); err == nil {
-				return &exitError{code: 1, msg: fmt.Sprintf("已存在，拒绝覆盖: %s", out)}
+				return &exitError{code: ExitFailure, msg: "already exists: " + out}
 			}
 			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
 				return err
@@ -48,8 +50,6 @@ func newProfileCmd() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ 已生成 %s\n", out)
-
-			fmt.Fprintf(cmd.OutOrStdout(), "  下一步: 按需修改 [assets]/[images]，再执行 cnb profile validate %s\n", out)
 			return nil
 		},
 	}
@@ -60,70 +60,45 @@ func newProfileCmd() *cobra.Command {
 
 	parent.AddCommand(&cobra.Command{
 		Use: "validate <file>", Short: "校验流水线配置", Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			p, l, platform, err := openProfile(args[0])
-			if err != nil {
-				return err
-			}
-			if errs := p.Validate(string(platform), l); len(errs) > 0 {
-				for _, e := range errs {
-					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
-				}
-				return &exitError{code: 1}
-			}
-			fmt.Printf("  ✓ 流水线合法：%s（%d 个物料，%d 个镜像，平台 %s）\n",
-				p.Name(), len(p.Assets), len(p.Images), platform)
-			return nil
-		},
-	})
-
-	parent.AddCommand(&cobra.Command{
-		Use: "verify <file>", Short: "校验该流程用到的物料（哈希 / marker / 产物）", Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			p, l, platform, err := openProfile(args[0])
-			if err != nil {
-				return err
-			}
-			if errs := p.Validate(string(platform), l); len(errs) > 0 {
-				for _, e := range errs {
-					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
-				}
-				return &exitError{code: 1}
-			}
-			_, _, bundleDir, _ := open()
-			rep, err := materials.Check(l, bundleDir, platform, p.Refs(string(platform)))
-			if err != nil {
-				return &exitError{code: 1, msg: err.Error()}
-			}
-			if !printReport(rep, opts.strict, opts.quiet) {
-				return &exitError{code: 1}
-			}
-			return nil
-		},
-	})
-
-	parent.AddCommand(&cobra.Command{
-		Use: "assets <file>", Short: "列出该流程用到的物料引用（id@version）", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, l, platform, err := openProfile(args[0])
+			data, err := os.ReadFile(args[0])
 			if err != nil {
-				return err
+				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			_ = l
-			fmt.Fprintln(cmd.OutOrStdout(), strings.Join(p.Refs(string(platform)), " "))
+			f, warns, err := specprofile.Parse(data)
+			if err != nil {
+				return &exitError{code: ExitFailure, msg: err.Error()}
+			}
+			failed := 0
+			for _, w := range warns {
+				fmt.Fprintf(cmd.OutOrStdout(), "  ! %s\n", w.String())
+			}
+			for _, e := range f.Validate() {
+				failed++
+				fmt.Fprintf(cmd.OutOrStdout(), "  ✗ %v\n", e)
+			}
+			if failed > 0 {
+				return &exitError{code: ExitFailure}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ 流水线合法：%s（%d 个物料，%d 个阶段，平台 %s）\n",
+				f.Metadata.Name, len(f.Spec.Assets), len(f.Spec.Stages), f.Spec.Project.Platform)
 			return nil
 		},
 	})
 
 	var showFormat string
 	showCmd := &cobra.Command{
-		Use: "show <file>", Short: "分组展示配置（不平铺）", Args: cobra.ExactArgs(1),
+		Use: "show <file>", Short: "结构化展示配置", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := profile.Load(args[0])
+			data, err := os.ReadFile(args[0])
 			if err != nil {
-				return err
+				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			out, err := render.FormatStruct(p.Summary(), showFormat)
+			f, _, err := specprofile.Parse(data)
+			if err != nil {
+				return &exitError{code: ExitFailure, msg: err.Error()}
+			}
+			out, err := render.FormatStruct(f, showFormat)
 			if err != nil {
 				return &exitError{code: ExitUsage, msg: err.Error()}
 			}
@@ -134,21 +109,8 @@ func newProfileCmd() *cobra.Command {
 	showCmd.Flags().StringVar(&showFormat, "format", "yaml", "output format: yaml | json")
 	parent.AddCommand(showCmd)
 
-	parent.AddCommand(&cobra.Command{
-		Use: "render <file>", Short: "渲染为可执行 shell 片段", Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			p, l, platform, err := openProfile(args[0])
-			if err != nil {
-				return err
-			}
-			out, err := p.Render(string(platform), l)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "  ✗ %v\n", err)
-				return &exitError{code: 1}
-			}
-			fmt.Fprint(cmd.OutOrStdout(), out)
-			return nil
-		},
-	})
 	return parent
 }
+
+// assertWorkspace 保留 workspace 导入的显式使用（便于后续扩展）。
+var _ = workspace.Open

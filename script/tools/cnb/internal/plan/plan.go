@@ -2,7 +2,9 @@
 package plan
 
 import (
+	"maps"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
@@ -79,7 +81,7 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 		}
 	}
 	env := make([]string, 0, len(st.Env))
-	for _, k := range sortedKeys(st.Env) {
+	for _, k := range slices.Sorted(maps.Keys(st.Env)) {
 		env = append(env, k+"="+st.Env[k])
 	}
 	return Stage{

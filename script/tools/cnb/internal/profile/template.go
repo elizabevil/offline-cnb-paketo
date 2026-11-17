@@ -45,10 +45,10 @@ func Template(name, dir, platform, distro string) (string, error) {
 	if distro == "" {
 		distro = DistroDebian
 	}
-	base, pkgMgr, stackID := distroDefaults(distro)
+	base, _, _ := distroDefaults(distro)
 	data := TemplateData{
 		Name: name, Dir: dir, Platform: platform,
-		Distro: distro, BaseImage: base, PkgManager: pkgMgr, StackID: stackID,
+		Distro: distro, BaseImage: base,
 	}
 	return renderTemplate("templates/profile.toml.tmpl", data)
 }
