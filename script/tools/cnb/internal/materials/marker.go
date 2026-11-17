@@ -54,7 +54,7 @@ func writeMarker(bundleDir string, platform lock.Platform, m Marker) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// writeLegacyMarker 同步写 fetch.sh 时代的 .meta/<ref>.sha256，
+// writeLegacyMarker 同步写旧版 .meta/<ref>.sha256 标记，
 // 保持 materials verify（bundle 包）与 sync 的状态判断一致。
 func writeLegacyMarker(bundleDir string, platform lock.Platform, ref, sha string) error {
 	path := filepath.Join(binariesDir(bundleDir, platform), DirMeta, ref+".sha256")

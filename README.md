@@ -18,7 +18,7 @@ Learn-cnb-paketo/
 │   ├── ci.sh             #   门禁：结构 / 配置 / 物料
 │   ├── lib/common.sh     #   纯能力库（日志/平台/代理/下载/解压）
 │   ├── tools/cnb/        #   小工具源码（Go：lock / verify / pin / repack）
-│   └── bin/cnb           #   编译产物（不入库，`just tools` 生成）
+│   └── bin/cnb-linux-amd64  #   编译产物（不入库，`just tools` 生成）
 ├── bundle/               # 公共物料（不入库，可由 lock 重建）
 │   └── <platform>/            # 架构先行：linux-amd64 / linux-arm64
 │       ├── archives/          #   原始归档

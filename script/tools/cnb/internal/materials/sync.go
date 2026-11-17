@@ -106,7 +106,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m != nil && m.Extractor == extractorID(a) && m.SHA256 == a.SHA256(opts.Platform) {
 		return res
 	}
-	// 兼容旧标记（fetch.sh 的 .sha256）：产物齐全且归档校验通过时补写 marker
+	// 兼容旧标记（.sha256）：产物齐全且归档校验通过时补写 marker
 	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m == nil && isExtracted(opts.BundleDir, opts.Platform, a) {
 		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
 			_ = writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform))

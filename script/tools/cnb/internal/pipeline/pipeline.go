@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -16,7 +15,9 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/checks"
 	"learn-cnb-paketo/tools/cnb/internal/profile"
 
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
 // 阶段类型与外部脚本路径。
@@ -24,9 +25,6 @@ const (
 	KindImage   = lock.KindImage
 	KindCommand = lock.KindCommand
 	KindFetch   = lock.KindFetch
-
-	scriptFetch = "script/fetch.sh"
-	scriptImage = "script/lib/image-build.sh"
 
 	contextBundle     = lock.ContextBundle
 	contextBuildpacks = lock.ContextBuildpacks
@@ -42,6 +40,9 @@ const (
 // Options 是一次执行的选项。
 type Options struct {
 	Root       string
+	BundleDir  string
+	Lock       *lock.File
+	Platform   lock.Platform
 	Only       string
 	NoCommands bool
 }
@@ -78,14 +79,25 @@ func (r *Runner) selected(name string) bool {
 	return r.opts.Only == "" || r.opts.Only == name
 }
 
-// fetch 拉取计划用到的物料。
+// fetch 拉取计划用到的物料（直接调用 materials.Sync，不再经外部脚本）。
 func (r *Runner) fetch(plan *profile.Plan) error {
 	start := time.Now()
-	r.log.Info("fetch materials", "count", len(plan.Assets))
-	args := append([]string{"fetch", "--platform", plan.Platform}, plan.Assets...)
-	if err := r.exec(r.opts.Root, os.Environ(), filepath.Join(r.opts.Root, scriptFetch), args); err != nil {
-		r.log.Error("fetch failed", "err", err)
-		return fmt.Errorf("material fetch failed: %w", err)
+	ids := plan.Assets
+	r.log.Info("fetch materials", "count", len(ids))
+	results, err := materials.Sync(r.opts.Lock, ids, materials.Options{
+		BundleDir: r.opts.BundleDir,
+		Platform:  r.opts.Platform,
+		Logger:    r.log,
+	})
+	failed := 0
+	for _, res := range results {
+		if res.Err != nil {
+			failed++
+			r.log.Error("fetch failed", "ref", res.Ref, "err", res.Err)
+		}
+	}
+	if err != nil || failed > 0 {
+		return fmt.Errorf("material fetch failed: %d asset(s)", failed)
 	}
 	r.log.Info("fetch done", "took", time.Since(start).Round(time.Millisecond))
 	return nil
@@ -127,9 +139,14 @@ func (r *Runner) dispatch(plan *profile.Plan, st profile.PlanStage) error {
 	}
 }
 
-// buildImage 调用镜像构建脚本。
+// buildImage 直接调用容器 CLI 构建镜像（不再经外部脚本）。
 func (r *Runner) buildImage(plan *profile.Plan, st profile.PlanStage) error {
-	args := []string{plan.Context, st.Dockerfile, st.Tag, flagBuildContext, contextBundle + "=" + st.BundleCtx}
+	tool := containerTool()
+	if tool == "" {
+		return &errs.Missing{What: "podman / docker"}
+	}
+	args := []string{"build", "-f", st.Dockerfile, "-t", st.Tag}
+	args = append(args, flagBuildContext, contextBundle+"="+st.BundleCtx)
 	if st.BuildpacksCtx != "" {
 		args = append(args, flagBuildContext, contextBuildpacks+"="+st.BuildpacksCtx)
 	}
@@ -137,7 +154,21 @@ func (r *Runner) buildImage(plan *profile.Plan, st profile.PlanStage) error {
 	for _, k := range slices.Sorted(maps.Keys(st.Args)) {
 		args = append(args, flagBuildArg, k+"="+st.Args[k])
 	}
-	return r.exec(r.opts.Root, os.Environ(), filepath.Join(r.opts.Root, scriptImage), args)
+	args = append(args, plan.Context)
+	return r.exec(r.opts.Root, os.Environ(), tool, args)
+}
+
+// containerTool 返回可用的容器 CLI（可用 CONTAINER_TOOL 强制指定）。
+func containerTool() string {
+	if t := os.Getenv("CONTAINER_TOOL"); t != "" {
+		return t
+	}
+	for _, t := range []string{"podman", "docker"} {
+		if _, err := exec.LookPath(t); err == nil {
+			return t
+		}
+	}
+	return ""
 }
 
 // builderLabels 为 builder 镜像生成 metadata 与 stack.id 标签。

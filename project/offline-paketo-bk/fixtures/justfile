@@ -5,10 +5,12 @@ set shell := ["bash", "-uc"]
 
 _root := source_directory()
 _repo := _root / "../../.."
-_bps  := _repo / "script" / "bin" / "bksmartpacker"
+_bps  := env_var_or_default("BPS_BIN", _repo / "script" / "bin" / "bksmartpacker-linux-amd64")
+_cnb  := env_var_or_default("CNB_BIN", _repo / "script" / "bin" / "cnb-linux-amd64")
 _out  := "/tmp/bk-fixtures"
 
 builder := env_var_or_default("BUILDER_IMAGE", "localhost/offline-builder-build-bk:latest")
+_profile := env_var_or_default("CNB_PROFILE", _repo / "config" / "projects" / "offline-paketo-bk.toml")
 
 # 默认列出用法
 default:
@@ -16,7 +18,7 @@ default:
 
 # 构建三个镜像（base/run/builder），跳过打包阶段
 build:
-    @{{_repo}}/script/bin/cnb pipeline run {{_repo}}/config/projects/offline-paketo-bk.toml --no-commands
+    @{{_cnb}} pipeline run {{_profile}} --no-commands
 
 # 编译 bksmartpacker（源码不在仓库内，需本地存在）
 bps:

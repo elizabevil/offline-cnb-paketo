@@ -4,7 +4,7 @@
 
 _dir := justfile_directory()
 _root := _dir / ".." / ".."
-_cnb := _root / "script" / "bin" / "cnb"
+_cnb := env_var_or_default("CNB_BIN", _root / "script" / "bin" / "cnb-linux-amd64")
 # 被测流水线配置：默认本项目；CNB_PROFILE 可指向任意项目
 #   CNB_PROFILE=config/projects/other.toml just smart   （相对仓库根）
 #   CNB_PROFILE=/abs/path/other.toml just smart        （绝对路径）
@@ -40,7 +40,7 @@ fixtures *args:
 # ── bksmartpacker 全链路（一条命令）────────────────────────────────────────
 
 # 宿主工具统一放 script/bin/（与 cnb 同目录，构建产物不入库）
-_bps  := _root / "script" / "bin" / "bksmartpacker"
+_bps  := env_var_or_default("BPS_BIN", _root / "script" / "bin" / "bksmartpacker-linux-amd64")
 # 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
 _fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
 _out  := env_var_or_default("S_MART_OUT", _dir / "dist")
@@ -62,17 +62,11 @@ mounts := runtimes_mount + cache_mount
 
 # 构建三个镜像（跳过打包阶段）
 smart-builder *args:
-    @{{_root}}/script/bin/cnb pipeline run {{_profile}} --no-commands {{args}}
+    @{{_cnb}} pipeline run {{_profile}} --no-commands {{args}}
 
-# 编译 bksmartpacker（源码不入库，需本地存在）
+# 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:
-    # 清掉可能残留的 GOROOT/GOPATH（如上一次在容器内使用过的路径），
-    # 否则 make 会拿容器路径去编宿主二进制
-    # 直接产出 justfile 使用的文件名（make build-cli 只产出 *-ts4 后缀）
-    @cd {{_root}}/script/tools/bksmartpacker_v3 && \
-      env -u GOROOT -u GOPATH CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-      go build -o {{_bps}} ./cmd/bksmartpacker
-    @echo "  ✓ {{_bps}}"
+    @just --justfile {{_root}}/script/tools/bksmartpacker_v3/justfile build
     @out=$("{{_bps}}" --inspect /dev/null 2>&1 || true); \
       case "$out" in *"unknown flag"*) echo "  ⚠ 该二进制不含 --inspect，请确认源码已加";; esac
 

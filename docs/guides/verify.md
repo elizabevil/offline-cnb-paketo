@@ -36,11 +36,11 @@ just check && just verify
 
 ```bash
 # 1) 生效的 lock 合法
-script/bin/cnb --file assets.lock.toml validate
+script/bin/cnb-linux-amd64 --file assets.lock.toml validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 2) 模板不能腐烂（模板也是文档，改了字段却不同步模板 = 下一个人被误导）
-script/bin/cnb --file assets.lock.toml.example validate
+script/bin/cnb-linux-amd64 --file assets.lock.toml.example validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 3) shell 语法
@@ -72,9 +72,9 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 逐条手工验证：
 
 ```bash
-script/bin/cnb materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
-script/bin/cnb materials get lifecycle linux-amd64
-script/bin/cnb materials get nope linux-amd64; echo "exit=$?"   # 期望 2
+script/bin/cnb-linux-amd64 materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
+script/bin/cnb-linux-amd64 materials get lifecycle linux-amd64
+script/bin/cnb-linux-amd64 materials get nope linux-amd64; echo "exit=$?"   # 期望 2
 ```
 
 单测覆盖的是同一批契约：

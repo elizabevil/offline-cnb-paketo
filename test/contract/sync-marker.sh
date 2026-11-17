@@ -2,7 +2,7 @@
 # 契约：materials sync 的 marker 字段与 --check 行为
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CNB="${ROOT}/script/bin/cnb"
+CNB="${CNB_BIN:-${ROOT}/script/bin/cnb-linux-amd64}"
 
 "${CNB}" materials sync jq yq >/dev/null
 

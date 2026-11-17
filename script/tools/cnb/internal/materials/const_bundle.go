@@ -1,6 +1,6 @@
 package materials
 
-// 物料布局与标记文件约定（与 script/lib/common.sh、fetch.sh 保持一致）。
+// 物料布局与标记文件约定。
 const (
 	// DirArchives 存放下载归档。
 	DirArchives = "archives"

@@ -1,7 +1,7 @@
 # ─── script/justfile — 基座编排入口 ─────────────────────────────────────────
 # 被仓库根目录 justfile import；也可在 script/ 下直接 `just`。
 #
-# 设计原则：just 只做「参数转发 + 展示」，真正的逻辑在 script/bin/cnb。
+# 设计原则：just 只做「参数转发 + 展示」，真正的逻辑在 script/bin/cnb-linux-amd64。
 # 这样同一套能力可以被 CI、容器、其他脚本直接复用，不依赖 just。
 #
 # ⚠️ 路径语义：import 进来之后 `justfile_directory()` 指向仓库根，
@@ -27,7 +27,9 @@ _cnb_version := "3.0.0"
 # go 可能只存在于交互式 shell 的 PATH（just 用非交互 bash），这里显式探测。
 # 也可用环境变量覆盖：GO=/path/to/go just tools
 _go := env_var_or_default("GO", shell(_script + "/lib/go.sh"))
-_cnb_bin := _script / "bin" / "cnb"
+_tools_just := _script / "tools" / "justfile"
+# 工具产物命名：<工具>-<os>-<arch>
+_cnb_bin := env_var_or_default("CNB_BIN", _script / "bin" / "cnb-linux-amd64")
 
 # ── 视图 ────────────────────────────────────────────────────────────────────
 
@@ -39,21 +41,16 @@ list:
 doctor:
     @{{_cnb_bin}} --platform {{platform}} materials verify
 
-# 编译 lock 工具到 script/bin/lock（静态链接，可单独分发）
+# 编译工具（cnb / bksmartpacker）到 script/bin/<工具>-<os>-<arch>
 tools:
-    @mkdir -p {{_script}}/bin
-    @cd {{_script}}/tools/cnb && \
-      GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" CGO_ENABLED=0 \
-      {{_go}} build -trimpath -ldflags "-X learn-cnb-paketo/tools/cnb/internal/version.Version={{_cnb_version}} -s -w" -o ../../bin/cnb ./cmd/cnb && \
-      ../../bin/cnb materials publish cnb >/dev/null
-    @echo "  ✓ {{_script}}/bin/cnb → $({{_script}}/bin/cnb version)"
+    @just --justfile {{_tools_just}} build
 
 # 基座结构自检：lock 结构 + shell 语法 + go 静态检查
 check: tools
     @echo "── lock 结构 ──"
-    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml materials validate
+    @{{_cnb_bin}} --file {{_script}}/../assets.lock.toml materials validate
     @echo "── 模板合法性（防止模板腐烂）──"
-    @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml.example materials validate
+    @{{_cnb_bin}} --file {{_script}}/../assets.lock.toml.example materials validate
     @echo "── shell 语法 ──"
     @bash -n {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ bash -n 通过"
     @echo "── go 静态检查 ──"
@@ -86,7 +83,7 @@ pin *ids:
 
 # 规范化 SmartPackage 的 web.tgz（docker-save → OCI layout）；目标为目录或 *.tar.gz
 repack target:
-    @{{_script}}/bin/cnb pipeline repack {{target}}
+    @{{_cnb_bin}} pipeline repack {{target}}
 
 
 # ── 维护 ────────────────────────────────────────────────────────────────────

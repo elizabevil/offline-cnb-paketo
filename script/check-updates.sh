@@ -42,7 +42,7 @@ while IFS=$'\t' read -r id ver _rest; do
     printf '%-12s %-12s %-12s %s\n' "$id" "$cur" "$latest" "落后"
     stale=$((stale+1))
   fi
-done < <(script/bin/cnb materials list 2>/dev/null | awk -F'\t' '!seen[$1]++ {print $1"\t"$2}')
+done < <(script/bin/cnb-linux-amd64 materials list 2>/dev/null | awk -F'\t' '!seen[$1]++ {print $1"\t"$2}')
 
 printf '\n%-24s %-12s %-12s %s\n' "buildpack" "当前" "上游最新" "状态"
 printf '%s\n' "------------------------------------------------------------"

@@ -12,7 +12,7 @@ _cnb     := _root / "script" / "bin" / "cnb"
 _profile := _root / "config" / "projects" / "<name>.toml"
 ```
 
-禁止在 recipe 里写 `{{_dir}}/../../script/bin/cnb` 这类重复的相对路径。
+禁止在 recipe 里写 `{{_dir}}/../../script/bin/cnb-linux-amd64` 这类重复的相对路径。
 
 ## 二、必备 recipe
 
@@ -31,7 +31,7 @@ _profile := _root / "config" / "projects" / "<name>.toml"
 - 不写业务逻辑（编排、下载、解包都在 cnb）
 - 不写死镜像名（从 `pipeline plan` 推导）
 - 不使用 `set dotenv-load`（配置项放 `.toml`，环境变量由调用方注入）
-- 不引用已删除的旧入口（`fetch.sh`、`lib/common.sh` 等），统一走 `script/bin/cnb`
+- 不引用已删除的旧入口（`fetch.sh`、`lib/common.sh` 等），统一走 `script/bin/cnb-linux-amd64`
 
 ## 四、自检
 

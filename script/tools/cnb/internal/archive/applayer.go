@@ -53,9 +53,9 @@ type history struct {
 	EmptyLayer bool      `json:"empty_layer,omitempty"`
 }
 
-// 层内路径约定：应用与 launch 层内容都落在 workspace/ 下，
-// 与 BK 的 procCommand（如 ./workspace/app）保持一致。
-const workPrefix = "workspace"
+// 层内路径约定：应用与 launch 层内容都落在 app/ 下，
+// 与 BK 的 procCommand（如 /app/bin/start-web.sh）保持一致。
+const workPrefix = "app"
 
 // Build 把 launch 层（可选叠加应用源码）打成单层 docker-archive。
 //
@@ -77,7 +77,7 @@ func Build(appDir, layersDir, repoTag, arch, dest string, includeSource bool) er
 	cfg := imageConfig{
 		Architecture: arch,
 		OS:           DefaultOS,
-		Config:       runConfig{WorkingDir: "/workspace"},
+		Config:       runConfig{WorkingDir: "/app"},
 		RootFS:       rootFS{Type: "layers", DiffIDs: []string{"sha256:" + diffID}},
 		History:      []history{{Created: time.Now().UTC(), CreatedBy: "cnb apparchive"}},
 	}
@@ -194,9 +194,15 @@ func writeTree(tw *tar.Writer, root, prefix string) error {
 			return err
 		}
 		name := filepath.ToSlash(filepath.Join(prefix, rel))
+		// 保留源文件权限：bin/ 下的启动脚本与二进制必须是可执行位，
+		// 否则 /app/bin/start-web.sh 在容器里无法直接执行。
+		mode := info.Mode().Perm()
+		if mode == 0 {
+			mode = fileMode
+		}
 		hdr := &tar.Header{
 			Name:    name,
-			Mode:    fileMode,
+			Mode:    int64(mode),
 			Size:    info.Size(),
 			ModTime: info.ModTime(),
 		}

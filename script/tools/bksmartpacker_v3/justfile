@@ -1,0 +1,33 @@
+# ─── script/tools/bksmartpacker_v3/justfile — bksmartpacker 构建 ───────────
+# 产物：script/bin/bksmartpacker-<os>-<arch>（CGO_ENABLED=0 静态链接）
+# 源码不入库：本目录缺失时相关配方会直接报错
+# 用法：just --justfile script/tools/bksmartpacker_v3/justfile build
+
+set shell := ["bash", "-uc"]
+
+_dir := justfile_directory()
+_root := _dir / "../.."
+_out := _root / "bin"
+
+_host_arch := if arch() == "x86_64" { "amd64" } else if arch() == "aarch64" { "arm64" } else { arch() }
+_host := os() + "-" + _host_arch
+target := env_var_or_default("TARGET", _host)
+name := "bksmartpacker-" + target
+bin := _out / name
+
+_default:
+    @just --list
+
+# 编译到 script/bin/<name>（唯一 go build 入口）
+build:
+    @test -d {{_dir}}/cmd/bksmartpacker || { echo "  ✗ 缺少源码目录 {{_dir}}"; exit 1; }
+    @mkdir -p {{_out}}
+    @cd {{_dir}} && \
+      GOCACHE="${GOCACHE:-{{_root}}/../.cache/go-build}" \
+      CGO_ENABLED=0 \
+      GOOS=$(echo '{{target}}' | cut -d- -f1) \
+      GOARCH=$(echo '{{target}}' | cut -d- -f2) \
+      go build -trimpath \
+        -ldflags "-extldflags '-static' -s -w" \
+        -o {{bin}} ./cmd/bksmartpacker
+    @test -x {{bin}} && echo "  ✓ {{bin}}"

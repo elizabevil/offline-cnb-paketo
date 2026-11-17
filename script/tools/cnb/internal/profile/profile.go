@@ -253,7 +253,7 @@ func (p *File) Render(platform string, l *lock.File) (string, error) {
 	return p.render(l, platform), nil
 }
 
-// detectRuntime 探测可用的容器运行时（与 image-build.sh 的优先级一致）。
+// detectRuntime 探测可用的容器运行时（podman 优先，其次 docker）。
 func detectRuntime() string {
 	if _, err := exec.LookPath("podman"); err == nil {
 		return "podman"

@@ -73,11 +73,14 @@ func (c Config) exportArgs() []string {
 	var a args
 	a.flag("layers", c.Paths.Layers)
 	a.flag("app", c.Paths.App)
-	if c.Export.Layout {
+	switch c.Export.Mode {
+	case ExportLayout, "":
 		a.boolFlag("layout", true)
 		a.flag("layout-dir", c.layoutDir())
-	} else {
+	case ExportDaemon:
 		a.boolFlag("daemon", true)
+	case ExportNone:
+		// 不导出：调用方不应执行 exporter
 	}
 	a.flag("run-image", c.Export.RunImage)
 	a.flag("cache-image", c.Export.CacheImage)
