@@ -1,8 +1,10 @@
 package main
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
-	"learn-cnb-paketo/tools/cnb/internal/profile"
+
 	"learn-cnb-paketo/tools/cnb/internal/version"
 )
 
@@ -21,7 +23,7 @@ func newRootCmd() *cobra.Command {
 			// 需要仓库根的子命令会自行报错。
 			setupLogger(logLevel)
 			if root, err := resolveRepo(); err == nil {
-				profile.SetRepoRoot(root)
+				_ = os.Setenv("CNB_REPO_ROOT", root)
 			}
 			return nil
 		},
@@ -39,10 +41,11 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&opts.configDir, "config-dir", "config", "配置目录（相对仓库根）")
 
 	root.AddCommand(
-		newMaterialsCmd(), // 物料域
-		newPipelineCmd(),  // 流水线域
-		newBuildpackCmd(), // buildpack 域
-		newLifecycleCmd(), // CNB 执行器
+		newMaterialsCmd(),    // 物料域
+		newPipelineCmd(),     // 流水线域
+		newBuildpackCmd(),    // buildpack 域
+		newLifecycleCmd(),    // CNB 执行器
+		newPipelineLintCmd(), // 流水线 lint
 		newVersionCmd(),
 	)
 	return root

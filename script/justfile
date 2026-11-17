@@ -57,7 +57,7 @@ check: tools
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} vet ./... && echo "  ✓ go vet 通过"
-    @echo "── 协议边界（迁移白名单：阶段 4 后移除 profile）──"
+    @echo "── 协议边界 ──"
     @cd {{_script}}/tools/cnb && \
       bad=$(grep -rn 'toml.Unmarshal' --include='*.go' internal \
         | grep -v '^internal/spec/' \

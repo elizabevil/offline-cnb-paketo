@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
-	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
@@ -42,7 +41,7 @@ func newProfileCmd() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
 				return err
 			}
-			content, err := profile.Template(name, dir, platform, initDistro)
+			content, err := specprofile.Template(name, dir, platform, initDistro)
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}

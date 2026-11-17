@@ -4,7 +4,6 @@
 //
 //	internal/lock     物料清单解析与校验
 //	internal/bundle   物料落盘状态校验 / 哈希固定
-//	internal/profile  流水线配置（校验 + 渲染）
 //	internal/repack   SmartPackage 规范化
 //	internal/shell    shell 字面量转义
 package main
@@ -14,7 +13,6 @@ import (
 	"fmt"
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
-	"learn-cnb-paketo/tools/cnb/internal/profile"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 	"os"
 	"path/filepath"
@@ -69,22 +67,6 @@ func open() (*lock.File, lock.Platform, string, error) {
 		return nil, "", "", err
 	}
 	return ctx.Lock, ctx.Platform, ctx.Bundle, nil
-}
-
-// openProfile 载入 profile 与 lock，并解析平台。
-func openProfile(file string) (*profile.File, *lock.File, lock.Platform, error) {
-	l, platform, _, err := open()
-	if err != nil {
-		return nil, nil, "", err
-	}
-	p, err := profile.Load(file)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	if opts.platform == "" && p.DefaultPlatform() != "" {
-		platform = lock.Platform(p.DefaultPlatform())
-	}
-	return p, l, platform, nil
 }
 
 // resolveRepo 解析仓库根：--repo > CNB_REPO_ROOT > 可执行文件位置推导。

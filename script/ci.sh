@@ -25,9 +25,9 @@ done
 echo "── buildpack 结构检查 ──"
 script/bin/cnb-linux-amd64 buildpack lint buildpacks/*/*
 
-echo "── Dockerfile 静态检查 ──"
+echo "── 流水线 lint ──"
 for f in config/projects/*.toml; do
-  script/bin/cnb-linux-amd64 pipeline dockerfile check "$f"
+  script/bin/cnb-linux-amd64 lint "$f"
 done
 
 echo "── 物料校验（按流程）──"

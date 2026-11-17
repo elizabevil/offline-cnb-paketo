@@ -22,8 +22,7 @@ func newPipelineCmd() *cobra.Command {
 		Short: "build pipeline (plan, run, checks)",
 	}
 	cmd.AddCommand(
-		newPlanCmd(), newRunCmd(), newDoctorCmd(), newDockerfileCmd(),
-		newProfileCmd(), newRepackCmd(),
+		newPlanCmd(), newRunCmd(), newProfileCmd(), newRepackCmd(),
 	)
 	return cmd
 }
@@ -34,6 +33,6 @@ func newBuildpackCmd() *cobra.Command {
 		Use:   "buildpack",
 		Short: "buildpack tooling (lint, metadata)",
 	}
-	cmd.AddCommand(newLintCmd(), newBuilderCmd())
+	cmd.AddCommand(newLintCmd())
 	return cmd
 }
