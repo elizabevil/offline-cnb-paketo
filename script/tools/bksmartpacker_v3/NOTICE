@@ -1,0 +1,27 @@
+bksmartpacker_v3
+
+This directory contains an internal fork of the BlueKing bksmartpacker_v3
+tool. It is not an unmodified copy of the upstream repository.
+
+Upstream repository:
+  ssh://git@code.cwoa.net:43990/rd-fy22-canway-platform-products/bksmartpacker_v3.git
+
+Baseline commit:
+  e2025de feat: 工具构建切换静态链接
+
+Provenance:
+  Imported from a fork working tree, including the upstream working-tree
+  change that renames Makefile outputs with a "-ts4" suffix.
+
+Local modifications present at import time:
+  - BKS_CONTAINER_CLI: docker/podman runtime detection
+  - BKS_LAYER_ARCHIVE, BKS_RUN_IMAGE_ARCHIVE_FILE: layer/run-image archives
+  - BKS_DOCKER_SOCK, BKS_NETWORK, BKS_EXTRA_MOUNTS: runtime options
+  - standalone justfile build entry
+
+Later changes (export mode, target platform, default dest) are recorded as
+separate commits. See docs/ai/bksmartpacker-fork.md for maintenance notes and
+docs/ai/bksmartpacker-vs-upstream.md for the feature comparison.
+
+No upstream LICENSE file was present at the baseline commit; this NOTICE is
+the provenance record for the fork.

@@ -1,10 +1,6 @@
 package lifecycle
 
-import (
-	"log/slog"
-
-	"learn-cnb-paketo/tools/cnb/internal/errs"
-)
+import "log/slog"
 
 // Bins 指定四个 lifecycle 二进制的位置（由调用方决定）。
 type Bins struct {
@@ -55,22 +51,8 @@ type BuildInput struct {
 	SourceURL string
 }
 
-// ExportMode 是导出方式。
-type ExportMode string
-
-const (
-	// ExportDaemon 把镜像写进容器运行时（需要 run 镜像已在运行时内）。
-	ExportDaemon ExportMode = "daemon"
-	// ExportLayout 把镜像写成 OCI layout 目录（不依赖 daemon）。
-	ExportLayout ExportMode = "layout"
-	// ExportNone 只执行 detect/build/analyze，不导出镜像。
-	ExportNone ExportMode = "none"
-)
-
 // ExportTarget 是导出的目标。
 type ExportTarget struct {
-	// Mode 决定导出方式，默认 layout。
-	Mode ExportMode
 	// OutputImage 是应用镜像名。
 	OutputImage string
 	// RunImage 是 run 镜像引用。
@@ -79,27 +61,12 @@ type ExportTarget struct {
 	RunImageArchive string
 	// CacheImage 是缓存镜像（可为空）。
 	CacheImage string
-	// LayoutDir 是 layout 输出目录（Mode=layout 时使用）。
+	// Layout 为真时导出 OCI layout（跳过 app-layer 模式）。
+	Layout bool
+	// LayoutDir 是 layout 输出目录。
 	LayoutDir string
-}
-
-// Validate 校验导出配置的组合合法性。
-func (e ExportTarget) Validate() error {
-	switch e.Mode {
-	case ExportDaemon:
-		if e.RunImage == "" {
-			return &errs.Missing{What: "run image (export mode daemon)"}
-		}
-	case ExportLayout, "":
-		if e.LayoutDir == "" {
-			return &errs.Missing{What: "layout dir (export mode layout)"}
-		}
-	case ExportNone:
-		// 不导出，无需额外字段
-	default:
-		return &errs.Invalid{Field: "export mode", Value: string(e.Mode), Reason: "expect daemon | layout | none"}
-	}
-	return nil
+	// LayerArchive 非空时只导出应用层到该 docker-archive。
+	LayerArchive string
 }
 
 // RuntimeOptions 是运行时相关的选项。

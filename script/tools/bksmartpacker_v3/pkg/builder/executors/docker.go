@@ -181,8 +181,9 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 
 	// 挂载源码压缩包
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
-	// 导出方式：镜像写进容器运行时，构建后由本工具执行 image save
-	args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
+	// 层包输出：容器内的 cnb 直接把 docker-archive 写到宿主挂载目录，免走 daemon
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
+	args = append(args, "-e", fmt.Sprintf("BKS_LAYER_ARCHIVE=/cnb-layer/%s.tgz", step.ModuleName))
 	// run image 以 docker-archive 形式落盘并挂载，容器内不再需要 daemon
 	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
@@ -209,6 +210,17 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 }
 
 func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
+	// cnb 已在容器内导出 docker-archive（layout→archive），直接取用
+	produced := filepath.Join(workspace, "layers", step.ModuleName+".tgz")
+	if info, err := os.Stat(produced); err == nil && info.Size() > 0 {
+		fmt.Printf("using layer archive from cnb: %s\n", produced)
+		// s-mart 期望层包位于包根目录：<module>.tgz
+		if err := utils.Copy(produced, filepath.Join(workspace, step.ModuleName+".tgz")); err != nil {
+			return err
+		}
+		return os.RemoveAll(filepath.Join(workspace, "layers"))
+	}
+
 	args := []string{
 		"image", "save", "-o", fmt.Sprintf("%s/%s.tgz", workspace, step.ModuleName), step.OutputImage(),
 	}

@@ -35,13 +35,11 @@ podman 5.4 下 lifecycle 0.21 用 `-daemon` 导出会报
 现在的路径：
 
 ```
-podman load run-image.tar                    # ts4 / fake runner
-        ↓
-exporter -daemon                             # 镜像写进容器运行时
-        ↓
-bksmartpacker: podman image save -o <module>.tgz
-        ↓
-s-mart: .Version + app_desc + <module>.tgz
+exporter -layout -layout-dir=/layers/oci      # 不连 daemon
+        ↓ cnb 转换
+BKS_LAYER_ARCHIVE=/cnb-layer/<module>.tgz     # docker-archive
+        ↓ 挂载目录回宿主
+<workspace>/layers/<module>.tgz               # bksmartpacker 直接取用
 ```
 
-导出方式由 `CNB_EXPORT_MODE=daemon` 显式指定，cnb 不读 `BKS_*` 变量。
+bksmartpacker 侧只在找不到该文件时才回退到 `docker image save`。
