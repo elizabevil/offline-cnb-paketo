@@ -31,7 +31,7 @@ _profile := _root / "config" / "projects" / "<name>.toml"
 - 不写业务逻辑（编排、下载、解包都在 cnb）
 - 不写死镜像名（从 `pipeline plan` 推导）
 - 不使用 `set dotenv-load`（配置项放 `.toml`，环境变量由调用方注入）
-- 不引用 `script/fetch.sh` 等旧入口
+- 不引用已删除的旧入口（`fetch.sh`、`lib/common.sh` 等），统一走 `script/bin/cnb`
 
 ## 四、自检
 
@@ -67,6 +67,17 @@ _repo := _root / "../../.."     # fixtures → <name> → project → 仓库根
 
 `project/<name>/justfile` 则是两层（`_dir / ".." / ".."`）。
 两处写错都会出现 `failed to read justfile at .../project/justfile` 这类错误。
+
+## 七·五、单个案例目录
+
+| 项目 | 命令 | 说明 |
+|---|---|---|
+| offline-paketo | `just test-case /path/to/app` | lifecycle 直连跑一次（复用已建镜像） |
+| offline-paketo-bk | `just smart /path/to/app` | 建镜像 + 打包该目录 |
+| offline-paketo-bk | `just pack-case /path/to/app` | 只打包，不重建镜像 |
+| offline-paketo-bk | `just fixtures inspect <case>` | 查看已有 s-mart 结构 |
+
+BK 案例目录必须含 `app_desc.yaml`；其余按 detect 规则自动识别语言。
 
 ## 八、切换到其它项目 / 夹具
 

@@ -1,7 +1,7 @@
 # ─── script/justfile — 基座编排入口 ─────────────────────────────────────────
 # 被仓库根目录 justfile import；也可在 script/ 下直接 `just`。
 #
-# 设计原则：just 只做「参数转发 + 展示」，真正的逻辑在 script/fetch.sh。
+# 设计原则：just 只做「参数转发 + 展示」，真正的逻辑在 script/bin/cnb。
 # 这样同一套能力可以被 CI、容器、其他脚本直接复用，不依赖 just。
 #
 # ⚠️ 路径语义：import 进来之后 `justfile_directory()` 指向仓库根，
@@ -27,17 +27,17 @@ _cnb_version := "3.0.0"
 # go 可能只存在于交互式 shell 的 PATH（just 用非交互 bash），这里显式探测。
 # 也可用环境变量覆盖：GO=/path/to/go just tools
 _go := env_var_or_default("GO", shell(_script + "/lib/go.sh"))
-_fetch := _script / "fetch.sh"
+_cnb_bin := _script / "bin" / "cnb"
 
 # ── 视图 ────────────────────────────────────────────────────────────────────
 
-# 物料清单与状态（归档 / 哈希 / 解压）
+# 物料清单（TSV：id / version / 解包方式 / 平台）
 list:
-    @PLATFORM={{platform}} PROXY_URL='{{proxy}}' {{_fetch}} list
+    @{{_cnb_bin}} --platform {{platform}} materials list
 
-# 环境自检：依赖命令、lock 工具、代理连通性、bundle 体积
+# 物料自检：落盘状态、哈希、解压产物
 doctor:
-    @PLATFORM={{platform}} PROXY_URL='{{proxy}}' {{_fetch}} doctor
+    @{{_cnb_bin}} --platform {{platform}} materials verify
 
 # 编译 lock 工具到 script/bin/lock（静态链接，可单独分发）
 tools:
@@ -55,7 +55,7 @@ check: tools
     @echo "── 模板合法性（防止模板腐烂）──"
     @{{_script}}/bin/cnb --file {{_script}}/../assets.lock.toml.example materials validate
     @echo "── shell 语法 ──"
-    @bash -n {{_fetch}} {{_script}}/lib/common.sh && echo "  ✓ bash -n 通过"
+    @bash -n {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ bash -n 通过"
     @echo "── go 静态检查 ──"
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \
@@ -65,32 +65,29 @@ check: tools
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} test ./...
     @if command -v shellcheck >/dev/null 2>&1; then \
       echo "── shellcheck ──"; \
-      shellcheck -S warning {{_fetch}} {{_script}}/lib/common.sh && echo "  ✓ shellcheck 通过"; \
+      shellcheck -S warning {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ shellcheck 通过"; \
     else \
       echo "  · shellcheck 未安装，跳过"; \
     fi
 
 # ── 物料 ────────────────────────────────────────────────────────────────────
 
-# 下载 + 解压（不给 id 则全部）
+# 下载 + 校验 + 解包（不给 id 则全部）
 fetch *ids:
-    @PLATFORM={{platform}} PROXY_URL='{{proxy}}' {{_fetch}} fetch {{ids}}
+    @{{_cnb_bin}} --platform {{platform}} materials sync {{ids}}
 
 # 校验哈希与解压产物
 verify *ids:
-    @PLATFORM={{platform}} PROXY_URL='{{proxy}}' {{_fetch}} verify {{ids}}
+    @{{_cnb_bin}} --platform {{platform}} materials verify {{ids}}
 
 # 由本地归档反推 sha256（打印片段，人工回填 lock）
 pin *ids:
-    @PLATFORM={{platform}} {{_fetch}} pin {{ids}}
+    @{{_cnb_bin}} --platform {{platform}} materials pin {{ids}}
 
 # 规范化 SmartPackage 的 web.tgz（docker-save → OCI layout）；目标为目录或 *.tar.gz
 repack target:
     @{{_script}}/bin/cnb pipeline repack {{target}}
 
-# 从历史子项目 bundle 导入归档（不覆盖、不回写 lock）
-import-legacy *ids:
-    @PLATFORM={{platform}} {{_fetch}} import-legacy
 
 # ── 维护 ────────────────────────────────────────────────────────────────────
 
@@ -104,10 +101,4 @@ clean:
 check-updates:
     @{{_script}}/check-updates.sh
 
-# 从官方 builder 提取 buildpacks 到 bundle（一次性，之后不依赖该镜像）
-extract-builder image:
-    @{{_script}}/extract-builder.sh {{image}}
 
-# 按 order 裁剪 bundle/buildpacks（默认保留 go/nodejs/python）
-prune-buildpacks *langs:
-    @python3 {{_script}}/prune-buildpacks.py {{langs}}

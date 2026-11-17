@@ -5,7 +5,7 @@ set shell := ["bash", "-uc"]
 
 _root := source_directory()
 _repo := _root / "../../.."
-_bps  := _repo / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
+_bps  := _repo / "script" / "bin" / "bksmartpacker"
 _out  := "/tmp/bk-fixtures"
 
 builder := env_var_or_default("BUILDER_IMAGE", "localhost/offline-builder-build-bk:latest")

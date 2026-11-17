@@ -39,7 +39,8 @@ fixtures *args:
 
 # ── bksmartpacker 全链路（一条命令）────────────────────────────────────────
 
-_bps  := _root / "script/tools/bksmartpacker_v3/bin/bksmartpacker-linux"
+# 宿主工具统一放 script/bin/（与 cnb 同目录，构建产物不入库）
+_bps  := _root / "script" / "bin" / "bksmartpacker"
 # 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
 _fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
 _out  := env_var_or_default("S_MART_OUT", _dir / "dist")
@@ -67,25 +68,41 @@ smart-builder *args:
 smart-bps:
     # 清掉可能残留的 GOROOT/GOPATH（如上一次在容器内使用过的路径），
     # 否则 make 会拿容器路径去编宿主二进制
+    # 直接产出 justfile 使用的文件名（make build-cli 只产出 *-ts4 后缀）
     @cd {{_root}}/script/tools/bksmartpacker_v3 && \
-      env -u GOROOT -u GOPATH make build-cli
+      env -u GOROOT -u GOPATH CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+      go build -o {{_bps}} ./cmd/bksmartpacker
     @echo "  ✓ {{_bps}}"
+    @out=$("{{_bps}}" --inspect /dev/null 2>&1 || true); \
+      case "$out" in *"unknown flag"*) echo "  ⚠ 该二进制不含 --inspect，请确认源码已加";; esac
 
-# 全链路：构建镜像 → 编译工具 → 打包夹具 → 校验产物
-smart: smart-builder smart-bps
+# 全链路：构建镜像 → 编译工具 → 打包应用目录 → 校验产物
+#   just smart                      使用 S_MART_SRC（默认 fixtures/single）
+#   just smart /path/to/app         打包任意应用目录（需含 app_desc.yaml）
+smart src="{{_fx}}": smart-builder smart-bps
     @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
     @echo "  · 输出: {{_out}}/s-mart.tgz"
     @rm -f {{_out}}/s-mart.tgz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
-    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{_fx}} \
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tgz
     @echo
     @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tgz
     @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
     @echo "== 包结构 ==" 
+    @{{_bps}} --inspect {{_out}}/s-mart.tgz
+
+# 只打包指定目录（跳过建镜像，复用已有 builder）：just pack-case /path/to/app
+pack-case src:
+    @test -d "{{src}}" || { echo "  ✗ 目录不存在: {{src}}"; exit 1; }
+    @mkdir -p {{_out}} {{cache_dir}}
+    @rm -f {{_out}}/s-mart.tgz
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
+        --builder-image "{{smart_builder}}" \
+        --dest {{_out}}/s-mart.tgz
     @{{_bps}} --inspect {{_out}}/s-mart.tgz
 
 # 清理打包产物

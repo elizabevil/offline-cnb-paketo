@@ -36,3 +36,7 @@ fixtures *args:
 # 对本项目夹具跑 e2e（detect → build → analyze → export）
 test *args:
     @just --justfile {{_dir}}/fixtures/justfile test-all {{args}}
+
+# 对任意应用目录跑一次 e2e：just test-case /path/to/app
+test-case dir *args:
+    @E2E_PROFILE={{_profile}} E2E_SKIP_BUILD=1 {{_root}}/test/e2e/lifecycle.sh {{dir}} "$(basename {{dir}})" {{args}}
