@@ -18,7 +18,7 @@ default:
 
 # 构建三个镜像（base/run/builder），跳过打包阶段
 build:
-    @{{_cnb}} pipeline run {{_profile}} --no-commands
+    @{{_cnb}} pipeline run {{_profile}} --until builder
 
 # 编译 bksmartpacker（源码不在仓库内，需本地存在）
 bps:

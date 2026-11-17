@@ -151,6 +151,7 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		"-e", fmt.Sprintf("SOURCE_GET_URL=file:///tmp/source.tgz"),
 		"-e", "USE_DOCKER_DAEMON=1",
 		"-e", "CNB_PLATFORM_API=0.11",
+		"-e", "CNB_BUILDPACK_ALIASES=" + buildpackAliases(),
 	}
 
 	if step.CacheRegistry != "" {
@@ -312,4 +313,18 @@ func (e *DockerExecutor) exportFakeRunnerArchive(ctx context.Context, workspace 
 		return err
 	}
 	return os.Setenv("BKS_RUN_IMAGE_ARCHIVE_FILE", path)
+}
+
+// defaultBuildpackAliases 是 BK 名称到 order id 的映射；
+// 可用 BKS_BUILDPACK_ALIASES 覆盖（格式 a=b,c=d）。
+const defaultBuildpackAliases = "bk-buildpack-go=paketo-buildpacks/go," +
+	"bk-buildpack-nodejs=paketo-buildpacks/nodejs," +
+	"bk-buildpack-python=paketo-buildpacks/python"
+
+// buildpackAliases 返回注入给 cnb 的别名表。
+func buildpackAliases() string {
+	if v := os.Getenv("BKS_BUILDPACK_ALIASES"); v != "" {
+		return v
+	}
+	return defaultBuildpackAliases
 }

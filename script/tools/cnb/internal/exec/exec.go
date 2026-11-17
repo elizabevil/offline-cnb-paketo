@@ -17,6 +17,8 @@ import (
 type Options struct {
 	// From 从指定阶段开始（跳过之前的阶段）；为空表示从头执行。
 	From string
+	// Until 执行到指定阶段（含）为止；为空表示执行到末尾。
+	Until string
 	// DryRun 只打印命令，不执行。
 	DryRun bool
 	// Out 是命令输出目标；为空则写 stdout/stderr。
@@ -34,7 +36,16 @@ type Result struct {
 // Run 按计划顺序执行阶段，返回每个阶段的结果。
 // 任一阶段失败且未声明 continueOnError 时立即返回错误。
 func Run(ctx context.Context, p *plan.Plan, opts Options, log *slog.Logger) ([]Result, error) {
-	startIdx, err := startIndex(p, opts.From)
+	startIdx, err := indexOf(p, opts.From)
+	if err != nil {
+		return nil, err
+	}
+	stopIdx := len(p.Stages) - 1
+	if opts.Until != "" {
+		if stopIdx, err = indexOf(p, opts.Until); err != nil {
+			return nil, err
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +55,11 @@ func Run(ctx context.Context, p *plan.Plan, opts Options, log *slog.Logger) ([]R
 		if i < startIdx {
 			results = append(results, Result{Stage: st.Name, Skipped: true})
 			log.Info("stage skipped", "stage", st.Name, "reason", "before --from")
+			continue
+		}
+		if i > stopIdx {
+			results = append(results, Result{Stage: st.Name, Skipped: true})
+			log.Info("stage skipped", "stage", st.Name, "reason", "after --until")
 			continue
 		}
 		res := runStage(ctx, st, opts, log)
@@ -62,13 +78,13 @@ func Run(ctx context.Context, p *plan.Plan, opts Options, log *slog.Logger) ([]R
 	return results, nil
 }
 
-// startIndex 计算 --from 对应的起始下标。
-func startIndex(p *plan.Plan, from string) (int, error) {
-	if from == "" {
+// indexOf 返回阶段名对应的下标；name 为空时返回 0。
+func indexOf(p *plan.Plan, name string) (int, error) {
+	if name == "" {
 		return 0, nil
 	}
 	for i, st := range p.Stages {
-		if st.Name == from {
+		if st.Name == name {
 			return i, nil
 		}
 	}
@@ -76,7 +92,7 @@ func startIndex(p *plan.Plan, from string) (int, error) {
 	for _, st := range p.Stages {
 		names = append(names, st.Name)
 	}
-	return 0, &errs.NotFound{Kind: "stage", Ref: from, Known: names}
+	return 0, &errs.NotFound{Kind: "stage", Ref: name, Known: names}
 }
 
 // runStage 执行单个阶段。

@@ -54,3 +54,20 @@ func TestValidateLayoutNeedsDir(t *testing.T) {
 		t.Fatal("layout 缺目录应报错")
 	}
 }
+
+func TestParseAliases(t *testing.T) {
+	m := map[string]string{EnvBuildpackAliases: "bk-buildpack-go=paketo-buildpacks/go, x=y "}
+	env, _, err := Parse(func(k string) string { return m[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.BuildpackAliases["bk-buildpack-go"] != "paketo-buildpacks/go" {
+		t.Fatalf("别名解析错误: %v", env.BuildpackAliases)
+	}
+	if env.BuildpackAliases["x"] != "y" {
+		t.Fatalf("空白未处理: %v", env.BuildpackAliases)
+	}
+	if empty, _, _ := Parse(func(string) string { return "" }); empty.BuildpackAliases != nil {
+		t.Fatal("未设置时应为 nil")
+	}
+}

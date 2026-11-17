@@ -34,10 +34,10 @@ version = "3.0.0"
 
 [[spec.stages]]
 name    = "base"
-workdir = "."
+workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/builder-base.dockerfile",
+  "-f", "docker/builder-base.dockerfile",
   "-t", "offline-builder-base-bk:latest",
   "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
   ".",
@@ -45,10 +45,10 @@ run = [
 
 [[spec.stages]]
 name    = "run"
-workdir = "."
+workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/run.dockerfile",
+  "-f", "docker/run.dockerfile",
   "-t", "offline-run-bk:latest",
   "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
   ".",
@@ -56,13 +56,13 @@ run = [
 
 [[spec.stages]]
 name    = "builder"
-workdir = "."
+workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/builder-build.dockerfile",
+  "-f", "docker/builder-build.dockerfile",
   "-t", "offline-builder-build-bk:latest",
-  "--build-context", "bundle=${bundle}/${platform}",
-  "--build-context", "buildpacks=buildpacks/paketo",
+  "--build-context", "bundle=${bundle}",
+  "--build-context", "buildpacks=${repo}/buildpacks/paketo",
   "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:latest",
   "--build-arg", "BP_GO_MIRROR=http://192.168.11.4:5000/",
   "--build-arg", "BUNDLE_ARCH=${platform}",

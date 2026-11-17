@@ -32,6 +32,7 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 		PlaceholderPrefix + "platform" + PlaceholderSuffix, string(platform),
 		PlaceholderPrefix + "arch" + PlaceholderSuffix, manifest.ArchOf(platform),
 		PlaceholderPrefix + "bundle" + PlaceholderSuffix, opts.Bundle,
+		PlaceholderPrefix + "repo" + PlaceholderSuffix, opts.Repo,
 	}
 	for _, id := range slices.Sorted(maps.Keys(f.Spec.Assets)) {
 		version := f.Spec.Assets[id].Version

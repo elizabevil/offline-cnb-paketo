@@ -62,7 +62,7 @@ mounts := runtimes_mount + cache_mount
 
 # 构建三个镜像（跳过打包阶段）
 smart-builder *args:
-    @{{_cnb}} pipeline run {{_profile}} --no-commands {{args}}
+    @{{_cnb}} pipeline run {{_profile}} --until builder {{args}}
 
 # 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:

@@ -14,7 +14,7 @@ default:
 
 # 构建三个镜像（base/run/builder）
 build:
-    @{{_cnb}} pipeline run {{_profile}} --no-commands
+    @{{_cnb}} pipeline run {{_profile}} --until builder
 
 # 单个夹具：just test go-app
 test case:

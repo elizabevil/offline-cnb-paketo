@@ -10,18 +10,19 @@ import (
 
 // 环境变量名（唯一来源）。
 const (
-	EnvSourceURL   = "SOURCE_GET_URL"
-	EnvRequired    = "REQUIRED_BUILDPACKS"
-	EnvOutputImage = "OUTPUT_IMAGE"
-	EnvRunImage    = "CNB_RUN_IMAGE"
-	EnvCacheImage  = "CACHE_IMAGE"
-	EnvAppDir      = "CNB_APP_DIR"
-	EnvLayersDir   = "CNB_LAYERS_DIR"
-	EnvPlatformDir = "CNB_PLATFORM_DIR"
-	EnvPlatformAPI = "CNB_PLATFORM_API"
-	EnvExportMode  = "CNB_EXPORT_MODE"
-	EnvRunArchive  = "CNB_RUN_IMAGE_ARCHIVE"
-	EnvLayoutDir   = "CNB_LAYOUT_DIR"
+	EnvSourceURL        = "SOURCE_GET_URL"
+	EnvRequired         = "REQUIRED_BUILDPACKS"
+	EnvOutputImage      = "OUTPUT_IMAGE"
+	EnvRunImage         = "CNB_RUN_IMAGE"
+	EnvCacheImage       = "CACHE_IMAGE"
+	EnvAppDir           = "CNB_APP_DIR"
+	EnvLayersDir        = "CNB_LAYERS_DIR"
+	EnvPlatformDir      = "CNB_PLATFORM_DIR"
+	EnvPlatformAPI      = "CNB_PLATFORM_API"
+	EnvExportMode       = "CNB_EXPORT_MODE"
+	EnvRunArchive       = "CNB_RUN_IMAGE_ARCHIVE"
+	EnvLayoutDir        = "CNB_LAYOUT_DIR"
+	EnvBuildpackAliases = "CNB_BUILDPACK_ALIASES"
 )
 
 // 默认值。
@@ -60,23 +61,27 @@ type Env struct {
 	ExportMode      ExportMode
 	RunImageArchive string
 	LayoutDir       string
+	// BuildpackAliases 把平台侧 buildpack 名映射到 order 里的 id
+	// （格式 "a=b,c=d"，由调用方注入；cnb 不内置任何平台名称）。
+	BuildpackAliases map[string]string
 }
 
 // Parse 读取环境变量并填默认值。
 func Parse(getenv func(string) string) (Env, []warn.Warning, error) {
 	env := Env{
-		SourceURL:       getenv(EnvSourceURL),
-		Required:        splitList(getenv(EnvRequired)),
-		OutputImage:     getenv(EnvOutputImage),
-		RunImage:        valueOr(getenv(EnvRunImage), DefaultRunImage),
-		CacheImage:      getenv(EnvCacheImage),
-		AppDir:          valueOr(getenv(EnvAppDir), DefaultAppDir),
-		LayersDir:       valueOr(getenv(EnvLayersDir), DefaultLayersDir),
-		PlatformDir:     valueOr(getenv(EnvPlatformDir), DefaultPlatformDir),
-		PlatformAPI:     valueOr(getenv(EnvPlatformAPI), DefaultPlatformAPI),
-		ExportMode:      ExportMode(valueOr(getenv(EnvExportMode), string(ExportLayout))),
-		RunImageArchive: getenv(EnvRunArchive),
-		LayoutDir:       valueOr(getenv(EnvLayoutDir), DefaultLayoutDir),
+		SourceURL:        getenv(EnvSourceURL),
+		Required:         splitList(getenv(EnvRequired)),
+		OutputImage:      getenv(EnvOutputImage),
+		RunImage:         valueOr(getenv(EnvRunImage), DefaultRunImage),
+		CacheImage:       getenv(EnvCacheImage),
+		AppDir:           valueOr(getenv(EnvAppDir), DefaultAppDir),
+		LayersDir:        valueOr(getenv(EnvLayersDir), DefaultLayersDir),
+		PlatformDir:      valueOr(getenv(EnvPlatformDir), DefaultPlatformDir),
+		PlatformAPI:      valueOr(getenv(EnvPlatformAPI), DefaultPlatformAPI),
+		ExportMode:       ExportMode(valueOr(getenv(EnvExportMode), string(ExportLayout))),
+		RunImageArchive:  getenv(EnvRunArchive),
+		LayoutDir:        valueOr(getenv(EnvLayoutDir), DefaultLayoutDir),
+		BuildpackAliases: parseAliases(getenv(EnvBuildpackAliases)),
 	}
 	if err := env.Validate(); err != nil {
 		return Env{}, nil, err
@@ -108,6 +113,22 @@ func (e Env) SourcePath() string {
 		return after
 	}
 	return ""
+}
+
+// parseAliases 解析 "a=b,c=d" 形式的别名表。
+func parseAliases(s string) map[string]string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for pair := range strings.SplitSeq(s, ",") {
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok || strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
+			continue
+		}
+		out[strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+	return out
 }
 
 // splitList 按空白切分（REQUIRED_BUILDPACKS 是以 ; 分隔的条目，条目内是空格分列）。
