@@ -1,89 +1,129 @@
 package imagefmt
 
 import (
+	"archive/tar"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
-// makeLayer 生成一个最小层 tar 文件。
-func makeLayer(t *testing.T, dir, name string) string {
+// writeLayerTar 生成一个只含单个文件的层 tar。
+func writeLayerTar(t *testing.T, dir string) string {
 	t.Helper()
-	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte("layer-content-"+name), 0o644); err != nil {
+	path := filepath.Join(dir, "layer.tar")
+	f, err := os.Create(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return p
+	defer func() { _ = f.Close() }()
+	tw := tar.NewWriter(f)
+	body := []byte("hello")
+	if err := tw.WriteHeader(&tar.Header{Name: "app/hello.txt", Mode: 0o644, Size: int64(len(body))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(body); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
+// sampleImage 构造带 created / history / 标签的镜像。
 func sampleImage(t *testing.T, dir string) *Image {
-	return &Image{
-		RepoTags: []string{"demo/app:1.0"},
-		OS:       "linux",
-		Arch:     "amd64",
-		Config: Config{
+	t.Helper()
+	layer, err := tarball.LayerFromFile(writeLayerTar(t, dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	img, err = mutate.ConfigFile(img, &v1.ConfigFile{
+		Created:      v1.Time{Time: created},
+		Architecture: "amd64",
+		OS:           "linux",
+		Config: v1.Config{
 			Entrypoint: []string{"/cnb/process/web"},
-			Env:        []string{"APP=1"},
 			WorkingDir: "/app",
-			DiffIDs:    []string{"sha256:aaa"},
+			Env:        []string{"HOME=/app"},
 		},
-		Layers: []Layer{{MediaType: MediaTypeOCILayer, Path: makeLayer(t, dir, "l0.tar")}},
+		History: []v1.History{{Created: v1.Time{Time: created}, CreatedBy: "test"}},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
+	return &Image{V1: img, RepoTags: []string{"bk_cmdb_saas/web:1.0"}}
 }
 
-func TestDockerArchiveRoundTrip(t *testing.T) {
+func TestLayoutRoundTrip(t *testing.T) {
 	src := t.TempDir()
 	img := sampleImage(t, src)
-	dst := filepath.Join(src, "docker")
-	if err := Write(img, FormatDockerArchive, dst); err != nil {
+	if err := img.Write(FormatOCILayout, filepath.Join(src, "oci")); err != nil {
 		t.Fatal(err)
 	}
-	f, err := Detect(dst)
+	for _, name := range []string{fileIndexJSON, fileOCILayout, "manifest.json", "repositories"} {
+		if _, err := os.Stat(filepath.Join(src, "oci", name)); err != nil {
+			t.Fatalf("缺少 %s: %v", name, err)
+		}
+	}
+
+	got, format, err := Open(filepath.Join(src, "oci"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.Name() != FormatDockerArchive {
-		t.Fatalf("格式探测错误: %s", f.Name())
+	if format != FormatOCILayout {
+		t.Fatalf("格式探测错误: %s", format)
 	}
-	got, err := f.Read(dst)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Arch != img.Arch || got.Config.Entrypoint[0] != img.Config.Entrypoint[0] {
-		t.Fatalf("config 不一致: %+v", got)
-	}
-	if len(got.Layers) != 1 {
-		t.Fatalf("层数错误: %d", len(got.Layers))
+	assertSameConfig(t, img.V1, got.V1)
+	if len(got.RepoTags) == 0 || got.RepoTags[0] != "bk_cmdb_saas/web:1.0" {
+		t.Fatalf("标签丢失: %v", got.RepoTags)
 	}
 }
 
-func TestOCIRoundTrip(t *testing.T) {
+func TestTarballRoundTrip(t *testing.T) {
 	src := t.TempDir()
 	img := sampleImage(t, src)
-	dst := filepath.Join(src, "oci")
-	if err := Write(img, FormatOCILayout, dst); err != nil {
+	dest := filepath.Join(src, "image.tar")
+	if err := img.Write(FormatDockerArchive, dest); err != nil {
 		t.Fatal(err)
 	}
-	if !exists(filepath.Join(dst, FileOCILayout)) || !exists(filepath.Join(dst, FileIndexJSON)) {
-		t.Fatal("缺少 OCI layout 标记文件")
-	}
-	got, format, err := Read(dst)
+
+	got, format, err := Open(dest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if format.Name() != FormatOCILayout {
-		t.Fatalf("格式探测错误: %s", format.Name())
+	if format != FormatDockerArchive {
+		t.Fatalf("格式探测错误: %s", format)
 	}
-	if got.Config.WorkingDir != "/app" || len(got.Layers) != 1 {
-		t.Fatalf("读取结果不符: %+v", got)
+	assertSameConfig(t, img.V1, got.V1)
+	if len(got.RepoTags) == 0 || got.RepoTags[0] != "bk_cmdb_saas/web:1.0" {
+		t.Fatalf("标签丢失: %v", got.RepoTags)
 	}
 }
 
-func TestDetectUnknown(t *testing.T) {
-	if _, err := Detect(t.TempDir()); err == nil {
-		t.Fatal("空目录不应被识别为镜像格式")
+// assertSameConfig 断言 config 原始字节一致（created / history 不丢）。
+func assertSameConfig(t *testing.T, want, got v1.Image) {
+	t.Helper()
+	wantRaw, err := want.RawConfigFile()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := Write(&Image{}, "bogus", t.TempDir()); err == nil {
-		t.Fatal("未知格式应报错")
+	gotRaw, err := got.RawConfigFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(wantRaw, gotRaw) {
+		t.Fatalf("config 字节不一致:\nwant %s\ngot  %s", wantRaw, gotRaw)
 	}
 }
