@@ -142,30 +142,9 @@ func (c *Config) prepareRunImage() error {
 		// 预置目录由 root 创建，需交给运行时用户，否则 exporter 无法写入
 		return c.chownLayout()
 	}
-	tool := containerTool()
-	if tool == "" {
-		return &errs.Missing{What: "podman / docker"}
-	}
-	c.log().Info("load run image", "archive", c.Export.RunImageArchive)
-	cmd := exec.CommandContext(context.Background(), tool, "load", "-i", c.Export.RunImageArchive)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("load run image: %w", err)
-	}
+	// daemon 模式：run 镜像由调用方（bksmartpacker 创建 fake runner / 真实 base）
+	// 预先存在于运行时中，无需再次载入。
 	return nil
-}
-
-// containerTool 返回可用的容器 CLI（可用 CONTAINER_TOOL 强制指定）。
-func containerTool() string {
-	if t := os.Getenv("CONTAINER_TOOL"); t != "" {
-		return t
-	}
-	for _, t := range []string{"podman", "docker"} {
-		if _, err := exec.LookPath(t); err == nil {
-			return t
-		}
-	}
-	return ""
 }
 
 // prepareWorkDirs 在降权前把工作目录交给目标用户。

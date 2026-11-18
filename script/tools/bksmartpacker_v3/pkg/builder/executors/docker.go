@@ -182,10 +182,16 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 
 	// 挂载源码压缩包
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
-	// 导出方式：容器内导出 OCI layout，再打包为层包写回宿主目录
-	args = append(args, "-e", "CNB_EXPORT_MODE=layout")
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
-	args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s.tgz", step.ModuleName))
+	// 导出方式：
+	//   layout（默认）：容器内导出 OCI layout，再打包为层包写回宿主目录
+	//   daemon：导出到容器运行时，构建后由 image save 取回（需要可用 docker 兼容 API）
+	if exportMode() == "daemon" {
+		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
+	} else {
+		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
+		args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s.tgz", step.ModuleName))
+	}
 	// run image 以 docker-archive 形式落盘并挂载，容器内不再需要 daemon
 	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
@@ -345,4 +351,12 @@ func saveArgs(runtime, dest, image string) []string {
 		args = append(args, "--format", "oci-archive")
 	}
 	return append(args, "-o", dest, image)
+}
+
+// exportMode 返回导出模式（BKS_EXPORT_MODE，默认 layout）。
+func exportMode() string {
+	if mode := os.Getenv("BKS_EXPORT_MODE"); mode == "daemon" {
+		return "daemon"
+	}
+	return "layout"
 }

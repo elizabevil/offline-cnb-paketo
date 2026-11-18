@@ -256,7 +256,7 @@ default = true
 
   [asset.local]
   source = "script/bin/cnb-linux-amd64"
-  sha256 = "237f8b17effc92cefbcd4e40cd87bbd27d38862edf2051b4f018cdd5b85bdb77"
+  sha256 = "a39e32253197c61541fde9345d5e6347593b9eca39af2ae01d3d154cf9007b36"
 
   [asset.unpack]
   kind   = "bin"
