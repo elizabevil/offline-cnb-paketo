@@ -180,9 +180,10 @@ e2e 的新鲜度断言写死了路径，组件拆分后仍检查旧路径 → �
 `cnb` 这类由本仓库编译的工具，同样按物料管理：
 
 ```toml
-[asset.local]
+[asset.platform.linux-amd64]
+kind   = "local"
 source = "script/bin/cnb-linux-amd64"   # 构建产物路径（相对仓库根）
-sha256 = ""                 # 发布后自动回填
+sha256 = ""                             # 发布后自动回填
 ```
 
 - `just tools` 编译后自动执行 `cnb materials publish cnb`，复制到
