@@ -217,3 +217,5 @@ func (c Config) log() *slog.Logger {
 	}
 	return slog.New(render.NewCompactHandler(os.Stderr, slog.LevelInfo))
 }
+// daemon 模式依赖容器运行时；podman 兼容层存在 singleton 连接问题
+// （issue #1763），修复前保持 layout 为默认。

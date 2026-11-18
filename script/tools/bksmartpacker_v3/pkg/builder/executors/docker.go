@@ -360,3 +360,6 @@ func exportMode() string {
 	}
 	return "layout"
 }
+// 注意：daemon 模式仅适用于真 dockerd；podman 的 docker 兼容层会让
+// lifecycle 导出阶段报 "singleton connection already in use"
+// （lifecycle 0.21.29，issue #1763，尚未修复）。
