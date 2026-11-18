@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/exec"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/plan"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
@@ -27,13 +28,17 @@ func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
 	for _, w := range warns {
 		fmt.Fprintf(os.Stderr, "  ! %s\n", w.String())
 	}
+	// --platform 覆盖 profile 的平台（用于交叉验证 arm64 等）
+	if opts.platform != "" {
+		f.Spec.Project.Platform = opts.platform
+	}
 	if errsOut := f.Validate(); len(errsOut) > 0 {
 		for _, e := range errsOut {
 			fmt.Fprintf(os.Stderr, "  ✗ %v\n", e)
 		}
 		return nil, nil, &exitError{code: ExitFailure}
 	}
-	ctx, err := workspace.Open(workspace.Options{Repo: opts.repo})
+	ctx, err := workspace.Open(workspace.Options{Repo: opts.repo, Platform: lock.Platform(opts.platform)})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -28,7 +28,6 @@ Learn-cnb-paketo/
 ├── project/              # 子项目目录
 │   ├── offline-paketo/       # Paketo 离线 builder
 │   ├── offline-paketo-bk/    # Paketo × 蓝鲸 SmartPackage
-│   └── offline-heroku-bk/    # Heroku 系 × 蓝鲸 SmartPackage
 ```
 
 ---

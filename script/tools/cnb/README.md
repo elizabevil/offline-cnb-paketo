@@ -27,7 +27,7 @@ script/tools/cnb/
 | `platforms` | 逗号分隔 | 0 | 人工 |
 | `verify [ids...]` | 逐物料 `✓/✗` | 0 / 1 | `just verify`、CI 门禁 |
 | `pin [ids...]` | TOML 片段（不写回） | 0 / 1 | 人工回填 |
-| `repack <dir\|*.tar.gz>` | 无（原地改写） | 0 / 1 | `offline-heroku-bk/apps/build.sh` |
+| `image convert <src> <dst>` | `oci-layout` / `docker-archive` | 0 / 1 | `cnb image convert` |
 
 约定：
 

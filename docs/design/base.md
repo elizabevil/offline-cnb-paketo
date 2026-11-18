@@ -1,6 +1,6 @@
 # 基座设计（script/ + bundle/ + assets.lock.toml）
 
-> 目标：让三个子项目（offline-paketo / offline-paketo-bk / offline-heroku-bk）
+> 目标：让两个子项目（offline-paketo / offline-paketo-bk）
 > 共享同一份"物料 + 编排 + 校验"能力，而不是各写一套版本号和下载脚本。
 
 ---
