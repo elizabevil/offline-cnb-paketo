@@ -14,25 +14,26 @@ func newImageCmd() *cobra.Command {
 
 	var to string
 	convert := &cobra.Command{
-		Use:   "convert <src-dir> <dst-dir>",
-		Short: "把镜像目录从一种格式转换为另一种（自动探测输入）",
+		Use:   "convert <src> <dst>",
+		Short: "镜像格式互转（OCI layout 目录 ↔ docker-archive tar）",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			src, dst := args[0], args[1]
-			img, from, err := imagefmt.Read(src)
+			img, from, err := imagefmt.Open(src)
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
 			if to == "" {
 				to = imagefmt.FormatOCILayout
 			}
-			if to == from.Name() {
+			if to == from {
 				return &exitError{code: ExitUsage, msg: fmt.Sprintf("源与目标格式相同（%s）", to)}
 			}
-			if err := imagefmt.Write(img, to, dst); err != nil {
+			if err := img.Write(to, dst); err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s → %s（%d 层，标签 %v）\n", from.Name(), to, len(img.Layers), img.RepoTags)
+			layers, _ := img.V1.Layers()
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s → %s（%d 层，标签 %v）\n", from, to, len(layers), img.RepoTags)
 			return nil
 		},
 	}

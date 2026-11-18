@@ -84,7 +84,7 @@ func (c Config) packLayout() error {
 	}
 	imageDir := filepath.Join(c.layoutDir(), repo, tag)
 	if digest != "" {
-		imageDir = filepath.Join(c.layoutDir(), repo, "sha256", strings.TrimPrefix(digest, imagefmt.DigestPrefix))
+		imageDir = filepath.Join(c.layoutDir(), repo, "sha256", strings.TrimPrefix(digest, "sha256:"))
 	}
 	if _, statErr := os.Stat(filepath.Join(imageDir, "index.json")); statErr != nil {
 		return &errs.NotFound{Kind: "layout image", Ref: imageDir}
@@ -92,16 +92,16 @@ func (c Config) packLayout() error {
 	c.log().Info("pack layout", "dir", imageDir, "archive", c.Export.OutputArchive)
 	// 重新写出一次：imagefmt 会补 docker 兼容文件（manifest.json / repositories），
 	// 与参考包保持一致；同时避免把 layout 根下的其它镜像带进包。
-	img, _, err := imagefmt.Read(imageDir)
+	img, _, err := imagefmt.Open(imageDir)
 	if err != nil {
 		return err
 	}
 	// 补齐 PATH：lifecycle 从 run 镜像继承 PATH，fake runner 没有标准目录
-	if err := img.EnsureStandardPath(); err != nil {
+	if err := ensureStandardPath(img); err != nil {
 		return err
 	}
 	// lifecycle layout 不带标签，用导出镜像名补上（影响 manifest.json / repositories）
-	if len(img.RepoTags) == 0 && c.Export.OutputImage != "" {
+	if c.Export.OutputImage != "" {
 		img.RepoTags = []string{c.Export.OutputImage}
 	}
 	tmp, err := os.MkdirTemp("", "cnb-pack-")
@@ -109,7 +109,7 @@ func (c Config) packLayout() error {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
-	if err := imagefmt.Write(img, imagefmt.FormatOCILayout, tmp); err != nil {
+	if err := img.Write(imagefmt.FormatOCILayout, tmp); err != nil {
 		return err
 	}
 	return archive.PackTar(tmp, c.Export.OutputArchive)

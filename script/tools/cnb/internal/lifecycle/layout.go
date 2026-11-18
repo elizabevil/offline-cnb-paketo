@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"learn-cnb-paketo/tools/cnb/internal/archive"
 	"learn-cnb-paketo/tools/cnb/internal/errs"
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/spec/imagefmt"
 )
 
@@ -27,36 +25,24 @@ func PrepareRunImage(layoutDir, runRef, runArchive string, log *slog.Logger) (st
 		return "", err
 	}
 
-	tempDir, err := os.MkdirTemp("", "cnb-run-")
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = os.RemoveAll(tempDir) }()
-
-	extracted := filepath.Join(tempDir, "run")
-	if err := os.MkdirAll(extracted, fsutil.DirMode); err != nil {
-		return "", err
-	}
-	if err := archive.ExtractTar(runArchive, extracted); err != nil {
-		return "", errs.Wrap("extract run image", err)
-	}
-	img, _, err := imagefmt.Read(extracted)
+	img, _, err := imagefmt.Open(runArchive)
 	if err != nil {
 		return "", errs.Wrap("read run image", err)
 	}
-	if img.ConfigDigest == "" {
-		return "", &errs.Missing{What: "run image config digest"}
+	cfgDigest, err := img.V1.ConfigName()
+	if err != nil {
+		return "", errs.Wrap("read run image config", err)
 	}
-	hex := strings.TrimPrefix(img.ConfigDigest, imagefmt.DigestPrefix)
+	hex := strings.TrimPrefix(cfgDigest.String(), "sha256:")
 
 	target := filepath.Join(layoutDir, repo, "sha256", hex)
 	if err := os.RemoveAll(target); err != nil {
 		return "", err
 	}
-	if err := imagefmt.Write(img, imagefmt.FormatOCILayout, target); err != nil {
+	if err := img.Write(imagefmt.FormatOCILayout, target); err != nil {
 		return "", errs.Wrap("write run image to layout", err)
 	}
-	ref := repo + "@" + imagefmt.DigestPrefix + hex
+	ref := repo + "@sha256:" + hex
 	log.Info("run image prepared", "ref", ref, "path", target)
 	return ref, nil
 }

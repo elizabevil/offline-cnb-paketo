@@ -1,7 +1,16 @@
+# BK 构建顺序：语言 buildpack 之后追加 procfile，
+# 让 Procfile 的进程定义覆盖语言 buildpack 的默认进程（官方约定：Procfile 优先）。
+
 [[order]]
   [[order.group]]
     id = "paketo-buildpacks/go"
     version = "4.23.3"
+    optional = false
+
+  # 同一组内后执行：Procfile 有 web 时覆盖 go-build 的默认进程
+  [[order.group]]
+    id = "paketo-buildpacks/procfile"
+    version = "5.13.4"
     optional = false
 
 [[order]]
@@ -10,12 +19,23 @@
     version = "10.15.0"
     optional = false
 
+  [[order.group]]
+    id = "paketo-buildpacks/procfile"
+    version = "5.13.4"
+    optional = false
+
 [[order]]
   [[order.group]]
     id = "paketo-buildpacks/python"
     version = "2.68.0"
     optional = false
 
+  [[order.group]]
+    id = "paketo-buildpacks/procfile"
+    version = "5.13.4"
+    optional = false
+
+# 纯 Procfile 应用（无语言特征文件）
 [[order]]
   [[order.group]]
     id = "paketo-buildpacks/procfile"
