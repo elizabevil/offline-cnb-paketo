@@ -13,11 +13,13 @@ import (
 // Options 是同步参数。
 type Options struct {
 	BundleDir string
-	Platform  lock.Platform
-	Jobs      int
-	Offline   bool
-	Check     bool
-	Logger    *slog.Logger
+	// LockPath 非空且允许写回时，未固定的 sha256/size 会在下载后自动回填。
+	LockPath string
+	Platform lock.Platform
+	Jobs     int
+	Offline  bool
+	Check    bool
+	Logger   *slog.Logger
 }
 
 // Action 描述一次同步的动作结果。

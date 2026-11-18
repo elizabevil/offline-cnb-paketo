@@ -26,7 +26,33 @@ const (
 func ensureArchive(a *lock.Asset, dest string, opts Options) error {
 	want := a.SHA256(opts.Platform)
 	if want == "" {
-		return fmt.Errorf("%s: sha256 not pinned", a.Ref())
+		if opts.Check || opts.Offline || opts.LockPath == "" {
+			return fmt.Errorf("%s: sha256 not pinned", a.Ref())
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		for _, url := range sources(a, opts.Platform) {
+			if err := download(url, dest); err != nil {
+				continue
+			}
+			sha, size, err := fileDigest(dest)
+			if err != nil {
+				return err
+			}
+			if _, err := lock.SetSHA(opts.LockPath, a.Ref(), opts.Platform, sha); err != nil {
+				return err
+			}
+			if _, err := lock.SetSize(opts.LockPath, a.Ref(), opts.Platform, size); err != nil {
+				return err
+			}
+			opts.Logger.Info("pinned", "ref", a.Ref(), "platform", opts.Platform, "sha256", sha)
+			want = sha
+			break
+		}
+		if want == "" {
+			return fmt.Errorf("%s: all sources failed", a.Ref())
+		}
 	}
 	if ok, err := verifyArchive(dest, want, a.Size(opts.Platform)); err == nil && ok {
 		return nil
@@ -47,6 +73,21 @@ func ensureArchive(a *lock.Asset, dest string, opts Options) error {
 		}
 	}
 	return fmt.Errorf("%s: all sources failed", a.Ref())
+}
+
+// fileDigest 返回文件 sha256 与大小。
+func fileDigest(path string) (string, int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	size, err := io.Copy(h, f)
+	if err != nil {
+		return "", 0, err
+	}
+	return hex.EncodeToString(h.Sum(nil)), size, nil
 }
 
 // sources 返回候选下载地址（环境变量镜像优先）。

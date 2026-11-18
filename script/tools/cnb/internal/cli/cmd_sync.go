@@ -3,7 +3,9 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/materials"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // newSyncCmd 下载 / 解包 / 打标记。
@@ -17,13 +19,16 @@ func newSyncCmd() *cobra.Command {
 		Use:   "sync [ids...]",
 		Short: "download, verify and extract materials",
 		RunE: func(_ *cobra.Command, ids []string) error {
-			l, platform, bundleDir, err := open()
+			ctx, err := workspace.Open(workspace.Options{
+				Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
+			})
 			if err != nil {
 				return &exitError{code: ExitFailure, msg: err.Error()}
 			}
-			results, err := materials.Sync(l, ids, materials.Options{
-				BundleDir: bundleDir,
-				Platform:  platform,
+			results, err := materials.Sync(ctx.Lock, ids, materials.Options{
+				BundleDir: ctx.Bundle,
+				LockPath:  ctx.LockPath,
+				Platform:  ctx.Platform,
 				Jobs:      jobs,
 				Offline:   offline,
 				Check:     check,
