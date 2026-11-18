@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -37,7 +38,11 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			src := filepath.Join(root, a.Local.Source)
+			platform := opts.platform
+			if platform == "" {
+				platform = string(workspace.HostPlatform())
+			}
+			src := filepath.Join(root, strings.ReplaceAll(a.Local.Source, "{platform}", platform))
 			if _, err := os.Stat(src); err != nil {
 				return &exitError{code: 1, msg: "找不到构建产物: " + src}
 			}
@@ -45,10 +50,6 @@ func newPublishCmd() *cobra.Command {
 			bundleDir := opts.bundle
 			if bundleDir == "" {
 				bundleDir = "bundle"
-			}
-			platform := opts.platform
-			if platform == "" {
-				platform = string(workspace.HostPlatform())
 			}
 			dst := filepath.Join(root, bundleDir, platform, "binaries", a.Dir(), name)
 			if err := os.MkdirAll(filepath.Dir(dst), fsutil.DirMode); err != nil {
@@ -61,7 +62,12 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			changed, err := lock.SetLocalSHA(path, a.Ref(), sum)
+			changed := false
+			if platform == string(workspace.HostPlatform()) {
+				changed, err = lock.SetLocalSHA(path, a.Ref(), sum)
+			} else {
+				changed, err = lock.SetSHA(path, a.Ref(), lock.Platform(platform), sum)
+			}
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

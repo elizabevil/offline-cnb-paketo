@@ -37,7 +37,7 @@ func Set(path string, sec Section, key, value string) (bool, error) {
 		return false, &errs.NotFound{Kind: "toml section", Ref: fmt.Sprintf("%s id=%s version=%s", sec.Header, sec.MatchID, sec.MatchVersion)}
 	}
 
-	keyRe := regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*=\s*"(.*)"\s*$`)
+	keyRe := regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*=\s*"?([^"\s]*)"?\s*$`)
 	for i := idx + 1; i < len(lines); i++ {
 		if isSectionStart(lines[i]) {
 			break
@@ -47,13 +47,21 @@ func Set(path string, sec Section, key, value string) (bool, error) {
 				return false, nil
 			}
 			indent := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " "))]
-			lines[i] = fmt.Sprintf(`%s%s = "%s"`, indent, key, value)
+			lines[i] = fmt.Sprintf(`%s%s = %s`, indent, key, renderValue(value))
 			return true, write(path, lines)
 		}
 		insertAt = i + 1
 	}
-	lines = append(lines[:insertAt], append([]string{fmt.Sprintf(`  %s = "%s"`, key, value)}, lines[insertAt:]...)...)
+	lines = append(lines[:insertAt], append([]string{fmt.Sprintf(`  %s = %s`, key, renderValue(value))}, lines[insertAt:]...)...)
 	return true, write(path, lines)
+}
+
+// renderValue 对纯数字值不加引号（size 等字段是整型）。
+func renderValue(v string) string {
+	if v != "" && strings.Trim(v, "0123456789") == "" {
+		return v
+	}
+	return `"` + v + `"`
 }
 
 // locate 返回段落头所在行号与插入位置。

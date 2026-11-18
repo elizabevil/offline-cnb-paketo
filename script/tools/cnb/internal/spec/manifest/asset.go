@@ -64,6 +64,9 @@ func (a Asset) IsLocal() bool { return a.Local != nil }
 // SHA256 返回该平台固定的哈希（可能为空）。
 func (a Asset) SHA256(platform Platform) string {
 	if a.Local != nil {
+		if src, ok := a.Platform[string(platform)]; ok && src.SHA256 != "" {
+			return src.SHA256
+		}
 		return a.Local.SHA256
 	}
 	return a.Platform[string(platform)].SHA256
