@@ -1,34 +1,91 @@
-# PaaS3.0 S-Mart 应用构建工具
-本项目基于 go 1.20 开发, 支持在本地构建 SaaS
+# bksmartpacker_v3（内部 fork）
 
-> 本项目仅支持构建基于`应用描述文件(app_desc.yaml)`的应用
+把基于 `app_desc.yaml` 的应用构建成蓝鲸 PaaS3.0 的 S-Mart 包。
 
-# 本地开发方法
-## 1. 准备依赖环境
-- [安装 Docker](https://docs.docker.com/engine/install/)
+本目录是上游 `bksmartpacker_v3` 的 fork，不是原样拷贝：
 
-## 2. 构建程序和基础镜像
+- 上游来源与基线见 [NOTICE](NOTICE)
+- 架构与执行链路见 [ARCHITECTURE.md](ARCHITECTURE.md)
+- 与官方的功能差异见 [对比文档](../../docs/ai/bksmartpacker-vs-upstream.md)
+- 维护与升级方式见 [fork 说明](../../docs/ai/bksmartpacker-fork.md)
+
+## 一、能力概览
+
+- 读取 `app_desc.yaml`，按模块生成 CNB 构建计划
+- 在构建容器中执行 lifecycle（detect / build / export）
+- 导出方式：
+  - `layout`（默认）：容器内导出 OCI layout，打包为层包写回宿主
+  - `daemon`：导出到 docker daemon，再由 `image save` 取回
+- 运行时可选 docker 或 podman
+- 支持指定目标平台（如 `linux/arm64`）
+- 组装 `.Version=cnb-image-layers` 的 S-Mart 包
+- `--inspect` 检查已有 S-Mart 包结构
+
+## 二、构建
+
 ```bash
-make build-cli # x86 架构
-make build-cli-arm64 # arm64 架构
+# 宿主架构
+just --justfile script/tools/bksmartpacker_v3/justfile build
+
+# 交叉编译
+TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 ```
 
-## 3. 构建 S-Mart 应用
+产物输出到 `script/bin/bksmartpacker-<os>-<arch>`，源码目录不入库二进制。
 
-`bksmartpacker` 将使用 `docker` 构建应用(支持多模块), 并输出构建产物(镜像层)
+## 三、使用
 
 ```bash
-❯ ./bin/bksmartpacker-linux -h
-      --builder-image string     cnb builder 镜像 (default "mirrors.tencent.com/bkpaas/bk-builder-heroku-bionic:v1.0.0")
-      --dest string              s-mart 包的输出路径, 支持相对路径(相对于工作目录)或绝对路径; 
-                                  (s-mart 包是 gzip 压缩的 tarball, 建议以 .tar.gz 或 .tgz 作为命名后缀) (default "./s-mart.tar.gz")
-      --disable-collect-static   (Python)禁用静态文件收集 (default true)
-  -h, --help                     Show help
-      --src string               应用源码的路径, 支持相对路径(相对于工作目录)或绝对路径 
-                                  应用源码目录需要包含应用描述文件(app_desc.yaml)
-      --cache-registry string    缓存镜像仓库. 格式如: mirrors.tencent.com/bkapps
-      --registry-auth string     镜像仓库凭证信息. 格式如: '{"mirrors.tencent.com": "Basic xxx"}'
-      --buildpack-cfg string     buildpack 配置文件路径, 格式如: conf/buildpack.yaml
+bksmartpacker \
+  --src /path/to/app \
+  --dest ./s-mart.tar.gz \
+  --buildpack-cfg conf/buildpack.yaml
 ```
 
-其中, **--src** 需要是`应用描述文件(app_desc.yaml)`所在的目录。
+`--src` 必须是包含 `app_desc.yaml` 的目录。多模块应用会逐个模块构建。
+
+常用参数：
+
+| 参数 | 说明 |
+|---|---|
+| `--src` | 应用源码目录（必填） |
+| `--dest` | S-Mart 输出路径，默认 `./s-mart.tar.gz` |
+| `--buildpack-cfg` | buildpack 配置，默认 `conf/buildpack.yaml` |
+| `--cache-registry` | 构建缓存镜像仓库 |
+| `--registry-auth` | 仓库凭证（JSON） |
+| `--disable-collect-static` | Python 静态文件收集开关，默认 `true` |
+| `--inspect <pkg>` | 只检查已有包，不构建 |
+| `--inspect-format` | `text` 或 `json`，默认 `text` |
+
+## 四、环境变量
+
+| 变量 | 作用 |
+|---|---|
+| `BKS_CONTAINER_CLI` | 指定 `docker` 或 `podman`，缺省自动探测 |
+| `BKS_DOCKER_SOCK` | 传给容器的 socket 路径 |
+| `BKS_EXPORT_MODE` | `layout`（默认）或 `daemon` |
+| `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
+| `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |
+| `BKS_EXTRA_MOUNTS` | 追加 `--mount` 参数 |
+| `BKS_NETWORK` | 传给 `docker run` 的网络模式 |
+| `BKS_BUILDPACK_ALIASES` | 覆盖 buildpack 别名 |
+
+## 五、检查产物
+
+```bash
+script/bin/bksmartpacker-linux-amd64 --inspect dist/linux-amd64/s-mart.tar.gz
+script/bin/bksmartpacker-linux-amd64 --inspect dist/s-mart.tar.gz --inspect-format json
+```
+
+输出包含 `path`、`size`、`.Version`、`app_desc` 是否存在、文件清单与层包摘要。
+
+## 六、已知限制
+
+- `daemon` 导出仅适用于真 dockerd；podman 的 docker 兼容层会让 lifecycle
+  报 `singleton connection already in use`（issue #1763），podman 下请用 `layout`
+- 上游对该工具没有 executor 级测试，升级后需要手工跑一次 amd64/arm64 打包
+
+## 七、更多
+
+- 架构说明：[ARCHITECTURE.md](ARCHITECTURE.md)
+- 上游来源：[NOTICE](NOTICE)
