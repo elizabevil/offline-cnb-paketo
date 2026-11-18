@@ -1,78 +1,77 @@
 package materials
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 // 下载参数。
-const (
-	httpTimeout  = 30 * time.Minute
-	connectRetry = 3
-	retryBackoff = 2 * time.Second
-	fileModeRead = 0o644
-	tempSuffix   = ".part"
-)
+const fileModeRead = 0o644
 
 // ensureArchive 确保归档存在且通过 sha256 + size 校验。
-func ensureArchive(a *lock.Asset, dest string, opts Options) error {
+// 返回需要回填的 sha256/size（空表示已固定）；写回 lock 由 Sync 统一完成。
+func ensureArchive(a *lock.Asset, dest string, opts Options) (string, int64, error) {
 	want := a.SHA256(opts.Platform)
+	writable := !opts.Check && !opts.Offline && opts.LockPath != ""
+
 	if want == "" {
-		if opts.Check || opts.Offline || opts.LockPath == "" {
-			return fmt.Errorf("%s: sha256 not pinned", a.Ref())
+		if !writable {
+			return "", 0, fmt.Errorf("%s: sha256 not pinned", a.Ref())
+		}
+		// 允许手工预置：归档已在目标位置时直接采用
+		if _, err := os.Stat(dest); err == nil {
+			sha, size, err := fileDigest(dest)
+			if err != nil {
+				return "", 0, err
+			}
+			return sha, size, nil
 		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return err
+			return "", 0, err
 		}
+		srcErrs := sourceErrors{}
 		for _, url := range sources(a, opts.Platform) {
-			if err := download(url, dest); err != nil {
+			if err := opts.Fetch.download(context.Background(), url, dest); err != nil {
+				srcErrs.add(url, err)
 				continue
 			}
 			sha, size, err := fileDigest(dest)
 			if err != nil {
-				return err
+				return "", 0, err
 			}
-			if _, err := lock.SetSHA(opts.LockPath, a.Ref(), opts.Platform, sha); err != nil {
-				return err
-			}
-			if _, err := lock.SetSize(opts.LockPath, a.Ref(), opts.Platform, size); err != nil {
-				return err
-			}
-			opts.Logger.Info("pinned", "ref", a.Ref(), "platform", opts.Platform, "sha256", sha)
-			want = sha
-			break
+			return sha, size, nil
 		}
-		if want == "" {
-			return fmt.Errorf("%s: all sources failed", a.Ref())
-		}
+		return "", 0, fmt.Errorf("%s: all sources failed%s", a.Ref(), srcErrs)
 	}
+
 	if ok, err := verifyArchive(dest, want, a.Size(opts.Platform)); err == nil && ok {
-		return nil
+		return "", 0, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
+		return "", 0, err
 	}
+	srcErrs := sourceErrors{}
 	for _, url := range sources(a, opts.Platform) {
-		if err := download(url, dest); err != nil {
+		if err := opts.Fetch.download(context.Background(), url, dest); err != nil {
+			srcErrs.add(url, err)
 			continue
 		}
 		ok, err := verifyArchive(dest, want, a.Size(opts.Platform))
 		if err != nil {
-			return err
+			return "", 0, err
 		}
 		if ok {
-			return nil
+			return "", 0, nil
 		}
 	}
-	return fmt.Errorf("%s: all sources failed", a.Ref())
+	return "", 0, fmt.Errorf("%s: all sources failed%s", a.Ref(), srcErrs)
 }
 
 // fileDigest 返回文件 sha256 与大小。
@@ -102,43 +101,6 @@ func sources(a *lock.Asset, platform lock.Platform) []string {
 	}
 	out = append(out, base)
 	return out
-}
-
-// download 下载到 dest，失败时最多重试 connectRetry 次。
-func download(url, dest string) error {
-	tmp := dest + tempSuffix
-	client := &http.Client{Timeout: httpTimeout}
-	var lastErr error
-	for i := 0; i < connectRetry; i++ {
-		err := fetchOnce(client, url, tmp)
-		if err == nil {
-			return os.Rename(tmp, dest)
-		}
-		lastErr = err
-		time.Sleep(retryBackoff << i)
-	}
-	return lastErr
-}
-
-// fetchOnce 单次下载。
-func fetchOnce(client *http.Client, url, dest string) error {
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http %s", resp.Status)
-	}
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		_ = out.Close()
-		return err
-	}
-	return out.Close()
 }
 
 // verifyArchive 校验哈希与大小。

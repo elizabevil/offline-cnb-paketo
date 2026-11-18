@@ -13,6 +13,8 @@ import (
 // Options 是同步参数。
 type Options struct {
 	BundleDir string
+	// Fetch 控制下载（超时、重试、代理、请求头）。
+	Fetch FetchConfig
 	// LockPath 非空且允许写回时，未固定的 sha256/size 会在下载后自动回填。
 	LockPath string
 	Platform lock.Platform
@@ -20,6 +22,12 @@ type Options struct {
 	Offline  bool
 	Check    bool
 	Logger   *slog.Logger
+}
+
+// Pin 是待回填的 sha256 与大小。
+type Pin struct {
+	SHA256 string
+	Size   int64
 }
 
 // Action 描述一次同步的动作结果。
@@ -42,6 +50,8 @@ func (a Action) String() string { return string(a) }
 
 // Result 是单个物料的同步结果。
 type Result struct {
+	// Pinned 非空时表示本次下载需要回填 lock（由 Sync 统一写回）。
+	Pinned *Pin
 	Ref    lock.Ref
 	Action Action
 	Err    error
@@ -75,6 +85,10 @@ func Sync(l *lock.File, ids []string, opts Options) ([]Result, error) {
 	}
 	wg.Wait()
 
+	if err := writePins(results, opts); err != nil {
+		return results, err
+	}
+
 	var failed int
 	for _, r := range results {
 		if r.Err != nil {
@@ -93,7 +107,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	parsed, _ := lock.ParseRef(a.Ref())
 	res := Result{Ref: a.Ref(), Action: ActionSkipped}
 	// 本地物料（[asset.local]）由 `materials publish` 产出，不下载
-	if a.IsLocal() {
+	if a.IsLocal(opts.Platform) {
 		// 本地物料没有下载来源，也没有 .sha256 标记：只看产物是否已发布
 		if !expectOK(opts.BundleDir, opts.Platform, a) {
 			res.Action = ActionFailed
@@ -126,10 +140,16 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		return res
 	}
 
-	if err := ensureArchive(a, archive, opts); err != nil {
+	pinSHA, pinSize, err := ensureArchive(a, archive, opts)
+	if err != nil {
 		res.Err = err
 		res.Action = ActionFailed
 		return res
+	}
+	effectiveSHA := a.SHA256(opts.Platform)
+	if pinSHA != "" {
+		effectiveSHA = pinSHA
+		res.Pinned = &Pin{SHA256: pinSHA, Size: pinSize}
 	}
 	files, err := extractAsset(a, archive, binDir)
 	if err != nil {
@@ -138,18 +158,41 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		return res
 	}
 	res.Action = ActionExtracted
-	if err := writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform)); err != nil {
+	if err := writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), effectiveSHA); err != nil {
 		res.Err = err
 	}
 
 	size := fsutil.Size(archive)
+	if pinSize > 0 {
+		size = pinSize
+	}
 	if err := writeMarker(opts.BundleDir, opts.Platform, Marker{
-		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
+		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: effectiveSHA,
 		Size: size, Extractor: extractorID(a), Files: files,
 	}); err != nil {
 		res.Err = err
 	}
 	return res
+}
+
+// writePins 串行回填所有未固定的 sha256/size（避免并发读改写丢更新）。
+func writePins(results []Result, opts Options) error {
+	if opts.Check || opts.Offline || opts.LockPath == "" {
+		return nil
+	}
+	for _, r := range results {
+		if r.Pinned == nil {
+			continue
+		}
+		if _, err := lock.SetSHA(opts.LockPath, r.Ref, opts.Platform, r.Pinned.SHA256); err != nil {
+			return err
+		}
+		if _, err := lock.SetSize(opts.LockPath, r.Ref, opts.Platform, r.Pinned.Size); err != nil {
+			return err
+		}
+		opts.Logger.Info("pinned", "ref", r.Ref, "platform", opts.Platform, "sha256", r.Pinned.SHA256)
+	}
+	return nil
 }
 
 // extractorID 由解包规则生成，规则变化时 marker 自动失效。

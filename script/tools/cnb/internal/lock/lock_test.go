@@ -9,7 +9,7 @@ import (
 func asset(id, ver string, def bool) Asset {
 	return Asset{
 		ID: id, Version: ver, Default: def,
-		Unpack:   Unpack{Kind: "tgz", Dir: id + "/{version}", Expect: []string{"x"}},
+		Unpack:   Unpack{Kind: "tgz", Dir: id + "/" + ver, Expect: []string{"x"}},
 		Platform: map[string]Source{"linux-amd64": {URL: "https://example.com/x.tgz"}},
 	}
 }

@@ -1,9 +1,7 @@
 // Package lock 的物料访问方法。
 package manifest
 
-import (
-	"strings"
-)
+import ()
 
 // KnownPlatforms 是受支持的平台集合。
 var KnownPlatforms = map[string]bool{
@@ -24,7 +22,7 @@ func (a Asset) Dir() string {
 	if dir == "" {
 		dir = "."
 	}
-	return strings.ReplaceAll(dir, "{version}", a.Version)
+	return dir
 }
 
 // ExpectedPaths 返回解包后必须存在的完整相对路径。
@@ -51,24 +49,16 @@ func (a Asset) URL(platform Platform) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return strings.ReplaceAll(src.URL, "{version}", a.Version), true
+	return src.URL, true
 }
 
-// IsLocal 表示物料来自本地构建（[asset.local]）。
-
-// IsLocal 表示物料来自本地构建（[asset.local]）。
-func (a Asset) IsLocal() bool { return a.Local != nil }
-
-// SHA256 返回该平台固定的哈希（可能为空）；本地物料取 [asset.local].sha256。
+// IsLocal 表示该平台物料来自本地构建。
+func (a Asset) IsLocal(platform Platform) bool {
+	return a.Platform[string(platform)].Kind == "local"
+}
 
 // SHA256 返回该平台固定的哈希（可能为空）。
 func (a Asset) SHA256(platform Platform) string {
-	if a.Local != nil {
-		if src, ok := a.Platform[string(platform)]; ok && src.SHA256 != "" {
-			return src.SHA256
-		}
-		return a.Local.SHA256
-	}
 	return a.Platform[string(platform)].SHA256
 }
 
@@ -98,8 +88,5 @@ func isHex64(s string) bool {
 
 // Size 返回该平台声明的大小（未声明时为 0）。
 func (a Asset) Size(platform Platform) int64 {
-	if a.Local != nil {
-		return 0
-	}
 	return a.Platform[string(platform)].Size
 }

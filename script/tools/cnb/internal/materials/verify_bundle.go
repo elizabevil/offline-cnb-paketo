@@ -27,7 +27,7 @@ func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string)
 
 // checkOne 校验单个物料。
 func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) CheckResult {
-	if a.IsLocal() {
+	if a.IsLocal(platform) {
 		if pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths()) {
 			return CheckResult{Ref: a.Ref(), Status: StatusOK}
 		}

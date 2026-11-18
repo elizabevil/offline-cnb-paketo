@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -31,18 +30,22 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
-			if !a.IsLocal() {
+			platform := opts.platform
+			if platform == "" {
+				platform = string(workspace.HostPlatform())
+			}
+			if !a.IsLocal(lock.Platform(platform)) {
 				return &exitError{code: 2, msg: a.Ref() + " 不是本地物料（缺少 [asset.local]）"}
 			}
 			root, err := resolveRepo()
 			if err != nil {
 				return err
 			}
-			platform := opts.platform
-			if platform == "" {
-				platform = string(workspace.HostPlatform())
+			srcTpl := a.Platform[platform].Source
+			if srcTpl == "" {
+				return &exitError{code: 2, msg: a.Ref() + " 在 " + platform + " 平台缺少 source"}
 			}
-			src := filepath.Join(root, strings.ReplaceAll(a.Local.Source, "{platform}", platform))
+			src := filepath.Join(root, srcTpl)
 			if _, err := os.Stat(src); err != nil {
 				return &exitError{code: 1, msg: "找不到构建产物: " + src}
 			}
@@ -62,12 +65,7 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			changed := false
-			if platform == string(workspace.HostPlatform()) {
-				changed, err = lock.SetLocalSHA(path, a.Ref(), sum)
-			} else {
-				changed, err = lock.SetSHA(path, a.Ref(), lock.Platform(platform), sum)
-			}
+			changed, err := lock.SetSHA(path, a.Ref(), lock.Platform(platform), sum)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

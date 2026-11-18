@@ -54,15 +54,22 @@ func (f *File) Validate() int {
 		if len(a.Unpack.Expect) == 0 {
 			errs = append(errs, a.ID+": unpack.expect 不能为空（至少声明一个产物）")
 		}
-		if a.Local != nil {
-			if a.Local.Source == "" {
-				errs = append(errs, a.ID+": [asset.local] 缺少 source")
-			}
-			// 本地物料不要求 platform 表
-			continue
-		}
 		if len(a.Platform) == 0 {
 			errs = append(errs, a.ID+": 缺少 [asset.platform.<platform>] 表")
+		}
+		for name, src := range a.Platform {
+			switch src.Kind {
+			case "", "http":
+				if src.URL == "" {
+					errs = append(errs, fmt.Sprintf("%s: %s 缺少 url", a.ID, name))
+				}
+			case "local":
+				if src.Source == "" {
+					errs = append(errs, fmt.Sprintf("%s: %s 缺少 source", a.ID, name))
+				}
+			default:
+				errs = append(errs, fmt.Sprintf("%s: %s 未知 kind %q", a.ID, name, src.Kind))
+			}
 		}
 
 		if byID[a.ID] == nil {
@@ -80,9 +87,11 @@ func (f *File) Validate() int {
 				errs = append(errs, fmt.Sprintf("%s: 平台 %s 不受支持", a.ID, p))
 				continue
 			}
-			expanded := strings.ReplaceAll(src.URL, "{version}", a.Version)
-			if !strings.HasPrefix(expanded, "http://") && !strings.HasPrefix(expanded, "https://") {
-				errs = append(errs, fmt.Sprintf("%s[%s]: url 必须是 http(s) 绝对地址，展开后为 %q", a.ID, p, expanded))
+			if src.Kind == "local" {
+				continue
+			}
+			if !strings.HasPrefix(src.URL, "http://") && !strings.HasPrefix(src.URL, "https://") {
+				errs = append(errs, fmt.Sprintf("%s[%s]: url 必须是 http(s) 绝对地址，实际为 %q", a.ID, p, src.URL))
 			}
 			if src.SHA256 != "" && !isHex64(src.SHA256) {
 				errs = append(errs, fmt.Sprintf("%s[%s]: sha256 格式非法", a.ID, p))

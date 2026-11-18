@@ -11,8 +11,6 @@ const (
 	SectionPlatformPrefix = "[asset.platform."
 	// SectionPlatformSuffix 是平台段后缀。
 	SectionPlatformSuffix = "]"
-	// SectionLocal 是本地构建物料的段落。
-	SectionLocal = "[asset.local]"
 
 	// KeySHA256 / KeySize / KeySource 是写回时用到的键名。
 	KeySHA256 = "sha256"
@@ -24,9 +22,6 @@ const (
 func PlatformSection(platform Platform) string {
 	return SectionPlatformPrefix + string(platform) + SectionPlatformSuffix
 }
-
-// LocalSection 返回本地物料段名。
-func LocalSection() string { return SectionLocal }
 
 // ArchOf 从平台名取架构（linux-amd64 / darwin-arm64 → amd64 / arm64）。
 // 格式不合法时原样返回。

@@ -36,12 +36,6 @@ type Meta struct {
 	Platforms   []string `toml:"platforms"`
 }
 
-// Local 描述由本地构建产生的物料，不走下载。
-type Local struct {
-	Source string `toml:"source"` // 相对仓库根的产物路径
-	SHA256 string `toml:"sha256"` // 发布后回填
-}
-
 // Asset 是一条物料定义。
 type Asset struct {
 	ID      string `toml:"id"`
@@ -51,7 +45,6 @@ type Asset struct {
 	Info     Info              `toml:"info"`
 	Unpack   Unpack            `toml:"unpack"`
 	Platform map[string]Source `toml:"platform"`
-	Local    *Local            `toml:"local"`
 }
 
 // Info 是元信息，不参与构建。
@@ -76,7 +69,7 @@ const (
 	KindBin Kind = "bin"
 )
 
-// Unpack 描述如何解包；Dir 支持 {version}。
+// Unpack 描述如何解包。
 type Unpack struct {
 	// Include 是解压白名单（通配符）；为空表示全部。
 	Include []string `toml:"include,omitempty"`
@@ -87,10 +80,22 @@ type Unpack struct {
 }
 
 // Source 是某平台的下载源。
+// Source 描述某平台物料的来源。
 type Source struct {
-	URL    string `toml:"url"`
-	SHA256 string `toml:"sha256"`
-	Size   int64  `toml:"size,omitempty"`
+	// Kind 为 "http"（默认）或 "local"。
+	Kind string `toml:"kind,omitempty"`
+	// URL 是 http 来源地址（不包含占位符）。
+	URL string `toml:"url,omitempty"`
+	// Mirrors 是可选的回退源，仅在传输/HTTP 错误时尝试。
+	Mirrors []string `toml:"mirrors,omitempty"`
+	// Source 是 local 来源的仓库相对路径。
+	Source string `toml:"source,omitempty"`
+	// Recipe 是 local 来源的构建命令（可选，便于复现）。
+	Recipe string `toml:"recipe,omitempty"`
+	// Size 是字节数；-1 表示未知。
+	Size int64 `toml:"size,omitempty"`
+	// SHA256 是归档哈希。
+	SHA256 string `toml:"sha256,omitempty"`
 }
 
 // Ref 返回 "id@version"。

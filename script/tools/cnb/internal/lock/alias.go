@@ -60,7 +60,6 @@ var (
 	KnownPlatforms     = manifest.KnownPlatforms
 	Find               = manifest.Find
 	PlatformSection    = manifest.PlatformSection
-	LocalSection       = manifest.LocalSection
 	SupportedPlatforms = manifest.SupportedPlatforms
 	ArchOf             = manifest.ArchOf
 )
