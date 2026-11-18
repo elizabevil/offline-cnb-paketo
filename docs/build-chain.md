@@ -22,10 +22,10 @@
 | 源码解包 | 应用文件 | `/app` |
 | order 过滤 | `order.toml` | `/layers/order.toml` |
 | detect/build | layers、`launch.toml`、SBOM | `/layers/<buildpack-id>/` |
-| run image 预置 | OCI layout | `/layers/oci/index.docker.io/library/<repo>/sha256/<digest>/` |
+| run image 导入 | OCI layout | `/layers/oci/index.docker.io/library/<repo>/<tag>/` |
 | 元数据 | `analyzed.toml`（reference + top-layer） | `/layers/analyzed.toml` |
 | 导出 | 应用镜像 layout | `/layers/oci/index.docker.io/<repo>/<tag>/` |
-| 层包 | OCI layout（未压缩 tar） | `/cnb-layer/<module>.tgz` → 宿主 `<workspace>/layers/` |
+| 层包 | docker-archive | `/cnb-layer/<module>.tgz` → 宿主 `<workspace>/layers/` |
 | 最终产物 | s-mart 包 | bksmartpacker `--dest` |
 
 ## 三、数据流
@@ -40,13 +40,11 @@
                                                   │
                               detector → builder → （analyzer 可跳过）
                                                   │
-  run-image.tar ──挂载──▶ PrepareRunImage 写入 layout
-                                                  │
-                    analyzer -layout ──▶ analyzed.toml
+  run-image.tar ──挂载──▶ 转 OCI layout ──▶ analyzed.toml
                                                   │
                                     exporter -layout ──▶ layout 目录
                                                   │
-        cnb：imagefmt 归一化（补 PATH / RepoTags / 兼容文件）→ 未压缩 tar
+                             cnb：layout → docker-archive
                                                   │
                          /cnb-layer/<module>.tgz ──挂载─▶ 宿主 workspace/layers/
                                                   │
@@ -59,7 +57,7 @@
 |---|---|
 | Platform API ≥ 0.12 | 低于该版本 lifecycle 不注册 `-layout`，layout 模式会自动抬到 0.12 |
 | `CNB_EXPERIMENTAL_MODE=warn` | OCI layout 在 lifecycle 0.21 仍属实验特性 |
-| analyzer 与 layout | layout 模式下 analyzer/exporter 都必须用 `-layout`；run 镜像需先按引用归一化预置到 layout 目录 |
+| analyzer 与 layout | analyzer 走 daemon 时只写得出镜像 ID；layout 模式下改为由磁盘 layout 直接生成 analyzed.toml，跳过 analyzer |
 | run image 必须有层 | `FROM scratch` + `COPY` 可能得到 0 层镜像，bksmartpacker 改用 `image import` 构造单层镜像 |
 | SDK 不入镜像 | Go/Node/Python 运行时通过 `CNB_RUNTIMES` 挂载或由组件下载到 `/layers/cache` |
 
@@ -106,18 +104,15 @@ strings lifecycle | grep 'toml:"'
 BK 场景下 cnb 只用显式配置决定导出方式，不感知平台：
 
 ```
-CNB_EXPORT_MODE=layout（默认，由 bksmartpacker 注入）
+CNB_EXPORT_MODE=daemon（由 bksmartpacker 注入）
         ↓
-detect → build → analyze -layout → export -layout   # 写磁盘，不连 daemon
+detect → build → analyze → export -daemon   # 镜像写进容器运行时
         ↓
-cnb：读取镜像 → 补 PATH → imagefmt 写回 → 未压缩 tar
+bksmartpacker: image save -o <module>.tgz   # 产出 OCI 归档
         ↓
-/cnb-layer/<module>.tgz（OCI layout）→ 宿主 workspace/layers/
-        ↓
-bksmartpacker 组装 s-mart.tar.gz（.Version / app_desc / artifact.json / web.tgz）
+s-mart: .Version + app_desc + <module>.tgz + artifact.json
 ```
 
-- 为什么默认 layout：podman 的 Docker 兼容层会让 lifecycle 的单连接客户端
-  报 `singleton connection already in use`（详见生命周期 issue #1763）
-- 需要回到运行时导出时可用 `BKS_EXPORT_MODE=daemon`（适用于真 dockerd）
+- 导出由 lifecycle exporter 完成，config / Entrypoint / buildpack 层都由它生成
 - cnb 不读 `BKS_*`；平台差异全部留在 bksmartpacker
+- 需要不依赖 daemon 时用 `--export=layout --layout-dir=...`

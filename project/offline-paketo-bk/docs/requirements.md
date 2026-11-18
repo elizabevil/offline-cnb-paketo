@@ -111,4 +111,4 @@ project/offline-paketo-bk/
 3. bksmartpacker 产出 `s-mart.tar.gz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
 4. `<module>.tgz` 只含应用层
 5. `fixtures/single` 与 `fixtures/multi` 均可构建
-6. `cnb materials verify` / `cnb pipeline profile validate` / `cnb buildpack lint` 全绿
+6. `cnb pipeline doctor` / `dockerfile check` / `buildpack lint` 全绿

@@ -67,7 +67,7 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 | `cnb materials get nope linux-amd64` | stderr 提示已定义 id | 2 |
 | `cnb materials validate` | `✓ ...` 或逐条 `✗ ...` | 0 / 1 |
 | `cnb materials verify` | 每物料 `✓/✗` | 0 / 1 |
-| `cnb image convert <不存在路径> <目标>` | `目标不存在` | 1 |
+| `cnb pipeline repack <不存在路径>` | `目标不存在` | 1 |
 
 逐条手工验证：
 
@@ -109,7 +109,7 @@ cd script/tools/cnb && go test -run Repack -v ./...
 
 1. 改 Go 实现；
 2. `go test` 失败，逐字看 diff 是否真是你要的变化；
-3. 用同样的 fixture 跑一次 `cnb image convert`，人工核对输出；
+3. 用同样的 fixture 跑一次 `cnb pipeline repack`，把新字节贴回常量；
 4. commit message 里写明「为什么字节变了」。
 
 **失败排查**：
@@ -181,7 +181,7 @@ just fetch lifecycle && ls bundle/linux-amd64/binaries/lifecycle | head -3
 
 L4（repack golden）只在改动 `repack.go` 或发版时跑；它是纯 Go 测试，不引入额外运行时依赖。
 
-## 附：libc 一致性（人工确认）
+## 附：libc 一致性（由 doctor 检查）
 
 | 运行时 | 基础镜像要求 |
 |---|---|
@@ -189,6 +189,10 @@ L4（repack golden）只在改动 `repack.go` 或发版时跑；它是纯 Go 测
 | Python（uv 的 cpython-*-gnu） | glibc |
 | Go（静态链接） | 任意，含 alpine |
 
-当前没有自动化检查：若 base 镜像为 `alpine`/`musl` 且项目启用 Node 或 Python，需要人工确认。
+`cnb pipeline doctor <profile>` 会读取 `[images.run].args.BASE_IMAGE`：
+若为 `alpine`/`musl` 且项目启用 Node 或 Python，直接报错并给出修法。
 
-
+```bash
+cnb pipeline doctor config/projects/<p>.toml
+# ✓ run 镜像 libc 与运行时匹配
+```

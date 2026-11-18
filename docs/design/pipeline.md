@@ -1,7 +1,3 @@
-> **历史文档**：流水线已改为 `spec/profile`（K8s 风格 TOML，`[[spec.stages]]`），
-> 本文中的 `[[stage]]`、`[commands.*]`、`pipeline repack` 等均已移除。
-> 当前设计见 `docs/design/protocol-layers.md` 与 `docs/ai/protocol-spec.md`。
-
 # 完整流水线
 
 一份配置描述流程，两个脚本负责执行，物料只有一份。

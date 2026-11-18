@@ -1,96 +1,67 @@
 package imagefmt
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 )
 
-// descriptor 是 docker 兼容 manifest.json 里的层描述。
-type descriptor struct {
-	MediaType string `json:"mediaType"`
-	Digest    string `json:"digest"`
-	Size      int64  `json:"size"`
-}
-
-// compatManifest 是 docker-archive manifest.json 的元素（含 LayerSources）。
+// compatLayerSources 是 docker-archive 的 LayerSources 映射（digest → 描述）。
 type compatManifest struct {
-	Config       string                `json:"Config"`
-	RepoTags     []string              `json:"RepoTags"`
-	Layers       []string              `json:"Layers"`
-	LayerSources map[string]descriptor `json:"LayerSources"`
+	Config       string                   `json:"Config"`
+	RepoTags     []string                 `json:"RepoTags"`
+	Layers       []string                 `json:"Layers"`
+	LayerSources map[string]ociDescriptor `json:"LayerSources"`
 }
 
-// writeCompatFiles 在 OCI layout 目录内补 docker 兼容文件：
-// manifest.json（含 LayerSources）与 repositories。
-func writeCompatFiles(dir string, img *Image) error {
-	cfgName, err := img.V1.ConfigName()
-	if err != nil {
+// writeCompatFiles 在 OCI layout 内附 docker 兼容文件：
+// manifest.json（含 LayerSources）与 repositories，便于消费方按 docker-archive 习惯读取。
+func writeCompatFiles(dest string, img *Image, man ociManifest) error {
+	configPath := blobPath(man.Config.Digest)
+	entry := compatManifest{Config: configPath, RepoTags: img.RepoTags, LayerSources: map[string]ociDescriptor{}}
+	for _, l := range man.Layers {
+		entry.Layers = append(entry.Layers, blobPath(l.Digest))
+		entry.LayerSources[l.Digest] = l
+	}
+	if err := writeJSON(join(dest, FileManifestJSON), []compatManifest{entry}); err != nil {
 		return err
 	}
-	entry := compatManifest{
-		Config:       blobPath(cfgName.String()),
-		RepoTags:     img.RepoTags,
-		LayerSources: map[string]descriptor{},
-	}
-	layers, err := img.V1.Layers()
-	if err != nil {
-		return err
-	}
-	var last string
-	for _, l := range layers {
-		d, err := l.Digest()
-		if err != nil {
-			return err
-		}
-		size, err := l.Size()
-		if err != nil {
-			return err
-		}
-		mt, err := l.MediaType()
-		if err != nil {
-			return err
-		}
-		path := blobPath(d.String())
-		entry.Layers = append(entry.Layers, path)
-		entry.LayerSources[d.String()] = descriptor{MediaType: string(mt), Digest: d.String(), Size: size}
-		last = strings.TrimPrefix(d.String(), "sha256:")
-	}
-	if err := writeJSON(filepath.Join(dir, "manifest.json"), []compatManifest{entry}); err != nil {
-		return err
-	}
-	if len(entry.Layers) == 0 || len(img.RepoTags) == 0 {
+	if len(man.Layers) == 0 || len(img.RepoTags) == 0 {
 		return nil
 	}
 	repo, tag := splitRepoTag(img.RepoTags[0])
-	return writeJSON(filepath.Join(dir, "repositories"), map[string]map[string]string{repo: {tag: last}})
+	last := strings.TrimPrefix(man.Layers[len(man.Layers)-1].Digest, DigestPrefix)
+	return writeJSON(join(dest, "repositories"), map[string]map[string]string{repo: {tag: last}})
 }
 
-// blobPath 返回 digest 对应的 blob 相对路径。
-func blobPath(digest string) string {
-	return filepath.Join("blobs", "sha256", strings.TrimPrefix(digest, "sha256:"))
-}
-
-// splitRepoTag 拆分 repo 与 tag（无 tag 视为 latest），并去掉 docker.io 前缀。
+// splitRepoTag 拆分 repo 与 tag，并去掉 docker.io 前缀。
 func splitRepoTag(repoTag string) (repo, tag string) {
-	repo, tag = repoTag, "latest"
 	if i := strings.LastIndex(repoTag, ":"); i > strings.LastIndex(repoTag, "/") {
 		repo, tag = repoTag[:i], repoTag[i+1:]
+	} else {
+		repo, tag = repoTag, "latest"
 	}
 	return strings.TrimPrefix(repo, "docker.io/"), tag
 }
 
-// manifestAnnotations 生成 OCI index 的 containerd 注解。
-func manifestAnnotations(repoTag string) map[string]string {
-	repo, tag := splitRepoTag(repoTag)
-	first := strings.SplitN(repo, "/", 2)[0]
-	if !strings.Contains(first, ".") && !strings.Contains(first, ":") {
-		repo = "docker.io/" + repo
+// readCompatRepoTags 从 docker 兼容的 manifest.json 读取镜像标签（可能不存在）。
+func readCompatRepoTags(dir string) []string {
+	var entries []compatManifest
+	if err := readJSON(join(dir, FileManifestJSON), &entries); err != nil {
+		return nil
 	}
-	return map[string]string{
-		"io.containerd.image.name":          repo + ":" + tag,
-		"org.opencontainers.image.ref.name": tag,
+	if len(entries) == 0 {
+		return nil
 	}
+	return entries[0].RepoTags
 }
 
-func statFile(path string) (os.FileInfo, error) { return os.Stat(path) }
+// withRegistry 给无 registry 的 repo 补默认 docker.io 前缀。
+func withRegistry(repo, tag string) string {
+	name := repo
+	if first := strings.SplitN(repo, "/", 2)[0]; !strings.Contains(first, ".") && !strings.Contains(first, ":") {
+		name = "docker.io/" + repo
+	}
+	if tag == "" {
+		return name
+	}
+	return name + ":" + tag
+}
