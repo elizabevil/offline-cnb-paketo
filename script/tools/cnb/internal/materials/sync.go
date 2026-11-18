@@ -2,11 +2,15 @@
 package materials
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
@@ -106,9 +110,8 @@ func Sync(l *lock.File, ids []string, opts Options) ([]Result, error) {
 func syncOne(a *lock.Asset, opts Options) Result {
 	parsed, _ := lock.ParseRef(a.Ref())
 	res := Result{Ref: a.Ref(), Action: ActionSkipped}
-	// 本地物料（[asset.local]）由 `materials publish` 产出，不下载
+
 	if a.IsLocal(opts.Platform) {
-		// 本地物料没有下载来源，也没有 .sha256 标记：只看产物是否已发布
 		if !expectOK(opts.BundleDir, opts.Platform, a) {
 			res.Action = ActionFailed
 			res.Err = fmt.Errorf("%s not published; run cnb materials publish %s", a.Ref(), a.ID)
@@ -118,21 +121,18 @@ func syncOne(a *lock.Asset, opts Options) Result {
 
 	archive := archivePath(opts.BundleDir, opts.Platform, a)
 	binDir := binariesDir(opts.BundleDir, opts.Platform)
+	unpack := unpackID(a)
+	pinned := a.SHA256(opts.Platform)
+	marker := readMarker(opts.BundleDir, opts.Platform, parsed)
 
-	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m != nil && m.Extractor == extractorID(a) && m.SHA256 == a.SHA256(opts.Platform) {
-		return res
-	}
-	// 兼容旧标记（.sha256）：产物齐全且归档校验通过时补写 marker
-	if m := readMarker(opts.BundleDir, opts.Platform, parsed); m == nil && isExtracted(opts.BundleDir, opts.Platform, a) {
-		if ok, _ := verifyArchive(archive, a.SHA256(opts.Platform), a.Size(opts.Platform)); ok || a.SHA256(opts.Platform) == "" {
-			_ = writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), a.SHA256(opts.Platform))
-			_ = writeMarker(opts.BundleDir, opts.Platform, Marker{
-				ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: a.SHA256(opts.Platform),
-				Size: fsutil.Size(archive), Extractor: extractorID(a),
-			})
+	// 快速路径：已固定 + marker 匹配 + 产物齐全 + 归档仍通过校验
+	if pinned != "" && marker != nil && marker.SHA256 == pinned && marker.Unpack == unpack &&
+		expectOK(opts.BundleDir, opts.Platform, a) {
+		if ok, _ := verifyArchive(archive, pinned, a.Size(opts.Platform)); ok {
 			return res
 		}
 	}
+
 	if opts.Check || opts.Offline {
 		if !isExtracted(opts.BundleDir, opts.Platform, a) {
 			res.Err = fmt.Errorf("offline: %s not synced", a.Ref())
@@ -146,10 +146,24 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		res.Action = ActionFailed
 		return res
 	}
-	effectiveSHA := a.SHA256(opts.Platform)
+	effectiveSHA := pinned
 	if pinSHA != "" {
 		effectiveSHA = pinSHA
 		res.Pinned = &Pin{SHA256: pinSHA, Size: pinSize}
+	}
+
+	// 归档未变化且解包配置一致、产物齐全：只需补写标记
+	if marker != nil && marker.SHA256 == effectiveSHA && marker.Unpack == unpack &&
+		expectOK(opts.BundleDir, opts.Platform, a) {
+		res.Action = ActionSkipped
+		return res
+	}
+
+	// 重新解包前先清掉旧目录，避免新旧文件混合
+	if err := cleanTarget(a, binDir); err != nil {
+		res.Err = err
+		res.Action = ActionFailed
+		return res
 	}
 	files, err := extractAsset(a, archive, binDir)
 	if err != nil {
@@ -168,11 +182,27 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	}
 	if err := writeMarker(opts.BundleDir, opts.Platform, Marker{
 		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: effectiveSHA,
-		Size: size, Extractor: extractorID(a), Files: files,
+		Size: size, Unpack: unpack, Files: files,
 	}); err != nil {
 		res.Err = err
 	}
 	return res
+}
+
+// unpackID 由解包配置生成指纹，配置变化时 marker 失效。
+func unpackID(a *lock.Asset) string {
+	raw := fmt.Sprintf("%s|%d|%s|%v|%v", a.Unpack.Kind, a.Unpack.Strip, a.Unpack.Dir, a.Unpack.Expect, a.Unpack.Include)
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// cleanTarget 删除该物料的解包目标。
+func cleanTarget(a *lock.Asset, binDir string) error {
+	if a.Unpack.Kind == lock.KindBin {
+		rel := a.ExpectedPaths()[0]
+		return os.Remove(filepath.Join(binDir, rel))
+	}
+	return os.RemoveAll(filepath.Join(binDir, a.Dir()))
 }
 
 // writePins 串行回填所有未固定的 sha256/size（避免并发读改写丢更新）。
@@ -193,11 +223,6 @@ func writePins(results []Result, opts Options) error {
 		opts.Logger.Info("pinned", "ref", r.Ref, "platform", opts.Platform, "sha256", r.Pinned.SHA256)
 	}
 	return nil
-}
-
-// extractorID 由解包规则生成，规则变化时 marker 自动失效。
-func extractorID(a *lock.Asset) string {
-	return string(a.Unpack.Kind) + "/v2"
 }
 
 // isExtracted 判断预期产物是否齐全。

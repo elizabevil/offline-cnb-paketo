@@ -17,9 +17,12 @@ type Marker struct {
 	SHA256    string        `json:"sha256"`
 	Size      int64         `json:"size"`
 	SourceURL string        `json:"source_url,omitempty"`
-	Extractor string        `json:"extractor"`
-	Files     []string      `json:"files,omitempty"`
-	SyncedAt  string        `json:"synced_at"`
+	// Unpack 是解包配置指纹（kind/strip/dir/expect），变化时强制重解包。
+	Unpack string `json:"unpack"`
+	// Extractor 保留旧字段用于兼容历史 marker。
+	Extractor string   `json:"extractor,omitempty"`
+	Files     []string `json:"files,omitempty"`
+	SyncedAt  string   `json:"synced_at"`
 }
 
 // syncMarkerPath 返回 JSON marker 路径（与 legacy .sha256 区分）。
