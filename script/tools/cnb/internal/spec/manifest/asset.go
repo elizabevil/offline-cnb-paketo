@@ -1,7 +1,9 @@
 // Package lock 的物料访问方法。
 package manifest
 
-import ()
+import (
+	"strings"
+)
 
 // KnownPlatforms 是受支持的平台集合。
 var KnownPlatforms = map[string]bool{
@@ -22,7 +24,7 @@ func (a Asset) Dir() string {
 	if dir == "" {
 		dir = "."
 	}
-	return dir
+	return strings.ReplaceAll(dir, "{version}", a.Version)
 }
 
 // ExpectedPaths 返回解包后必须存在的完整相对路径。
@@ -49,7 +51,7 @@ func (a Asset) URL(platform Platform) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return src.URL, true
+	return strings.ReplaceAll(src.URL, "{version}", a.Version), true
 }
 
 // IsLocal 表示该平台物料来自本地构建。

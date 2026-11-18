@@ -2,6 +2,7 @@
 package materials
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -111,10 +112,17 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	parsed, _ := lock.ParseRef(a.Ref())
 	res := Result{Ref: a.Ref(), Action: ActionSkipped}
 
-	if a.IsLocal(opts.Platform) {
-		if !expectOK(opts.BundleDir, opts.Platform, a) {
+	resolver, err := resolverFor(a, opts.Platform)
+	if err != nil {
+		res.Action = ActionFailed
+		res.Err = err
+		return res
+	}
+	local := a.IsLocal(opts.Platform)
+	if local {
+		if _, err := resolver.Resolve(context.Background(), a, opts); err != nil {
 			res.Action = ActionFailed
-			res.Err = fmt.Errorf("%s not published; run cnb materials publish %s", a.Ref(), a.ID)
+			res.Err = err
 		}
 		return res
 	}
@@ -140,17 +148,14 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		return res
 	}
 
-	pinSHA, pinSize, err := ensureArchive(a, archive, opts)
+	art, err := resolver.Resolve(context.Background(), a, opts)
 	if err != nil {
 		res.Err = err
 		res.Action = ActionFailed
 		return res
 	}
-	effectiveSHA := pinned
-	if pinSHA != "" {
-		effectiveSHA = pinSHA
-		res.Pinned = &Pin{SHA256: pinSHA, Size: pinSize}
-	}
+	res.Pinned = art.Pin
+	effectiveSHA := art.SHA256
 
 	// 归档未变化且解包配置一致、产物齐全：只需补写标记
 	if marker != nil && marker.SHA256 == effectiveSHA && marker.Unpack == unpack &&
@@ -177,8 +182,8 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	}
 
 	size := fsutil.Size(archive)
-	if pinSize > 0 {
-		size = pinSize
+	if art.Size > 0 {
+		size = art.Size
 	}
 	if err := writeMarker(opts.BundleDir, opts.Platform, Marker{
 		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: effectiveSHA,

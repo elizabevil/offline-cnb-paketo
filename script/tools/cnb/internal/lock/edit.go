@@ -2,6 +2,7 @@ package lock
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 
 	"github.com/pelletier/go-toml/v2"
@@ -23,9 +24,8 @@ func SetSize(path, refStr string, platform Platform, size int64) (bool, error) {
 	})
 }
 
-// updateSource 读取整个 lock、修改目标平台的 Source、再序列化写回。
-// 采用强类型解析，避免按行替换带来的类型与转义问题（注释会丢失）。
-func updateSource(path, refStr string, platform Platform, mutate func(*manifest.Source)) (bool, error) {
+// Update 读取整个 lock，交给 mutate 修改后序列化写回（原子替换）。
+func Update(path string, mutate func(*manifest.File) error) (bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false, err
@@ -34,24 +34,11 @@ func updateSource(path, refStr string, platform Platform, mutate func(*manifest.
 	if err != nil {
 		return false, err
 	}
-	r, err := ParseRef(refStr)
-	if err != nil {
+	if err := mutate(file); err != nil {
 		return false, err
 	}
-	found := false
-	for i := range file.Assets {
-		a := &file.Assets[i]
-		if a.ID != r.ID || a.Version != r.Version {
-			continue
-		}
-		src := a.Platform[string(platform)]
-		mutate(&src)
-		a.Platform[string(platform)] = src
-		found = true
-		break
-	}
-	if !found {
-		return false, &notFoundRef{ref: refStr}
+	if n := file.Validate(); n > 0 {
+		return false, fmt.Errorf("更新后 lock 非法（%d 处错误），已放弃写入", n)
 	}
 	out, err := toml.Marshal(file)
 	if err != nil {
@@ -65,6 +52,28 @@ func updateSource(path, refStr string, platform Platform, mutate func(*manifest.
 		return false, err
 	}
 	return true, os.Rename(tmp, path)
+}
+
+// updateSource 读取整个 lock、修改目标平台的 Source、再序列化写回。
+// 采用强类型解析，避免按行替换带来的类型与转义问题（注释会丢失）。
+func updateSource(path, refStr string, platform Platform, mutate func(*manifest.Source)) (bool, error) {
+	r, err := ParseRef(refStr)
+	if err != nil {
+		return false, err
+	}
+	return Update(path, func(file *manifest.File) error {
+		for i := range file.Assets {
+			a := &file.Assets[i]
+			if a.ID != r.ID || a.Version != r.Version {
+				continue
+			}
+			src := a.Platform[string(platform)]
+			mutate(&src)
+			a.Platform[string(platform)] = src
+			return nil
+		}
+		return &notFoundRef{ref: refStr}
+	})
 }
 
 // notFoundRef 表示 lock 中没有对应物料。

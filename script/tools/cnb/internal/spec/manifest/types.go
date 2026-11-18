@@ -69,7 +69,7 @@ const (
 	KindBin Kind = "bin"
 )
 
-// Unpack 描述如何解包。
+// Unpack 描述如何解包；Dir 支持 {version}。
 type Unpack struct {
 	// Include 是解压白名单（通配符）；为空表示全部。
 	Include []string `toml:"include,omitempty"`
@@ -84,7 +84,7 @@ type Unpack struct {
 type Source struct {
 	// Kind 为 "http"（默认）或 "local"。
 	Kind string `toml:"kind,omitempty"`
-	// URL 是 http 来源地址（不包含占位符）。
+	// URL 是 http 来源地址，允许唯一占位符 {version}。
 	URL string `toml:"url,omitempty"`
 	// Mirrors 是可选的回退源，仅在传输/HTTP 错误时尝试。
 	Mirrors []string `toml:"mirrors,omitempty"`

@@ -95,8 +95,9 @@ func (f *File) Validate() int {
 			if src.Kind == "local" {
 				continue
 			}
-			if !strings.HasPrefix(src.URL, "http://") && !strings.HasPrefix(src.URL, "https://") {
-				errs = append(errs, fmt.Sprintf("%s[%s]: url 必须是 http(s) 绝对地址，实际为 %q", a.ID, p, src.URL))
+			rendered := strings.ReplaceAll(src.URL, "{version}", a.Version)
+			if !strings.HasPrefix(rendered, "http://") && !strings.HasPrefix(rendered, "https://") {
+				errs = append(errs, fmt.Sprintf("%s[%s]: url 必须是 http(s) 绝对地址，渲染后为 %q", a.ID, p, rendered))
 			}
 			if src.SHA256 != "" && !isHex64(src.SHA256) {
 				errs = append(errs, fmt.Sprintf("%s[%s]: sha256 格式非法", a.ID, p))

@@ -10,7 +10,7 @@ func newMaterialsCmd() *cobra.Command {
 	}
 	cmd.AddCommand(
 		newListCmd(), newGetCmd(), newValidateCmd(), newPlatformsCmd(),
-		newVerifyCmd(), newPinCmd(), newPublishCmd(), newLockCmd(), newSyncCmd(),
+		newVerifyCmd(), newPinCmd(), newUpdateCmd(), newPublishCmd(), newLockCmd(), newSyncCmd(),
 	)
 	return cmd
 }

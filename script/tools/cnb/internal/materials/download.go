@@ -17,7 +17,7 @@ const fileModeRead = 0o644
 
 // ensureArchive 确保归档存在且通过 sha256 + size 校验。
 // 返回需要回填的 sha256/size（空表示已固定）；写回 lock 由 Sync 统一完成。
-func ensureArchive(a *lock.Asset, dest string, opts Options) (string, int64, error) {
+func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options) (string, int64, error) {
 	want := a.SHA256(opts.Platform)
 	writable := !opts.Check && !opts.Offline && opts.LockPath != ""
 
@@ -38,7 +38,7 @@ func ensureArchive(a *lock.Asset, dest string, opts Options) (string, int64, err
 		}
 		srcErrs := sourceErrors{}
 		for _, url := range sources(a, opts.Platform) {
-			if err := opts.Fetch.download(context.Background(), url, dest); err != nil {
+			if err := opts.Fetch.download(ctx, url, dest); err != nil {
 				srcErrs.add(url, err)
 				continue
 			}
@@ -59,7 +59,7 @@ func ensureArchive(a *lock.Asset, dest string, opts Options) (string, int64, err
 	}
 	srcErrs := sourceErrors{}
 	for _, url := range sources(a, opts.Platform) {
-		if err := opts.Fetch.download(context.Background(), url, dest); err != nil {
+		if err := opts.Fetch.download(ctx, url, dest); err != nil {
 			srcErrs.add(url, err)
 			continue
 		}
