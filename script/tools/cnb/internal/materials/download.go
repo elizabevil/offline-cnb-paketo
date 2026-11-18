@@ -100,6 +100,8 @@ func sources(a *lock.Asset, platform lock.Platform) []string {
 		out = append(out, m+base)
 	}
 	out = append(out, base)
+	// lock 声明的回退源：仅在传输/HTTP 错误时尝试（sha 不匹配不会回退）
+	out = append(out, a.Mirrors(platform)...)
 	return out
 }
 

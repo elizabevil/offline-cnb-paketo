@@ -17,7 +17,7 @@ func asset(id, ver string, def bool) Asset {
 func TestValidate(t *testing.T) {
 	ok := &File{
 		Schema: 1,
-		Meta:   Meta{Platforms: []string{"linux-amd64", "linux-arm64"}},
+		Meta:   Meta{Platforms: []string{"linux-amd64"}},
 		Assets: []Asset{asset("lifecycle", "0.21.13", true)},
 	}
 	if n := ok.Validate(); n != 0 {

@@ -90,3 +90,8 @@ func isHex64(s string) bool {
 func (a Asset) Size(platform Platform) int64 {
 	return a.Platform[string(platform)].Size
 }
+
+// Mirrors 返回该平台声明的回退源。
+func (a Asset) Mirrors(platform Platform) []string {
+	return a.Platform[string(platform)].Mirrors
+}

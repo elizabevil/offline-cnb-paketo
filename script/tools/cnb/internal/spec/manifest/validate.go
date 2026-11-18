@@ -57,6 +57,11 @@ func (f *File) Validate() int {
 		if len(a.Platform) == 0 {
 			errs = append(errs, a.ID+": 缺少 [asset.platform.<platform>] 表")
 		}
+		for _, want := range f.Meta.Platforms {
+			if _, ok := a.Platform[want]; !ok {
+				errs = append(errs, fmt.Sprintf("%s: 缺少 meta.platforms 声明的平台 %s", a.ID, want))
+			}
+		}
 		for name, src := range a.Platform {
 			switch src.Kind {
 			case "", "http":
