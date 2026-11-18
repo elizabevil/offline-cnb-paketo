@@ -53,7 +53,6 @@ run = [
   "--build-context", "buildpacks=${repo}/buildpacks/paketo",
   "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
   "--build-arg", "BUNDLE_ARCH=${platform}",
-  "--build-arg", "PROCFILE_BP_TAG=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4",
   "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
   "--build-arg", "FNM_VERSION=${asset.fnm.version}",
   "--build-arg", "UV_VERSION=${asset.uv.version}",

@@ -73,5 +73,5 @@ cat > "${layer}.sbom.cdx.json" <<JSON
   "components": [{ "type": "application", "name": "python", "version": "${ver}",
     "purl": "pkg:generic/python@${ver}" }] }
 JSON
-arch_now="$(uname -m)"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
+arch_now="${CNB_TARGET_ARCH:-$(uname -m)}"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
 echo "  ✅ cpython complete: python${ver} linux/${arch_now}" >&2

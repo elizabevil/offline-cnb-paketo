@@ -11,6 +11,3 @@ api = "0.12"
   [[buildpack.licenses]]
     type = "Apache-2.0"
 
-[[targets]]
-  os = "linux"
-  arch = "amd64"

@@ -8,10 +8,6 @@
 
 ARG BASE_IMAGE_TAG
 
-# 官方 procfile buildpack（multi-stage 复制，避免把 stub 打进镜像）
-ARG PROCFILE_BP_TAG
-FROM ${PROCFILE_BP_TAG:-swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4} AS procfile-bp
-
 FROM ${BASE_IMAGE_TAG:-offline-builder-base-bk:latest}
 
 # pack 要求：构建容器使用的非 root 用户/组
@@ -34,9 +30,11 @@ ARG APP_DIR=/app
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb/lifecycle/
 
 # Go SDK 下载源（内网镜像；可用 --build-arg BP_GO_MIRROR 覆盖）
-ARG BP_GO_MIRROR=http://192.168.11.4:5000/
+ARG BP_GO_MIRROR=https://mirrors.aliyun.com/golang/
+ARG BP_GO_VERSION=""
 ENV BP_GO_MIRROR=${BP_GO_MIRROR}
-RUN echo "${BP_GO_MIRROR}" > /cnb/go-mirror
+RUN echo "${BP_GO_MIRROR}" > /cnb/go-mirror \
+    && if [ -n "${BP_GO_VERSION}" ]; then echo "${BP_GO_VERSION}" > /cnb/go-version; fi
 
 # cnb CLI（本地构建物料）：作为 lifecycle 执行器
 ARG CNB_VERSION
@@ -58,8 +56,9 @@ COPY --from=buildpacks /pip-install/ /cnb/buildpacks/paketo-buildpacks_pip-insta
 COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 RUN chmod +x /cnb/buildpacks/*/*/bin/* 2>/dev/null || true
 
-COPY --from=procfile-bp /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/ \
-                       /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
+# procfile 组件来自仓库自建 buildpacks（无外部镜像依赖）
+COPY --from=buildpacks /procfile/ /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
+RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/bin/*
 
 # ═══════════════════════════════════════════════════════════
 # 全局 order（决定 detect 顺序）

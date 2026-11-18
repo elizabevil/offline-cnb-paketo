@@ -18,6 +18,3 @@ api = "0.12"
     version = "3.12.7"
     uri = "https://github.com/astral-sh/uv"
 
-[[targets]]
-  os = "linux"
-  arch = "amd64"

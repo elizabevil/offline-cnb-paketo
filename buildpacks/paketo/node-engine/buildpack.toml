@@ -20,6 +20,3 @@ api = "0.12"
     uri = "https://npmmirror.com/mirrors/node/"
     sha256 = ""
 
-[[targets]]
-  os = "linux"
-  arch = "amd64"

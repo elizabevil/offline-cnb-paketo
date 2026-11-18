@@ -18,6 +18,3 @@ api = "0.12"
     version = "1.27.4"
     uri = "https://go.dev/dl/"
 
-[[targets]]
-  os = "linux"
-  arch = "amd64"

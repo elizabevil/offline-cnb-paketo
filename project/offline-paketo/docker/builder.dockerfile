@@ -1,13 +1,12 @@
 # =============================================================================
 # offline-paketo: 离线 CNB Builder 镜像
-# 内含 lifecycle + 官方 Paketo Procfile buildpack + Node/Python buildpack
+# 内含 lifecycle + 自建 Procfile/Node/Python buildpack
 # -----------------------------------------------------------------------------
 # 依赖: 需要先构建 base 镜像 (base.dockerfile) 或指定基础镜像
 # -----------------------------------------------------------------------------
 # 构建方式:
 #   docker build -t offline-builder:latest -f docker/Dockerfile . \
-#     --build-arg BASE_IMAGE_TAG=offline-builder-base:latest \
-#     --build-arg PROCFILE_BP_TAG=...
+#     --build-arg BASE_IMAGE_TAG=offline-builder-base:latest
 #
 #   一步构建（自动先构建 base）:
 #   just docker-build
@@ -19,13 +18,9 @@
 # ═════════════════════════════════════════════════════════════════════════
 # 构建参数（默认值来自 scripts/config.just）
 # ═════════════════════════════════════════════════════════════════════════
-ARG PROCFILE_BP_TAG
 ARG BASE_IMAGE_TAG
 
-# ── Stage 1: 提取官方 Procfile buildpack ────────────────────────────────
-FROM ${PROCFILE_BP_TAG:-swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4} AS procfile-bp
-
-# ── Stage 2: 基于 base 镜像构建最终 builder ─────────────────────────────
+# ── 基于 base 镜像构建最终 builder ──────────────────────────────────────
 FROM ${BASE_IMAGE_TAG:-swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim} AS final
 
 # pack 要求：构建容器使用的非 root 用户/组
@@ -67,8 +62,9 @@ COPY --from=buildpacks /cpython/ /cnb/buildpacks/paketo-buildpacks_cpython/1.18.
 COPY --from=buildpacks /pip-install/ /cnb/buildpacks/paketo-buildpacks_pip-install/0.7.51/
 COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 
-COPY --from=procfile-bp /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/ \
-                       /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
+# procfile 组件来自仓库自建 buildpacks（无外部镜像依赖）
+COPY --from=buildpacks /procfile/ /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
+RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/bin/*
 
 # ── 全局 order（决定 detect 顺序） ───────────────────────────────────────
 COPY docker/order.toml /cnb/order.toml

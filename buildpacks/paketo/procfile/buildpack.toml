@@ -13,13 +13,5 @@ api = "0.7"
     type = "Apache-2.0"
     uri = "https://github.com/paketo-buildpacks/procfile/blob/main/LICENSE"
 
-[[targets]]
-  os = "linux"
-  arch = "amd64"
-
-[[targets]]
-  os = "linux"
-  arch = "arm64"
-
 [[stacks]]
   id = "*"

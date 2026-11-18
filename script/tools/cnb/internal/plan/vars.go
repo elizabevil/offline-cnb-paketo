@@ -31,6 +31,8 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 	pairs := []string{
 		PlaceholderPrefix + "platform" + PlaceholderSuffix, string(platform),
 		PlaceholderPrefix + "arch" + PlaceholderSuffix, manifest.ArchOf(platform),
+		PlaceholderPrefix + "oci_platform" + PlaceholderSuffix, strings.Replace(string(platform), "-", "/", 1),
+		PlaceholderPrefix + "base_image" + PlaceholderSuffix, f.Spec.Project.Base[string(platform)],
 		PlaceholderPrefix + "bundle" + PlaceholderSuffix, opts.Bundle,
 		PlaceholderPrefix + "repo" + PlaceholderSuffix, opts.Repo,
 	}

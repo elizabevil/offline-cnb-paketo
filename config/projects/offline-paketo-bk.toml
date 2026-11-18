@@ -8,6 +8,10 @@ name = "offline-paketo-bk"
 dir      = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
+  [spec.project.base]
+  linux-amd64 = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim"
+  linux-arm64 = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim-linuxarm64"
+
 [spec.assets.lifecycle]
 version = "0.21.29"
 
@@ -37,9 +41,10 @@ name    = "base"
 workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
+  "--platform", "${oci_platform}",
   "-f", "docker/builder-base.dockerfile",
-  "-t", "offline-builder-base-bk:latest",
-  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  "-t", "offline-builder-base-bk:${arch}",
+  "--build-arg", "BASE_IMAGE=${base_image}",
   ".",
 ]
 
@@ -48,9 +53,10 @@ name    = "run"
 workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
+  "--platform", "${oci_platform}",
   "-f", "docker/run.dockerfile",
-  "-t", "offline-run-bk:latest",
-  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  "-t", "offline-run-bk:${arch}",
+  "--build-arg", "BASE_IMAGE=${base_image}",
   ".",
 ]
 
@@ -59,12 +65,14 @@ name    = "builder"
 workdir = "project/offline-paketo-bk"
 run = [
   "podman", "build",
+  "--platform", "${oci_platform}",
   "-f", "docker/builder-build.dockerfile",
-  "-t", "offline-builder-build-bk:latest",
+  "-t", "offline-builder-build-bk:${arch}",
   "--build-context", "bundle=${bundle}",
   "--build-context", "buildpacks=${repo}/buildpacks/paketo",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:latest",
-  "--build-arg", "BP_GO_MIRROR=http://192.168.11.4:5000/",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:${arch}",
+  "--build-arg", "BP_GO_MIRROR=https://mirrors.aliyun.com/golang/",
+  "--build-arg", "BP_GO_VERSION=1.27.4",
   "--build-arg", "BUNDLE_ARCH=${platform}",
   "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
   "--build-arg", "FNM_VERSION=${asset.fnm.version}",

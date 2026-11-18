@@ -15,8 +15,11 @@ resolve_app_dir() {
 set -euo pipefail
 layers_dir="${1:?missing layers dir}"
 app_dir="$(resolve_app_dir)"
-# 版本优先级：BP_GO_VERSION > go.mod 的 go 指令（补齐为 x.y.0）> 默认
+# 版本优先级：BP_GO_VERSION > /cnb/go-version > go.mod 的 go 指令 > 默认
 version="${BP_GO_VERSION:-}"
+if [ -z "${version}" ] && [ -f /cnb/go-version ]; then
+  version="$(cat /cnb/go-version 2>/dev/null | tr -d '[:space:]')"
+fi
 if [ -z "${version}" ] && [ -f "${app_dir:-/workspace}/go.mod" ]; then
   v="$(awk '/^go /{print $2; exit}' "${app_dir:-/workspace}/go.mod" 2>/dev/null || true)"
   case "${v}" in
@@ -53,7 +56,7 @@ for cand in "${runtime_root}/${version}" \
   fi
 done
 if [ -z "${go_root}" ]; then
-  arch="$(uname -m)"; case "${arch}" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
+  arch="${CNB_TARGET_ARCH:-$(uname -m)}"; case "${arch}" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
   # 下载源可配置：BP_GO_MIRROR（默认阿里云）→ 官方 go.dev 兜底
   mirror="${BP_GO_MIRROR:-}"
   if [ -z "${mirror}" ] && [ -f /cnb/go-mirror ]; then
@@ -91,5 +94,5 @@ cat > "${layer}.sbom.cdx.json" <<JSON
   "components": [{ "type": "application", "name": "go", "version": "${ver}",
     "purl": "pkg:generic/go@${ver}" }] }
 JSON
-arch_now="$(uname -m)"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
+arch_now="${CNB_TARGET_ARCH:-$(uname -m)}"; case "${arch_now}" in x86_64) arch_now=amd64;; aarch64) arch_now=arm64;; esac
 echo "  ✅ go-dist complete: go${ver} linux/${arch_now} (GOROOT=${go_root})" >&2

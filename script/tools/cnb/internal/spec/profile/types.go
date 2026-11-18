@@ -42,6 +42,8 @@ type Spec struct {
 type Project struct {
 	Dir      string `toml:"dir"`
 	Platform string `toml:"platform"`
+	// Base 是各平台的运行时基础镜像（如 debian 的 arch 专用 tag）。
+	Base map[string]string `toml:"base,omitempty"`
 }
 
 // Asset 是本项目锁定的物料版本。

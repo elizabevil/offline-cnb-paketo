@@ -247,7 +247,7 @@ expect = ['cnb']
 [asset.platform.linux-amd64]
 kind = 'local'
 source = 'script/bin/cnb-linux-amd64'
-sha256 = '25a67a9a83c41e73199ff7496cbba5cc72d6ee8f302ab7b4b761ee2883e0f9b6'
+sha256 = '9bd24e9bfcfa113fa14caf2552489276365e32e033ac71d07f47bff1749da381'
 
 [asset.platform.linux-arm64]
 kind = 'local'

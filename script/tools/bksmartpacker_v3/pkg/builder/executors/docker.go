@@ -117,7 +117,12 @@ func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
 	}
 	defer f.Close()
 
-	args := []string{"import", "-c", "ENV HOME=/app", "-c", "WORKDIR /app", "-", cnbFakeRunnerImage}
+	args := []string{"import", "-c", "ENV HOME=/app", "-c", "WORKDIR /app"}
+	if pf := targetPlatform(); pf != "" {
+		osName, arch := splitPlatform(pf)
+		args = append(args, "--os", osName, "--arch", arch)
+	}
+	args = append(args, "-", fakeRunnerImage())
 	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
 	cmd.Stdin = f
 	cmd.Stdout = os.Stdout
@@ -147,7 +152,7 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		"run", "--rm",
 		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", step.RequiredBuildpacks()),
 		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", step.OutputImage()),
-		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", cnbFakeRunnerImage),
+		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage()),
 		"-e", fmt.Sprintf("SOURCE_GET_URL=file:///tmp/source.tgz"),
 		"-e", "USE_DOCKER_DAEMON=1",
 		"-e", "CNB_PLATFORM_API=0.11",
@@ -171,6 +176,11 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	lo.ForEach(step.BuildEnvs(), func(env string, index int) {
 		args = append(args, "-e", env)
 	})
+
+	// 目标平台（qemu 交叉构建时显式指定）
+	if pf := targetPlatform(); pf != "" {
+		args = append(args, "--platform", pf)
+	}
 
 	// 挂载容器运行时 socket（默认 /var/run/docker.sock，可用 BKS_DOCKER_SOCK 换成 podman）
 	sock := os.Getenv("BKS_DOCKER_SOCK")
@@ -319,7 +329,7 @@ func tarDir(src, dest string) error {
 // exportFakeRunnerArchive 把 fake runner 导出为 docker-archive，供容器内使用。
 func (e *DockerExecutor) exportFakeRunnerArchive(ctx context.Context, workspace string) error {
 	path := filepath.Join(workspace, "run-image.tar")
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, "image", "save", "-o", path, cnbFakeRunnerImage)
+	cmd := exec.CommandContext(ctx, e.dockerExecPath, "image", "save", "-o", path, fakeRunnerImage())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -359,6 +369,25 @@ func exportMode() string {
 		return "daemon"
 	}
 	return "layout"
+}
+
+// targetPlatform 返回 BKS_PLATFORM（如 linux/arm64），未设置时为空。
+func targetPlatform() string { return os.Getenv("BKS_PLATFORM") }
+
+// splitPlatform 拆分 os/arch。
+func splitPlatform(p string) (string, string) {
+	if osName, arch, ok := strings.Cut(p, "/"); ok {
+		return osName, arch
+	}
+	return "linux", p
+}
+
+// fakeRunnerImage 按目标平台返回 fake runner 镜像名，避免架构间互相覆盖。
+func fakeRunnerImage() string {
+	if pf := targetPlatform(); pf != "" {
+		return cnbFakeRunnerImageBase + ":" + strings.ReplaceAll(pf, "/", "-")
+	}
+	return cnbFakeRunnerImageBase + ":latest"
 }
 // 注意：daemon 模式仅适用于真 dockerd；podman 的 docker 兼容层会让
 // lifecycle 导出阶段报 "singleton connection already in use"

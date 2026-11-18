@@ -44,7 +44,8 @@ _bps  := env_var_or_default("BPS_BIN", _root / "script" / "bin" / "bksmartpacker
 # 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
 _fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
 _out  := env_var_or_default("S_MART_OUT", _dir / "dist")
-smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:latest")
+_arch := if arch() == "aarch64" { "arm64" } else { "amd64" }
+smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:" + _arch)
 # 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：
 #   CNB_RUNTIMES=/opt/cnb-runtimes just smart
 # 宿主机目录需按 <lang>/<version>/... 组织，容器内挂到 /cnb/runtimes
