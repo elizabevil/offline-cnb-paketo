@@ -17,12 +17,11 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
 	"learn-cnb-paketo/tools/cnb/internal/spec/imagefmt"
-	platformspec "learn-cnb-paketo/tools/cnb/internal/spec/platform"
 	"learn-cnb-paketo/tools/cnb/internal/user"
 )
 
-// defaultLayoutDir is the fallback OCI layout directory.
-const defaultLayoutDir = platformspec.DefaultLayoutDir
+// defaultLayoutDir 是未指定 layout 目录时的落点（调用方可覆盖）。
+const defaultLayoutDir = "/layers/oci"
 
 // Phase 描述一个 lifecycle 阶段。
 type Phase struct {

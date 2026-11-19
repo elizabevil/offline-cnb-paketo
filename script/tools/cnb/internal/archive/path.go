@@ -12,7 +12,7 @@ import (
 // unpackName 去掉 strip 层前缀；不足 strip 层时丢弃。
 func unpackName(name string, strip int) (string, bool) {
 	clean := path.Clean(strings.TrimPrefix(name, "./"))
-	for range strip {
+	for i := 0; i < strip; i++ {
 		idx := strings.IndexByte(clean, '/')
 		if idx < 0 {
 			return "", false

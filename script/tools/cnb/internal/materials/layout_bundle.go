@@ -9,11 +9,11 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
-// Layout (kept in sync with the bundle produced by script/lib/common.sh):
+// 布局（与 script/lib/common.sh 一致）：
 //
 //	<platform>/archives/<id>/<version>/<basename(url)>
 //	<platform>/binaries/<extract_to>/
-//	<platform>/binaries/.meta/<id>@<version>.sha256
+//	<platform>/binaries/.meta/<id>.sha256
 func archivesDir(bundleDir string, platform lock.Platform) string {
 	return filepath.Join(bundleDir, string(platform), DirArchives)
 }
@@ -31,7 +31,7 @@ func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string
 	return filepath.Join(archivesDir(bundleDir, platform), a.ID, a.Version, filepath.Base(url))
 }
 
-// markerMatches reports whether the unpack marker matches the locked hash.
+// markerMatches 判断解压标记是否与 lock 中的哈希一致。
 func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset, want string) bool {
 	data, err := os.ReadFile(markerPath(bundleDir, platform, lock.MustParseRef(a.Ref())))
 	if err != nil {
@@ -44,18 +44,25 @@ func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset, want
 	return recorded == want
 }
 
-// expectOK reports whether every declared artifact exists.
+// expectOK 检查声明的产物是否齐全。
 func expectOK(bundleDir string, platform lock.Platform, a *lock.Asset) bool {
-	base := binariesDir(bundleDir, platform)
-	for _, rel := range a.ExpectedPaths(platform) {
-		if !fsutil.Exists(filepath.Join(base, rel)) {
+	return pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths(platform))
+}
+
+// pathsExist 判断 base 下的相对路径是否全部存在。
+func pathsExist(base string, rels []string) bool {
+	for _, rel := range rels {
+		if _, err := os.Stat(filepath.Join(base, rel)); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-// isExtracted reports whether the material is unpacked and complete.
+// isExtracted 判断物料是否已正确解压。
 func isExtracted(bundleDir string, platform lock.Platform, a *lock.Asset, want string) bool {
 	return markerMatches(bundleDir, platform, a, want) && expectOK(bundleDir, platform, a)
 }
+
+// fileSHA256 计算文件哈希。
+func fileSHA256(path string) (string, error) { return fsutil.SHA256(path) }

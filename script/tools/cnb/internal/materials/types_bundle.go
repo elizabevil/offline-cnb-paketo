@@ -2,17 +2,6 @@ package materials
 
 import "learn-cnb-paketo/tools/cnb/internal/lock"
 
-// countStatus counts materials with the given status.
-func (r Report) countStatus(want Status) int {
-	n := 0
-	for _, res := range r.Results {
-		if res.Status == want {
-			n++
-		}
-	}
-	return n
-}
-
 // Status 是单个物料的校验结论。
 type Status string
 
@@ -38,14 +27,26 @@ type Report struct {
 	Results  []CheckResult
 }
 
-// Failures returns the number of broken materials.
+// Failures 返回不达标（StatusBroken）的条目数。
 func (r Report) Failures() int {
-	return r.countStatus(StatusBroken)
+	n := 0
+	for _, res := range r.Results {
+		if res.Status == StatusBroken {
+			n++
+		}
+	}
+	return n
 }
 
-// Unpinned returns the number of materials without a pinned hash.
+// Unpinned 返回哈希未固定的条目数。
 func (r Report) Unpinned() int {
-	return r.countStatus(StatusUnpinned)
+	n := 0
+	for _, res := range r.Results {
+		if res.Status == StatusUnpinned {
+			n++
+		}
+	}
+	return n
 }
 
 // OK 判断校验是否通过：无 broken；未固定项在 strict 下视为失败。

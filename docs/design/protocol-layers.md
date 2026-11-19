@@ -112,7 +112,7 @@ kind       = "Pipeline"
 name = "offline-paketo-bk"
 
 [spec.project]
-directory = "project/offline-paketo-bk"
+dir      = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
 # ── 物料：本项目锁定的版本（省略则取 lock 的 default）────────
@@ -171,14 +171,14 @@ run = [
   "podman", "build",
   "-f", "project/offline-paketo/docker/builder.dockerfile",
   "-t", "offline-builder:latest",
-  "--build-context", "bundle=${runtime.bundle}/${spec.project.platform}",
+  "--build-context", "bundle=${bundle}/${platform}",
   "--build-context", "buildpacks=buildpacks/paketo",
   "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
   "--build-arg", "PROCFILE_BP_TAG=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4",
-  "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}",
-  "--build-arg", "FNM_VERSION=${spec.assets.fnm.version}",
-  "--build-arg", "UV_VERSION=${spec.assets.uv.version}",
-  "--build-arg", "CNB_VERSION=${spec.assets.cnb.version}",
+  "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
+  "--build-arg", "FNM_VERSION=${asset.fnm.version}",
+  "--build-arg", "UV_VERSION=${asset.uv.version}",
+  "--build-arg", "CNB_VERSION=${asset.cnb.version}",
   ".",
 ]
 ```
@@ -193,7 +193,7 @@ kind       = "Pipeline"
 name = "offline-paketo-bk"
 
 [spec.project]
-directory = "project/offline-paketo-bk"
+dir      = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
 [[spec.stages]]
@@ -214,11 +214,11 @@ run = [
   "podman", "build",
   "-f", "project/offline-paketo-bk/docker/builder-build.dockerfile",
   "-t", "offline-builder-build-bk:latest",
-  "--build-context", "bundle=${runtime.bundle}/${spec.project.platform}",
+  "--build-context", "bundle=${bundle}/${platform}",
   "--build-context", "buildpacks=buildpacks/paketo",
   "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:latest",
   "--build-arg", "BP_GO_MIRROR=http://192.168.11.4:5000/",
-  "--build-arg", "BUNDLE_ARCH=${spec.project.platform}",
+  "--build-arg", "BUNDLE_ARCH=${platform}",
   ".",
 ]
 ```
@@ -229,47 +229,45 @@ run = [
 # Dockerfile 的 COPY 源检查：显式声明待检查的 Dockerfile 与上下文
 [[spec.checks.dockerfiles]]
 path = "docker/builder.dockerfile"
-contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks/paketo" }
+contexts = { bundle = "${bundle}", buildpacks = "${repo}/buildpacks/paketo" }
 ```
 
 为什么要单独一段：`run` 是任意命令，参数顺序不稳定，从 argv 反推
 "这条命令在构建哪个 Dockerfile"不可靠。检查目标写在配置里，命令怎么排都不影响。
 
-### 5.4 占位符（stage run 与 spec.checks 通用）
+### 5.4 占位符（stage run 里可用的变量）
 
-**命名规则：占位符就是配置里的完整路径**，不提供短名。看到 `${spec.project.platform}`
-就能在同一个文件里找到 `[spec.project] platform`，不存在"这个短名从哪来"的问题。
+`run` 与 `spec.checks` 支持同一组 `${...}` 占位符。**未知占位符在 plan 阶段直接报错**，
+不会带着 `${...}` 进入容器。
 
-| 占位符 | 含义 | 对应配置 |
-|---|---|---|
-| `${spec.project.platform}` | 目标平台，如 `linux-amd64` | `[spec.project] platform` |
-| `${spec.project.directory}` | 项目目录 | `[spec.project] dir` |
-| `${spec.project.base}` | 当前平台的基础镜像 | `[spec.project.base]` 里 platform 对应的值 |
-| `${spec.assets.<id>.version}` | 物料版本 | `[spec.assets.<id>] version`，缺省取 lock default |
-| `${derived.architecture}` | 架构，如 `amd64` | 由 `platform` 派生 |
-| `${derived.container_platform}` | `linux/amd64`，供 `docker build --platform` | 由 `platform` 把首个 `-` 换成 `/` |
-| `${runtime.repo}` | 仓库根绝对路径 | `--repo` / `CNB_REPO_ROOT` / 可执行文件位置 |
-| `${runtime.bundle}` | 物料目录绝对路径 | `--bundle` 或 lock 同级 `bundle/` |
+| 占位符 | 含义 | 来源 | 怎么改 |
+|---|---|---|---|
+| `${platform}` | 目标平台（完整） | `spec.project.platform` | 改配置，或 `--platform` 临时覆盖 |
+| `${arch}` | 架构部分 | 由 `platform` 派生 | 改 `platform` |
+| `${oci_platform}` | `linux/amd64` 形式 | `platform` 把首个 `-` 换成 `/` | 改 `platform` |
+| `${base_image}` | 基础镜像 | `spec.project.base[platform]` | 改 `spec.project.base` |
+| `${bundle}` | 物料目录绝对路径 | `--bundle` 或 lock 所在目录下的 `bundle/` | 改 `--bundle` |
+| `${repo}` | 仓库根绝对路径 | `--repo` / `CNB_REPO_ROOT` / 可执行文件位置 | 改 `--repo` |
+| `${asset.<id>.version}` | 物料版本 | `spec.assets.<id>.version`，缺省取 lock 的 default | 改 `spec.assets.<id>.version` |
 
-三个命名空间各有明确含义：
+`${asset.*}` 只会为**本 profile 声明过的物料**生成，没声明就没有该占位符。
 
-- `spec.*`  —— 配置里能直接找到的值，占位符即路径
-- `derived.*` —— 由配置算出来的值（不另存字段，避免重复来源）
-- `runtime.*` —— 运行时环境提供、不在配置里的值
-
-`${spec.assets.*}` 只为**本 profile 声明过的物料**生成；未知占位符在 plan 阶段报错，
-错误信息提示用 `cnb pipeline variables <profile>` 自省。
+自省方式：
 
 ```bash
-$ cnb pipeline variables config/projects/offline-paketo.toml
-PLACEHOLDER                       VALUE
-${spec.project.platform}          linux-amd64
-${derived.architecture}           amd64
-${derived.container_platform}     linux/amd64
-${runtime.repo}                   /…/Learn-cnb-paketo
-${runtime.bundle}                 /…/Learn-cnb-paketo/bundle
-${spec.assets.lifecycle.version}  0.21.29
+cnb pipeline variables config/projects/<name>.toml
+# PLACEHOLDER        VALUE                  SOURCE
+# ${platform}        linux-amd64            spec.project.platform
+# ${arch}            amd64                  derived from platform
+# ${oci_platform}    linux/amd64            platform with "-" replaced by "/"
+# ${base_image}      swr.../debian:trixie-slim  spec.project.base[platform]
+# ${bundle}          /…/bundle              bundle directory
+# ${repo}            /…                     repository root
+# ${asset.cnb.version}  3.0.0               spec.assets.cnb.version or lock default
 ```
+
+实现位置：`internal/plan/vars.go`（替换表）、`plan.Placeholders`（导出自省表）。
+新增占位符必须同时更新这张表与 `placeholders_test.go`，测试会校验每个占位符都有 source。
 
 ### A.4 旧结构里消失的东西
 
@@ -280,7 +278,7 @@ ${spec.assets.lifecycle.version}  0.21.29
 | `[assets.*]` | 改为 `spec.assets.*`：仍按项目锁版本，省略取 lock default |
 | `[images.*]` | 删除：直接写进 `spec.stages[].run` |
 | `[commands.*]` | 删除：同上 |
-| `inject_versions` | 删除：改为在 `run` 里显式 `--build-arg X_VERSION=${spec.assets.x.version}` |
+| `inject_versions` | 删除：改为在 `run` 里显式 `--build-arg X_VERSION=${asset.x.version}` |
 | `desc` | 删除：注释即可 |
 | `after` | 删除：`stages` 列表顺序即顺序 |
 | `${image.base.tag}` | 改为字面量（与 base stage 的 `-t` 相同） |

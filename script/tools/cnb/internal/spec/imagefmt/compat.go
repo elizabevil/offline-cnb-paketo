@@ -82,7 +82,7 @@ func splitRepoTag(repoTag string) (repo, tag string) {
 // manifestAnnotations 生成 OCI index 的 containerd 注解。
 func manifestAnnotations(repoTag string) map[string]string {
 	repo, tag := splitRepoTag(repoTag)
-	first, _, _ := strings.Cut(repo, "/")
+	first := strings.SplitN(repo, "/", 2)[0]
 	if !strings.Contains(first, ".") && !strings.Contains(first, ":") {
 		repo = "docker.io/" + repo
 	}

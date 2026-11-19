@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"learn-cnb-paketo/tools/cnb/internal/lock"
-
 	"github.com/spf13/cobra"
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
 func newListCmd() *cobra.Command {

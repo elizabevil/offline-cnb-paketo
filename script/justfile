@@ -80,7 +80,7 @@ check: tools
       echo "  ✓ 包名无 util/common/misc/types/api"
     @cd {{_script}}/.. && \
       for f in config/projects/*.toml; do \
-        grep -q "── 占位符" "$f" || { echo "  ✗ $f 缺少占位符说明（配置必须自带占位符说明）"; exit 1; }; \
+        grep -q "可用占位符" "$f" || { echo "  ✗ $f 缺少占位符说明（配置必须自带占位符说明）"; exit 1; }; \
       done; \
       echo "  ✓ 配置必须自带占位符说明"
     @cd {{_script}}/tools/cnb && \

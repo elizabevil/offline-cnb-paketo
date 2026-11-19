@@ -45,19 +45,17 @@ type Checks struct {
 	Dockerfiles []DockerfileCheck `toml:"dockerfiles,omitempty"`
 }
 
-// DockerfileCheck pins one Dockerfile, the contexts its COPY uses, and the
-// build args needed to expand variables inside COPY sources.
+// DockerfileCheck pins one Dockerfile and the contexts its COPY uses.
 type DockerfileCheck struct {
 	Path     string            `toml:"path"`
 	Context  string            `toml:"context,omitempty"`  // default: project dir
 	Contexts map[string]string `toml:"contexts,omitempty"` // named --from contexts
-	Args     map[string]string `toml:"args,omitempty"`     // COPY 变量取值（同 --build-arg）
 }
 
 // Project 是项目标识与默认平台。
 type Project struct {
-	Directory string `toml:"directory"`
-	Platform  string `toml:"platform"`
+	Dir      string `toml:"dir"`
+	Platform string `toml:"platform"`
 	// Base 是各平台的运行时基础镜像（如 debian 的 arch 专用 tag）。
 	Base map[string]string `toml:"base,omitempty"`
 }

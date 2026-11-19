@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"learn-cnb-paketo/tools/cnb/internal/materials"
-
 	"github.com/spf13/cobra"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
 func newPinCmd() *cobra.Command {

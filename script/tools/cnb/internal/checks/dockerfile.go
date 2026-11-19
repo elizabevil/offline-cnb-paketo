@@ -2,7 +2,6 @@ package checks
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,18 +14,10 @@ type DockerfileSourceFinding struct {
 	Stage    string
 	Source   string
 	Resolved string
-	// Reason replaces the default "COPY source not found" message when set.
-	Reason string
 }
 
 // Describe renders a finding for CLI output.
 func (f DockerfileSourceFinding) Describe() string {
-	if f.Reason != "" {
-		return f.Reason
-	}
-	if f.Resolved == "" {
-		return fmt.Sprintf("COPY source not found: %s", f.Source)
-	}
 	return fmt.Sprintf("COPY source not found: %s (resolved: %s)", f.Source, f.Resolved)
 }
 
@@ -39,16 +30,7 @@ func (f DockerfileSourceFinding) Describe() string {
 func CheckDockerfiles(targets []DockerfileTarget, bundleDir, buildpacksDir string) []DockerfileSourceFinding {
 	var out []DockerfileSourceFinding
 	for _, t := range targets {
-		vars := dockerfileVars(t.Dockerfile, t.Args)
-		stages := stageNames(t.Dockerfile)
 		for _, src := range copySources(t.Dockerfile) {
-			src.path = expandVars(src.path, vars)
-			if src.from != "" {
-				if reason := unknownFrom(src.from, stages, t.Contexts); reason != "" {
-					out = append(out, DockerfileSourceFinding{Stage: t.Name, Reason: reason})
-					continue
-				}
-			}
 			resolved, ok := resolveSource(src, t.Context, t.Contexts, bundleDir, buildpacksDir)
 			if !ok {
 				continue
@@ -61,110 +43,12 @@ func CheckDockerfiles(targets []DockerfileTarget, bundleDir, buildpacksDir strin
 	return out
 }
 
-// DockerfileTarget is one Dockerfile plus the contexts and variables its COPY
-// sources use.
+// DockerfileTarget is one Dockerfile plus the contexts its COPY uses.
 type DockerfileTarget struct {
 	Name       string
 	Dockerfile string
 	Context    string
 	Contexts   map[string]string
-	// Args are the build args (same meaning as --build-arg) used to expand
-	// variables in COPY sources.
-	Args map[string]string
-}
-
-// dockerfileVars collects ARG/ENV defaults from the Dockerfile, then overlays
-// explicitly configured build args. Later values win, mirroring Docker.
-func dockerfileVars(dockerfile string, args map[string]string) map[string]string {
-	vars := map[string]string{}
-	data, err := os.ReadFile(dockerfile)
-	if err == nil {
-		for line := range strings.SplitSeq(string(data), "\n") {
-			fields := strings.Fields(strings.TrimSpace(line))
-			if len(fields) < 2 {
-				continue
-			}
-			switch strings.ToUpper(fields[0]) {
-			case "ARG", "ENV":
-				name, value, ok := strings.Cut(fields[1], "=")
-				if !ok || value == "" {
-					continue // ARG without default: resolved by --build-arg or skipped
-				}
-				vars[name] = value
-			}
-		}
-	}
-	maps.Copy(vars, args)
-	return vars
-}
-
-// unknownFrom reports a --from value that is neither a named context, a stage
-// in this Dockerfile, nor an image reference.
-//
-// A bare identifier that matches no stage is almost always a typo: Docker would
-// silently treat it as an image name and fail at build time.
-func unknownFrom(from string, stages []string, contexts map[string]string) string {
-	if _, ok := contexts[from]; ok {
-		return ""
-	}
-	for _, name := range stages {
-		if strings.EqualFold(name, from) {
-			return ""
-		}
-	}
-	if from == "bundle" || from == "buildpacks" {
-		return ""
-	}
-	if strings.ContainsAny(from, "/:@.") || isNumeric(from) {
-		return "" // image reference or stage index
-	}
-	return fmt.Sprintf("COPY --from=%s matches no stage in this Dockerfile", from)
-}
-
-func isNumeric(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// expandVars substitutes ${NAME} and $NAME using known values. Unknown
-// variables are left untouched so resolveSource can skip the source.
-func expandVars(s string, vars map[string]string) string {
-	for name, value := range vars {
-		s = strings.ReplaceAll(s, "${"+name+"}", value)
-		s = strings.ReplaceAll(s, "$"+name, value)
-	}
-	return s
-}
-
-// stageNames returns the named build stages in declaration order.
-// FROM lines may carry --platform=... before the image.
-func stageNames(dockerfile string) []string {
-	data, err := os.ReadFile(dockerfile)
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for line := range strings.SplitSeq(string(data), "\n") {
-		fields := strings.Fields(strings.TrimSpace(line))
-		if len(fields) < 4 || !strings.EqualFold(fields[0], "FROM") {
-			continue
-		}
-		// FROM [--platform=x] image [AS name]
-		for i := 2; i < len(fields)-1; i++ {
-			if strings.EqualFold(fields[i], "AS") {
-				names = append(names, fields[i+1])
-				break
-			}
-		}
-	}
-	return names
 }
 
 // copySource is one COPY/ADD source with its optional --from value.
@@ -180,7 +64,7 @@ func copySources(dockerfile string) []copySource {
 		return nil
 	}
 	var out []copySource
-	for line := range strings.SplitSeq(string(data), "\n") {
+	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(strings.TrimSpace(line))
 		if len(fields) < 3 {
 			continue
