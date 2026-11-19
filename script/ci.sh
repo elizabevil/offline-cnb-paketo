@@ -15,7 +15,7 @@ just check
 
 echo "── lock 校验 ──"
 script/bin/cnb-linux-amd64 materials validate
-script/bin/cnb-linux-amd64 --file assets.lock.toml.example validate
+script/bin/cnb-linux-amd64 --file assets.lock.toml.example materials validate
 
 echo "── 流程校验 ──"
 for f in config/projects/*.toml; do
@@ -30,9 +30,13 @@ for f in config/projects/*.toml; do
   script/bin/cnb-linux-amd64 lint "$f"
 done
 
-echo "── 物料校验（按流程）──"
-for f in config/projects/*.toml; do
-  script/bin/cnb-linux-amd64 pipeline profile verify "$f"
-done
+echo "── arm64：工具与物料 ──"
+TARGET=linux-arm64 just --justfile script/tools/cnb/justfile build
+TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
+script/bin/cnb-linux-amd64 materials verify --platform linux-arm64
+script/bin/cnb-linux-amd64 pipeline plan config/projects/offline-paketo-bk.toml --platform linux-arm64 >/dev/null
+
+echo "── 物料校验（bundle）──"
+script/bin/cnb-linux-amd64 materials verify
 
 echo "✅ CI 通过"

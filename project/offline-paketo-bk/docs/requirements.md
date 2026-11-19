@@ -92,7 +92,6 @@ project/offline-paketo-bk/
 ├── docker/
 │   ├── builder-base.dockerfile
 │   ├── builder-build.dockerfile
-│   ├── run.dockerfile
 │   ├── lifecycle-entrypoint.sh # 四阶段 + bksmartpacker 契约
 │   ├── order.toml
 │   ├── apt-sources/

@@ -74,6 +74,9 @@ func (f *File) Validate() int {
 			}
 		}
 		for name, src := range a.Platform {
+			if src.Size < -1 {
+				errs = append(errs, fmt.Sprintf("%s[%s]: size 不能小于 -1（实际 %d）", a.ID, name, src.Size))
+			}
 			switch src.Kind {
 			case "", "http":
 				if src.URL == "" {

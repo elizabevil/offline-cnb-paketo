@@ -24,24 +24,34 @@ script/bin/cnb-linux-arm64 materials list --platform linux-arm64
 
 `cnb materials pin` 只能由已下载的归档反推哈希并打印，不写回 lock。
 
-## 三、在 arm64 主机验证
+## 三、CI 覆盖范围
+
+`script/ci.sh` 已包含：
 
 ```bash
-git clone https://gitee.com/elizabevil/Learn-cnb-paketo.git
-cd Learn-cnb-paketo
+TARGET=linux-arm64 just --justfile script/tools/cnb/justfile build
+TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
+script/bin/cnb-linux-amd64 materials verify --platform linux-arm64
+script/bin/cnb-linux-amd64 pipeline plan config/projects/offline-paketo-bk.toml --platform linux-arm64
+```
 
-just tools                              # 产出 cnb/bksmartpacker 的 arm64 二进制
-script/bin/cnb-linux-arm64 materials verify --platform linux-arm64
+即：交叉编译工具、校验 arm64 物料、生成 arm64 计划。
+真正的镜像构建与打包需要 arm64 运行环境（原生或 qemu），不在默认 CI 中执行。
 
-cd project/offline-paketo-bk
-CNB_BIN=../../script/bin/cnb-linux-arm64 just build --platform linux-arm64
+## 四、完整构建（arm64 环境）
 
-CNB_BIN=../../script/bin/cnb-linux-arm64 \
+```bash
+cd Learn-cnb-paketo/project/offline-paketo-bk
+CNB_BIN=../../script/bin/cnb-linux-amd64 just build --platform linux-arm64
+
+CNB_BIN=../../script/bin/cnb-linux-amd64 \
 BPS_BIN=../../script/bin/bksmartpacker-linux-arm64 \
+BKS_PLATFORM=linux/arm64 \
+BUILDER_IMAGE=offline-builder-build-bk:arm64 \
 just smart /path/to/release-arm64
 ```
 
-## 四、断言
+## 五、断言
 
 ```bash
 W=$(mktemp -d)
@@ -62,7 +72,7 @@ PY
 
 期望：`architecture: arm64`。
 
-## 五、x86 + qemu 备选
+## 六、x86 + qemu 备选
 
 ```bash
 sudo podman run --privileged --rm tonistiigi/binfmt --install arm64
@@ -71,7 +81,7 @@ podman run --rm --platform linux/arm64 debian:trixie-slim uname -m   # aarch64
 
 注意：bksmartpacker 启动 builder 时目前没有 `--platform` 透传，qemu 场景需要额外参数支持。
 
-## 六、已知阻塞
+## 七、已知阻塞
 
 | 项 | 状态 |
 |---|---|

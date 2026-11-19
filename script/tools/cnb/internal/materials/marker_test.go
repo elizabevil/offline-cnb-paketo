@@ -37,7 +37,7 @@ func TestCleanTargetRemovesPreviousExtraction(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &lock.Asset{Unpack: lock.Unpack{Kind: "tgz", Dir: "x/1"}}
-	if err := cleanTarget(a, bin); err != nil {
+	if err := cleanTarget(a, bin, "linux-amd64"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {

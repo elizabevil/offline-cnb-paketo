@@ -1,3 +1,6 @@
+> **历史文档**：构建已改为 podman build + lifecycle（无 pack builder create），
+> run 镜像不再使用（exporter 使用 bksmartpacker 的 fake runner）。
+
 # BK 方案构建逻辑
 
 ## 概览

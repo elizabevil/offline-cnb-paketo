@@ -5,7 +5,7 @@
 
 ARG BASE_IMAGE
 
-FROM ${BASE_IMAGE:?BASE_IMAGE is required (see profile spec.project.base)}
+FROM ${BASE_IMAGE}
 
 COPY docker/apt-sources/sources.list /etc/apt/sources.list
 RUN rm /etc/apt/sources.list.d/*

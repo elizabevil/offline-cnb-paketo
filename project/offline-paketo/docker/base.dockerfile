@@ -14,7 +14,7 @@
 
 ARG BASE_IMAGE
 
-FROM ${BASE_IMAGE:?BASE_IMAGE is required}
+FROM ${BASE_IMAGE}
 
 # ── 替换 APT 镜像源（国内加速） ─────────────────────────────────
 # docker/apt-sources/sources.list 在构建上下文中，
