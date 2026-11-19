@@ -18,7 +18,9 @@ const DefaultTimeout = 10 * time.Minute
 
 // Stage is one resolved step.
 type Stage struct {
-	Name            string
+	Name string
+	// Description is informational only.
+	Description     string
 	Argv            []string
 	Workdir         string
 	Env             []string
@@ -110,7 +112,7 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 		env = append(env, k+"="+st.Env[k])
 	}
 	return Stage{
-		Name: st.Name, Argv: argv, Workdir: workdir, Env: env,
+		Name: st.Name, Description: st.Description, Argv: argv, Workdir: workdir, Env: env,
 		Timeout: timeout, ContinueOnError: st.ContinueOnError,
 	}, nil
 }

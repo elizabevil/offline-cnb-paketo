@@ -70,7 +70,9 @@ type Asset struct {
 
 // Stage is one execution step: exactly one command, no type dispatch.
 type Stage struct {
-	Name            string            `toml:"name"`
+	Name string `toml:"name"`
+	// Description documents the stage; it never affects execution.
+	Description     string            `toml:"description,omitempty"`
 	Run             []string          `toml:"run"`
 	Workdir         string            `toml:"workdir"`
 	Env             map[string]string `toml:"env,omitempty"`

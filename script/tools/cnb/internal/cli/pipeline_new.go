@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,26 +118,44 @@ func newPlanCmd() *cobra.Command {
 			}
 			out := cmd.OutOrStdout()
 			if format == "json" {
-				fmt.Fprintf(out, "{\"project\":%q,\"platform\":%q,\"stages\":[\n", f.Metadata.Name, p.Platform)
-				for i, st := range p.Stages {
-					sep := ","
-					if i == len(p.Stages)-1 {
-						sep = ""
-					}
-					fmt.Fprintf(out, "  {\"name\":%q,\"workdir\":%q,\"argv\":%q}%s\n", st.Name, st.Workdir, st.Argv, sep)
-				}
-				fmt.Fprintln(out, "]}")
-				return nil
+				return writePlanJSON(out, f.Metadata.Name, p)
 			}
 			fmt.Fprintf(out, "project: %s\nplatform: %s\nbundle: %s\nstages:\n", f.Metadata.Name, p.Platform, p.Bundle)
 			for i, st := range p.Stages {
-				fmt.Fprintf(out, "  %d. %s\n     cd %s\n     %v\n", i+1, st.Name, st.Workdir, st.Argv)
+				fmt.Fprintf(out, "  %d. %s\n", i+1, st.Name)
+				if st.Description != "" {
+					fmt.Fprintf(out, "     # %s\n", st.Description)
+				}
+				fmt.Fprintf(out, "     cd %s\n     %v\n", st.Workdir, st.Argv)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text | json")
 	return cmd
+}
+
+// writePlanJSON renders the plan as valid JSON.
+func writePlanJSON(out io.Writer, project string, p *plan.Plan) error {
+	type stageJSON struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description,omitempty"`
+		Workdir     string   `json:"workdir"`
+		Argv        []string `json:"argv"`
+	}
+	type planJSON struct {
+		Project  string      `json:"project"`
+		Platform string      `json:"platform"`
+		Bundle   string      `json:"bundle"`
+		Stages   []stageJSON `json:"stages"`
+	}
+	doc := planJSON{Project: project, Platform: p.Platform, Bundle: p.Bundle}
+	for _, st := range p.Stages {
+		doc.Stages = append(doc.Stages, stageJSON{Name: st.Name, Description: st.Description, Workdir: st.Workdir, Argv: st.Argv})
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
 }
 
 // newRunCmd executes the plan stage by stage.

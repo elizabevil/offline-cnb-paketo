@@ -65,8 +65,9 @@ version = "3.0.0"
 version = "5.15.9"
 
 [[spec.stages]]
-name    = "base"
-workdir = "project/offline-paketo-bk"
+name        = "base"
+description = "构建 base 镜像（证书、locale、工作目录）"
+workdir     = "project/offline-paketo-bk"
 run = [
   "podman", "build", "-f", "docker/builder-base.dockerfile",
   "-t", "offline-builder-base-bk:${derived.architecture}", "--platform", "${derived.container_platform}",
@@ -74,8 +75,9 @@ run = [
 ]
 
 [[spec.stages]]
-name    = "builder"
-workdir = "project/offline-paketo-bk"
+name        = "builder"
+description = "构建 builder 镜像（lifecycle + buildpacks）"
+workdir     = "project/offline-paketo-bk"
 run = [
   "podman", "build", "-f", "docker/builder-build.dockerfile",
   "-t", "offline-builder-build-bk:${derived.architecture}", "--platform", "${derived.container_platform}",

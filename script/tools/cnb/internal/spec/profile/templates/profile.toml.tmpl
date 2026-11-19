@@ -34,8 +34,9 @@ platform  = "{{.Platform}}"
 version = "0.21.29"
 
 [[spec.stages]]
-name    = "base"
-workdir = "{{.Dir}}"
+name        = "base"
+description = "build the base image (certificates, locale, workdir)"
+workdir     = "{{.Dir}}"
 run = [
   "{{.Container}}", "build", "-f", "docker/base.dockerfile",
   "-t", "{{.Name}}-base:${derived.architecture}",
@@ -45,8 +46,9 @@ run = [
 ]
 
 [[spec.stages]]
-name    = "builder"
-workdir = "{{.Dir}}"
+name        = "builder"
+description = "build the builder image (lifecycle + buildpacks)"
+workdir     = "{{.Dir}}"
 run = [
   "{{.Container}}", "build", "-f", "docker/builder.dockerfile",
   "-t", "{{.Name}}-builder:${derived.architecture}",
@@ -61,8 +63,9 @@ run = [
 
 # Optional: run the four lifecycle phases inside the builder image.
 # [[spec.stages]]
-# name    = "lifecycle"
-# workdir = "{{.Dir}}"
+# name        = "lifecycle"
+# description = "run detect/build/analyze/export inside the builder image"
+# workdir     = "{{.Dir}}"
 # run = [
 #   "{{.Container}}", "run", "--rm",
 #   "-e", "SOURCE_GET_URL=file:///workspace/source.tgz",
