@@ -1,45 +1,31 @@
-// Package user resolves uids and gids for privilege dropping.
+// Package user 解析 /etc/passwd 中的 uid/gid，供降权执行使用。
 package user
 
 import (
-	"os/user"
+	"os"
 	"strconv"
+	"strings"
 )
 
-// Lookup returns the uid/gid of a user by name.
-//
-// It uses os/user so it follows the platform's user backend: /etc/passwd for
-// static binaries, NSS (LDAP, sssd, …) when cgo is available. That keeps the
-// tool usable in environments where users do not live in /etc/passwd.
-func Lookup(name string) (uid, gid uint32, ok bool) {
-	u, err := user.Lookup(name)
-	if err != nil {
-		return 0, 0, false
-	}
-	u32, err := strconv.ParseUint(u.Uid, 10, 32)
-	if err != nil {
-		return 0, 0, false
-	}
-	g32, err := strconv.ParseUint(u.Gid, 10, 32)
-	if err != nil {
-		return 0, 0, false
-	}
-	return uint32(u32), uint32(g32), true
-}
+// PasswdFile 是用户信息文件（测试可替换）。
+var PasswdFile = "/etc/passwd"
 
-// Current returns the uid/gid of the running process.
-func Current() (uid, gid uint32, ok bool) {
-	u, err := user.Current()
+// Lookup 返回用户的 uid/gid。
+func Lookup(name string) (uid, gid uint32, ok bool) {
+	data, err := os.ReadFile(PasswdFile)
 	if err != nil {
 		return 0, 0, false
 	}
-	u32, err := strconv.ParseUint(u.Uid, 10, 32)
-	if err != nil {
-		return 0, 0, false
+	for line := range strings.SplitSeq(string(data), "\n") {
+		f := strings.Split(line, ":")
+		if len(f) < 4 || f[0] != name {
+			continue
+		}
+		u, err1 := strconv.Atoi(f[2])
+		g, err2 := strconv.Atoi(f[3])
+		if err1 == nil && err2 == nil {
+			return uint32(u), uint32(g), true
+		}
 	}
-	g32, err := strconv.ParseUint(u.Gid, 10, 32)
-	if err != nil {
-		return 0, 0, false
-	}
-	return uint32(u32), uint32(g32), true
+	return 0, 0, false
 }

@@ -4,31 +4,13 @@ package workspace
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
+	"path/filepath"
 )
 
-// defaultMarkers are the files that identify a project root, in priority order.
-var defaultMarkers = []string{"assets.lock.toml", ".git"}
-
-// Markers returns the root markers, honouring CNB_ROOT_MARKERS ("a,b").
-// Overriding them lets the tool run against any directory layout.
-func Markers() []string {
-	if env := os.Getenv(EnvRootMarkers); env != "" {
-		var out []string
-		for m := range strings.SplitSeq(env, ",") {
-			if m = strings.TrimSpace(m); m != "" {
-				out = append(out, m)
-			}
-		}
-		if len(out) > 0 {
-			return out
-		}
-	}
-	return defaultMarkers
-}
+// Markers 是判定仓库根的标记文件（按优先级）。
+var Markers = []string{"assets.lock.toml", ".git"}
 
 // Find 从 start 目录向上查找含标记文件的目录。
 func Find(start string) (string, error) {
@@ -36,16 +18,15 @@ func Find(start string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	markers := Markers()
 	for {
-		for _, m := range markers {
+		for _, m := range Markers {
 			if _, err := os.Stat(filepath.Join(dir, m)); err == nil {
 				return dir, nil
 			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", &errs.NotFound{Kind: "repo root", Ref: start, Known: markers}
+			return "", &errs.NotFound{Kind: "repo root", Ref: start, Known: Markers}
 		}
 		dir = parent
 	}

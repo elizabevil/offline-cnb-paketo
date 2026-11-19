@@ -85,5 +85,4 @@ path = "docker/base.dockerfile"
 
 [[spec.checks.dockerfiles]]
 path = "docker/builder.dockerfile"
-args = { BUNDLE_ARCH = "${spec.project.platform}", LIFECYCLE_VERSION = "${spec.assets.lifecycle.version}", FNM_VERSION = "${spec.assets.fnm.version}", UV_VERSION = "${spec.assets.uv.version}", CNB_VERSION = "${spec.assets.cnb.version}" }
 contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks/paketo" }

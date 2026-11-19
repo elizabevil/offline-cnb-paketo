@@ -13,6 +13,8 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
+// 下载参数。
+
 // ensureArchive 确保归档存在且通过 sha256 + size 校验。
 // 返回需要回填的 sha256/size（空表示已固定）；写回 lock 由 Sync 统一完成。
 func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options) (string, int64, error) {
