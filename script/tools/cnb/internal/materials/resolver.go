@@ -28,7 +28,7 @@ type resolver interface {
 // resolverFor 按 Source.Kind 选择实现。
 func resolverFor(a *lock.Asset, platform lock.Platform) (resolver, error) {
 	switch a.Platform[string(platform)].Kind {
-	case "", "http":
+	case "", lock.KindHTTP:
 		return httpResolver{}, nil
 	case "local":
 		return localResolver{}, nil
@@ -49,7 +49,8 @@ func (httpResolver) Resolve(ctx context.Context, a *lock.Asset, opts Options) (a
 	if sha != "" {
 		return artifact{SHA256: sha, Size: size, Pin: &Pin{SHA256: sha, Size: size}}, nil
 	}
-	return artifact{SHA256: a.SHA256(opts.Platform), Size: a.Size(opts.Platform)}, nil
+	locked, _ := lockSource(a, opts.Platform, opts)
+	return artifact{SHA256: locked.SHA256, Size: locked.Size}, nil
 }
 
 // localResolver 由 materials publish 产出，不下载。
@@ -59,5 +60,6 @@ func (localResolver) Resolve(_ context.Context, a *lock.Asset, opts Options) (ar
 	if !expectOK(opts.BundleDir, opts.Platform, a) {
 		return artifact{}, fmt.Errorf("%s not published; run cnb materials publish %s", a.Ref(), a.ID)
 	}
-	return artifact{SHA256: a.SHA256(opts.Platform), Size: a.Size(opts.Platform)}, nil
+	locked, _ := lockSource(a, opts.Platform, opts)
+	return artifact{SHA256: locked.SHA256, Size: locked.Size}, nil
 }

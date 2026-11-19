@@ -10,7 +10,7 @@ kind       = "Pipeline"
 name = "offline-paketo"
 
 [spec.project]
-dir      = "project/offline-paketo"
+directory = "project/offline-paketo"
 platform = "linux-amd64"
 
 [spec.assets.lifecycle]

@@ -15,20 +15,16 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-// loadPipeline 解析流水线配置并构建执行计划所需上下文。
+// loadPipeline parses a pipeline config and builds the execution plan.
 func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
-	data, err := os.ReadFile(path)
+	f, warns, err := loadProfileFile(path)
 	if err != nil {
-		return nil, nil, &exitError{code: ExitFailure, msg: err.Error()}
-	}
-	f, warns, err := specprofile.Parse(data)
-	if err != nil {
-		return nil, nil, &exitError{code: ExitFailure, msg: err.Error()}
+		return nil, nil, err
 	}
 	for _, w := range warns {
 		fmt.Fprintf(os.Stderr, "  ! %s\n", w.String())
 	}
-	// --platform 覆盖 profile 的平台（用于交叉验证 arm64 等）
+	// --platform overrides the profile platform (e.g. cross-checking arm64).
 	if opts.platform != "" {
 		f.Spec.Project.Platform = opts.platform
 	}
@@ -44,17 +40,17 @@ func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
 	}
 	p, _, err := plan.Build(f, ctx.Lock, plan.Options{Repo: ctx.Root, Bundle: ctx.Bundle})
 	if err != nil {
-		return nil, nil, &exitError{code: ExitFailure, msg: err.Error()}
+		return nil, nil, failExecution(err)
 	}
 	return f, p, nil
 }
 
-// newPlanCmd 打印执行计划（每个阶段的最终 argv）。
+// newPlanCmd prints the execution plan (final argv per stage).
 func newPlanCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
 		Use:   "plan <profile>",
-		Short: "打印执行计划（阶段 + 最终 argv）",
+		Short: "print the execution plan (stages + final argv)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, p, err := loadPipeline(args[0])
@@ -85,7 +81,7 @@ func newPlanCmd() *cobra.Command {
 	return cmd
 }
 
-// newRunCmd 按计划执行阶段。
+// newRunCmd executes the plan stage by stage.
 func newRunCmd() *cobra.Command {
 	var (
 		dryRun   bool
@@ -95,9 +91,9 @@ func newRunCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "run <profile>",
-		Short: "执行流水线（按 stages 顺序）",
+		Short: "run the pipeline in stage order",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			_, p, err := loadPipeline(args[0])
 			if err != nil {
 				return err
@@ -108,15 +104,15 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 			if _, err := exec.Run(context.Background(), p, exec.Options{From: from, Until: until}, logger); err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			logger.Info("pipeline done", "project", p.Project)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只打印命令，不执行")
-	cmd.Flags().StringVar(&from, "from", "", "从指定阶段开始（跳过之前阶段）")
-	cmd.Flags().StringVar(&until, "until", "", "执行到指定阶段（含）为止")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print commands without executing")
+	cmd.Flags().StringVar(&from, "from", "", "start at this stage, skipping earlier ones")
+	cmd.Flags().StringVar(&until, "until", "", "stop after this stage (inclusive)")
 	cmd.Flags().StringVar(&logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	return cmd
 }

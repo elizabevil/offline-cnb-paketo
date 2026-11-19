@@ -21,18 +21,18 @@ _default:
 
 # 编译到 script/bin/<name>（唯一 go build 入口）
 build:
-    @mkdir -p {{_out}}
-    @cd {{_dir}} && \
-      GOCACHE="${GOCACHE:-{{_root}}/../.cache/go-build}" \
+    @mkdir -p {{ _out }}
+    @cd {{ _dir }} && \
+      GOCACHE="${GOCACHE:-{{ _root }}/../.cache/go-build}" \
       CGO_ENABLED=0 \
-      GOOS=$(echo '{{target}}' | cut -d- -f1) \
-      GOARCH=$(echo '{{target}}' | cut -d- -f2) \
+      GOOS=$(echo '{{ target }}' | cut -d- -f1) \
+      GOARCH=$(echo '{{ target }}' | cut -d- -f2) \
       go build -trimpath -buildvcs=false \
-        -ldflags "-extldflags '-static' -X learn-cnb-paketo/tools/cnb/internal/version.Version={{_ver}} -s -w" \
-        -o {{bin}} ./cmd/cnb
-    @{{bin}} version
+        -ldflags "-extldflags '-static' -X learn-cnb-paketo/tools/cnb/internal/version.Version={{ _ver }} -s -w" \
+        -o {{ bin }} ./cmd/cnb
+    @{{ bin }} version
 
 # 编译并发布为本地物料（供镜像构建 COPY）
 publish: build
-    @{{bin}} materials publish cnb >/dev/null
+    @{{ bin }} materials publish cnb >/dev/null
     @echo "  ✓ cnb 物料已发布"

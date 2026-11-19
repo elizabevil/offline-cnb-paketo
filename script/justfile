@@ -50,7 +50,7 @@ check: tools
     @echo "── lock 结构 ──"
     @{{_cnb_bin}} --file {{_script}}/../assets.lock.toml materials validate
     @echo "── 模板合法性（防止模板腐烂）──"
-    @{{_cnb_bin}} --file {{_script}}/../assets.lock.toml.example materials validate
+    @{{_cnb_bin}} --file {{_script}}/../assets.toml.example materials validate
     @echo "── shell 语法 ──"
     @bash -n {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ bash -n 通过"
     @echo "── go 静态检查 ──"
@@ -78,10 +78,19 @@ check: tools
       bad=$(find internal cmd -type d \( -name util -o -name common -o -name misc -o -name types -o -name api \) 2>/dev/null || true); \
       if [ -n "$bad" ]; then echo "  ✗ 禁止无意义包名:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ 包名无 util/common/misc/types/api"
+    @cd {{_script}}/.. && \
+      for f in config/projects/*.toml; do \
+        grep -q "── 占位符" "$f" || { echo "  ✗ $f 缺少占位符说明（配置必须自带占位符说明）"; exit 1; }; \
+      done; \
+      echo "  ✓ 配置必须自带占位符说明"
     @cd {{_script}}/tools/cnb && \
       bad=$(grep -rnE 'errs\.(New|Wrap|Invalid|NotFound|Missing).*"[^"]*[一-龥]' --include='*.go' internal cmd || true); \
       if [ -n "$bad" ]; then echo "  ✗ 错误信息必须为英文:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ 错误信息为英文"
+    @cd {{_script}}/tools/cnb && \
+      bad=$(grep -rn '[\u4e00-\u9fa5]' --include='*.go' internal/cli internal/checks || true); \
+      if [ -n "$bad" ]; then echo "  ✗ CLI/检查层不得出现中文:"; echo "$bad"; exit 1; fi; \
+      echo "  ✓ CLI/检查层无中文"
     @cd {{_script}}/tools/cnb && \
       bad=$(grep -rn 'tlsunsafeekm\|tlsrsakex\|tls3des\|tls10server\|x509keypairleaf\|gotypesalias' --include='*.go' . || true); \
       if [ -n "$bad" ]; then echo "  ✗ 禁止已移除的 GODEBUG:"; echo "$bad"; exit 1; fi; \
@@ -128,4 +137,10 @@ clean:
 check-updates:
     @{{_script}}/check-updates.sh
 
-
+# Go 静态检查（golangci-lint，配置见 script/tools/.golangci.yml）
+lint:
+    @cd {{_script}}/tools/cnb && \
+      GOCACHE={{_script}}/../.cache/go-build \
+      GOMODCACHE={{_script}}/../.cache/gomod \
+      GOLANGCI_LINT_CACHE={{_script}}/../.cache/golangci \
+      golangci-lint run --config ../.golangci.yml ./...

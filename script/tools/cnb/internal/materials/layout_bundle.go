@@ -32,14 +32,12 @@ func archivePath(bundleDir string, platform lock.Platform, a *lock.Asset) string
 }
 
 // markerMatches 判断解压标记是否与 lock 中的哈希一致。
-func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset) bool {
+func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset, want string) bool {
 	data, err := os.ReadFile(markerPath(bundleDir, platform, lock.MustParseRef(a.Ref())))
 	if err != nil {
 		return false
 	}
-	recorded := string(data)
-	want := a.SHA256(platform)
-	recorded = strings.TrimSpace(recorded)
+	recorded := strings.TrimSpace(string(data))
 	if want == "" {
 		return recorded == MarkerUnpinned
 	}
@@ -62,8 +60,8 @@ func pathsExist(base string, rels []string) bool {
 }
 
 // isExtracted 判断物料是否已正确解压。
-func isExtracted(bundleDir string, platform lock.Platform, a *lock.Asset) bool {
-	return markerMatches(bundleDir, platform, a) && expectOK(bundleDir, platform, a)
+func isExtracted(bundleDir string, platform lock.Platform, a *lock.Asset, want string) bool {
+	return markerMatches(bundleDir, platform, a, want) && expectOK(bundleDir, platform, a)
 }
 
 // fileSHA256 计算文件哈希。

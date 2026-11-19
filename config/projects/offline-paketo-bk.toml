@@ -1,11 +1,39 @@
+# offline-paketo-bk 构建流水线
+#   校验：cnb pipeline profile validate config/projects/offline-paketo-bk.toml
+#   计划：cnb pipeline plan config/projects/offline-paketo-bk.toml
+#   检查：cnb lint config/projects/offline-paketo-bk.toml
+#   占位符：见下方说明；自省用 cnb pipeline variables config/projects/offline-paketo-bk.toml
+
 apiVersion = "cnb/v1"
 kind       = "Pipeline"
 
 [metadata]
 name = "offline-paketo-bk"
 
+# ── 占位符（run 与 spec.checks 通用；未知占位符在 plan 阶段报错）──────────
+#   一律使用配置里的完整路径，不用短名，避免歧义。
+#
+#   ${spec.project.platform}       目标平台，如 linux-amd64
+#                                  ← [spec.project] platform
+#   ${spec.project.directory}      项目目录，如 project/offline-paketo
+#                                  ← [spec.project] dir
+#   ${spec.project.base}           当前平台的基础镜像
+#                                  ← [spec.project.base] 里 platform 对应的值
+#   ${derived.architecture}        架构，如 amd64
+#                                  ← 由 spec.project.platform 派生
+#   ${derived.container_platform}  linux/amd64，供 docker build --platform
+#                                  ← 由 spec.project.platform 把首个 "-" 换成 "/"
+#   ${runtime.repo}                仓库根绝对路径
+#                                  ← --repo / CNB_REPO_ROOT / 可执行文件位置
+#   ${runtime.bundle}              物料目录绝对路径
+#                                  ← --bundle 或 lock 同级 bundle/
+#   ${spec.assets.<id>.version}    物料版本
+#                                  ← [spec.assets.<id>] version（缺省取 lock）
+#
+#   自省：cnb pipeline variables config/projects/<name>.toml
+
 [spec.project]
-dir      = "project/offline-paketo-bk"
+directory = "project/offline-paketo-bk"
 platform = "linux-amd64"
 
   [spec.project.base]
@@ -40,36 +68,32 @@ version = "5.15.9"
 name    = "base"
 workdir = "project/offline-paketo-bk"
 run = [
-  "podman", "build",
-  "--platform", "${oci_platform}",
-  "-f", "docker/builder-base.dockerfile",
-  "-t", "offline-builder-base-bk:${arch}",
-  "--build-arg", "BASE_IMAGE=${base_image}",
-  ".",
+  "podman", "build", "-f", "docker/builder-base.dockerfile",
+  "-t", "offline-builder-base-bk:${derived.architecture}", "--platform", "${derived.container_platform}",
+  "--build-arg", "BASE_IMAGE=${spec.project.base}", ".",
 ]
 
 [[spec.stages]]
 name    = "builder"
 workdir = "project/offline-paketo-bk"
 run = [
-  "podman", "build",
-  "--platform", "${oci_platform}",
-  "-f", "docker/builder-build.dockerfile",
-  "-t", "offline-builder-build-bk:${arch}",
-  "--build-context", "bundle=${bundle}",
-  "--build-context", "buildpacks=${repo}/buildpacks/paketo",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:${arch}",
-  "--build-arg", "BP_GO_MIRROR=https://mirrors.aliyun.com/golang/",
-  "--build-arg", "BP_GO_VERSION=1.27.4",
-  "--build-arg", "BUNDLE_ARCH=${platform}",
-  "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
-  "--build-arg", "FNM_VERSION=${asset.fnm.version}",
-  "--build-arg", "UV_VERSION=${asset.uv.version}",
-  "--build-arg", "JQ_VERSION=${asset.jq.version}",
-  "--build-arg", "YQ_VERSION=${asset.yq.version}",
-  "--build-arg", "PACK_VERSION=${asset.pack.version}",
-  "--build-arg", "CNB_VERSION=${asset.cnb.version}",
-  "--build-arg", "PROCFILE_VERSION=${asset.procfile.version}",
-  "--build-arg", "BUILDPACK_ARCH=${arch}",
-  ".",
+  "podman", "build", "-f", "docker/builder-build.dockerfile",
+  "-t", "offline-builder-build-bk:${derived.architecture}", "--platform", "${derived.container_platform}",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:${derived.architecture}", "--build-arg", "BP_GO_MIRROR=https://mirrors.aliyun.com/golang/",
+  "--build-arg", "BP_GO_VERSION=1.27.4", "--build-arg", "BUNDLE_ARCH=${spec.project.platform}",
+  "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}", "--build-arg", "FNM_VERSION=${spec.assets.fnm.version}",
+  "--build-arg", "UV_VERSION=${spec.assets.uv.version}", "--build-arg", "JQ_VERSION=${spec.assets.jq.version}",
+  "--build-arg", "YQ_VERSION=${spec.assets.yq.version}", "--build-arg", "PACK_VERSION=${spec.assets.pack.version}",
+  "--build-arg", "CNB_VERSION=${spec.assets.cnb.version}", "--build-arg", "PROCFILE_VERSION=${spec.assets.procfile.version}",
+  "--build-arg", "BUILDPACK_ARCH=${derived.architecture}", "--build-context", "bundle=${runtime.bundle}",
+  "--build-context", "buildpacks=${runtime.repo}/buildpacks/paketo", ".",
 ]
+
+# ── 静态检查：Dockerfile 的 COPY 源 ──
+
+[[spec.checks.dockerfiles]]
+path = "docker/builder-base.dockerfile"
+
+[[spec.checks.dockerfiles]]
+path = "docker/builder-build.dockerfile"
+contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks/paketo" }

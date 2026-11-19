@@ -1,0 +1,248 @@
+schema = 1
+
+[meta]
+name = 'learn-cnb-paketo'
+description = 'CNB / Paketo 离线构建物料基座'
+provenance = 'local-capture'
+captured_at = '2026-11-12'
+platforms = ['linux-amd64', 'linux-arm64']
+
+[storage]
+root = 'bundle'
+layout = 'arch-first'
+
+[[asset]]
+id = 'lifecycle'
+version = '0.21.29'
+default = true
+
+[asset.info]
+name = 'CNB Lifecycle'
+homepage = 'https://github.com/buildpacks/lifecycle'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'tgz'
+strip = 1
+dir = 'lifecycle/{version}'
+expect = ['detector', 'analyzer', 'builder', 'exporter', 'launcher']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.x86-64.tgz'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.arm64.tgz'
+
+[[asset]]
+id = 'fnm'
+version = '1.39.0'
+default = true
+
+[asset.info]
+name = 'fnm'
+homepage = 'https://github.com/Schniz/fnm'
+license = 'GPL-3.0'
+
+[asset.unpack]
+kind = 'zip'
+strip = 0
+dir = 'fnm/{version}'
+expect = ['fnm']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/Schniz/fnm/releases/download/v{version}/fnm-linux.zip'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/Schniz/fnm/releases/download/v{version}/fnm-arm64.zip'
+
+[[asset]]
+id = 'uv'
+version = '0.13.8'
+default = true
+
+[asset.info]
+name = 'uv'
+homepage = 'https://github.com/astral-sh/uv'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'tgz'
+strip = 1
+dir = 'uv/{version}'
+expect = ['uv', 'uvx']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-musl.tar.gz'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/astral-sh/uv/releases/download/{version}/uv-aarch64-unknown-linux-musl.tar.gz'
+
+[[asset]]
+id = 'docker'
+version = '27.0.3'
+default = true
+
+[asset.info]
+name = 'Docker CLI'
+homepage = 'https://docs.docker.com/engine/install/binaries/'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'tgz'
+strip = 0
+dir = 'docker/{version}'
+expect = ['docker/dockerd']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-{version}.tgz'
+
+[asset.platform.linux-arm64]
+url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/aarch64/docker-{version}.tgz'
+
+[[asset]]
+id = 'jq'
+version = '1.8.2'
+default = true
+
+[asset.info]
+name = 'jq'
+homepage = 'https://github.com/jqlang/jq'
+license = 'MIT'
+
+[asset.unpack]
+kind = 'bin'
+strip = 0
+dir = 'jq/{version}'
+expect = ['jq']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-amd64'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-arm64'
+
+[[asset]]
+id = 'yq'
+version = '4.54.3'
+default = true
+
+[asset.info]
+name = 'yq'
+homepage = 'https://github.com/mikefarah/yq'
+license = 'MIT'
+
+[asset.unpack]
+kind = 'bin'
+strip = 0
+dir = 'yq/{version}'
+expect = ['yq']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_amd64'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_arm64'
+
+[[asset]]
+id = 'pack'
+version = '0.40.11'
+default = true
+
+[asset.info]
+name = 'pack CLI'
+homepage = 'https://github.com/buildpacks/pack'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'tgz'
+strip = 0
+dir = 'pack/{version}'
+expect = ['pack']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux.tgz'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux-arm64.tgz'
+
+[[asset]]
+id = 'go-sdk'
+version = '1.27.4'
+default = true
+
+[asset.info]
+name = 'Go SDK tarball（BK 离线构建用）'
+homepage = 'https://go.dev/dl/'
+license = 'BSD-3-Clause'
+
+[asset.unpack]
+kind = 'bin'
+strip = 0
+dir = 'go-sdk/{version}'
+expect = ['go-sdk']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://mirrors.aliyun.com/golang/go{version}.linux-amd64.tar.gz'
+
+[asset.platform.linux-arm64]
+url = 'https://mirrors.aliyun.com/golang/go{version}.linux-arm64.tar.gz'
+
+[[asset]]
+id = 'cnb'
+version = '3.0.0'
+default = true
+
+[asset.info]
+name = 'cnb CLI（本地构建）'
+homepage = 'https://github.com/debi/learn-cnb-paketo'
+license = 'MIT'
+
+[asset.unpack]
+kind = 'bin'
+strip = 0
+dir = 'cnb/{version}'
+expect = ['cnb']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+kind = 'local'
+source = 'script/bin/cnb-linux-amd64'
+sha256 = '59a005ba1f906d28d29851680b7a72e5a8d3ee0d5dd27b971e04da39575ca81b'
+
+[asset.platform.linux-arm64]
+kind = 'local'
+source = 'script/bin/cnb-linux-arm64'
+
+[[asset]]
+id = 'procfile'
+version = '5.15.9'
+default = true
+multi_arch = true
+
+[asset.info]
+name = 'Paketo Procfile buildpack'
+homepage = 'https://github.com/paketo-buildpacks/procfile'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'tgz'
+strip = 0
+dir = 'procfile/{version}'
+expect = ['buildpack.toml', 'linux/{arch}/bin/run']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+kind = 'http'
+url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'
+
+[asset.platform.linux-arm64]
+kind = 'http'
+url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'

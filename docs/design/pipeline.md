@@ -27,7 +27,7 @@
         │                     │                      │
         ▼                     ▼                      ▼
   bundle/<platform>/    podman|docker build     scripts/build.sh
-  {archives,binaries}   (context = 仓库根)      + cnb pipeline repack
+  {archives,binaries}   (context = 仓库根)      + cnb image convert
 ```
 
 ## 一次完整构建
@@ -47,7 +47,7 @@ script/fetch.sh fetch lifecycle@0.21.13 fnm@1.39.0 … --platform linux-amd64
 script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerfile.builder-base \
   offline-builder-base-bk:latest --build-arg BASE_IMAGE=…
 
-# ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb pipeline repack 规范化）
+# ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb image convert 规范化）
 (cd <repo>/project/offline-paketo-bk && scripts/build.sh)
 ```
 
@@ -57,7 +57,7 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
 |---|---|---|---|
 | 事实 | `assets.lock.toml` | 物料版本 / URL / 哈希 | 流程 |
 | 流程 | `config/projects/*.toml` | 用哪些物料、建哪些镜像、顺序 | 具体命令实现 |
-| 规划 | `cnb profile render` | 校验 + 生成 shell 计划 | 执行 |
+| 规划 | `cnb pipeline plan` | 校验 + 生成 shell 计划 | 执行 |
 | 执行 | `cnb pipeline run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
 | 原语 | `fetch.sh` / `image-build.sh` | 下载解压 / 单镜像构建 | 顺序 |
 | 资产 | `<proj>/docker/`、`<proj>/scripts/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
@@ -79,8 +79,8 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
 just check                                # lock / 模板 / shell / golang / 单测
 just verify                               # 项目内：只校验本流程用到的物料
 just --justfile justfile verify            # 仓库根：校验 lock 里的全部物料
-cnb profile validate config/projects/*.toml  # 流程本身
-cnb profile show config/projects/<p>.toml    # 分组查看
+cnb pipeline profile validate config/projects/*.toml  # 流程本身
+cnb pipeline profile show config/projects/<p>.toml    # 分组查看
 ```
 
 流程规则（`validate` 强制）：
@@ -102,7 +102,7 @@ cnb profile show config/projects/<p>.toml    # 分组查看
 ## 静态检查
 
 ```bash
-cnb pipeline dockerfile check config/projects/<p>.toml   # COPY 源路径是否存在
+cnb lint config/projects/<p>.toml   # 构建参数、脚本与 Dockerfile COPY 源
 ```
 
 已接入 `script/ci.sh`，能拦住"改了目录/改名后 Dockerfile 失效"这类问题。

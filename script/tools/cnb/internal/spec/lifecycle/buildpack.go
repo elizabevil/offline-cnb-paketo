@@ -9,7 +9,6 @@ import (
 // Buildpack 是 buildpack.toml 的结构化表示（只含我们消费的字段）。
 type Buildpack struct {
 	API             string   `toml:"api"`
-	SBOMFormats     []string `toml:"sbom-formats"`
 	BuildpackInfo   Info     `toml:"buildpack"`
 	Order           []Group  `toml:"order"`
 	MetadataSection Metadata `toml:"metadata"`
@@ -17,10 +16,11 @@ type Buildpack struct {
 
 // Info 是 [buildpack] 段。
 type Info struct {
-	ID       string `toml:"id"`
-	Name     string `toml:"name"`
-	Version  string `toml:"version"`
-	Homepage string `toml:"homepage,omitempty"`
+	ID          string   `toml:"id"`
+	Name        string   `toml:"name"`
+	Version     string   `toml:"version"`
+	Homepage    string   `toml:"homepage,omitempty"`
+	SBOMFormats []string `toml:"sbom-formats,omitempty"`
 }
 
 // Metadata 是 [metadata] 段（只关心依赖声明）。

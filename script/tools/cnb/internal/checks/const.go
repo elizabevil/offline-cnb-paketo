@@ -1,23 +1,20 @@
 package checks
 
-// 规范与文件约定。
+// Project-wide conventions and file names.
 const (
-	// BuildpackAPI 是本项目 buildpack 使用的 CNB Buildpack API。
+	// BuildpackAPI is the CNB Buildpack API used by this repository.
 	BuildpackAPI = "0.12"
-	// PlatformAPI 是本项目支持的 CNB Platform API。
+	// PlatformAPI is the supported CNB Platform API.
 	PlatformAPI = "0.15"
 
-	// FileBuildpackManifest 是 buildpack 元数据文件名。
+	// FileBuildpackManifest is the buildpack metadata file name.
 	FileBuildpackManifest = "buildpack.toml"
-	// FileOfficialMetadata 是从官方 builder 提取时保存的 metadata 文件名。
+	// FileOfficialMetadata is the metadata file saved when extracting an official builder.
 	FileOfficialMetadata = "builder-metadata.json"
 
-	// StageRun 是 run 镜像阶段名。
+	// StageRun is the run image stage name.
 	StageRun = "run"
 
-	// AssetLifecyclePrefix 是 lifecycle 物料引用前缀。
+	// AssetLifecyclePrefix is the lifecycle asset reference prefix.
 	AssetLifecyclePrefix = "lifecycle@"
-
-	// stackLabelPattern 匹配 Dockerfile 中的 stack id 标签。
-	stackLabelPattern = `io\.buildpacks\.stack\.id="([^"]+)"`
 )

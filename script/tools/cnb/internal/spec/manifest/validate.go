@@ -1,4 +1,4 @@
-// Package lock 的结构校验。
+// Package manifest 的结构校验。
 package manifest
 
 import (
@@ -74,15 +74,12 @@ func (f *File) Validate() int {
 			}
 		}
 		for name, src := range a.Platform {
-			if src.Size < -1 {
-				errs = append(errs, fmt.Sprintf("%s[%s]: size 不能小于 -1（实际 %d）", a.ID, name, src.Size))
-			}
 			switch src.Kind {
-			case "", "http":
+			case "", KindHTTP:
 				if src.URL == "" {
 					errs = append(errs, fmt.Sprintf("%s: %s 缺少 url", a.ID, name))
 				}
-			case "local":
+			case KindLocal:
 				if src.Source == "" {
 					errs = append(errs, fmt.Sprintf("%s: %s 缺少 source", a.ID, name))
 				}
@@ -106,15 +103,12 @@ func (f *File) Validate() int {
 				errs = append(errs, fmt.Sprintf("%s: 平台 %s 不受支持", a.ID, p))
 				continue
 			}
-			if src.Kind == "local" {
+			if src.Kind == KindLocal {
 				continue
 			}
 			rendered := strings.ReplaceAll(src.URL, "{version}", a.Version)
 			if !strings.HasPrefix(rendered, "http://") && !strings.HasPrefix(rendered, "https://") {
 				errs = append(errs, fmt.Sprintf("%s[%s]: url 必须是 http(s) 绝对地址，渲染后为 %q", a.ID, p, rendered))
-			}
-			if src.SHA256 != "" && !isHex64(src.SHA256) {
-				errs = append(errs, fmt.Sprintf("%s[%s]: sha256 格式非法", a.ID, p))
 			}
 		}
 	}

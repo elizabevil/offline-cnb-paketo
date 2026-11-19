@@ -1,285 +1,151 @@
 schema = 1
 
-[meta]
-name = 'learn-cnb-paketo'
-description = 'CNB / Paketo 离线构建物料基座'
-provenance = 'local-capture'
-captured_at = '2026-11-12'
-platforms = ['linux-amd64', 'linux-arm64']
+[manifest]
+sha256 = '0a7a9632e9c21a5e1e115f3d156c755e169af4baba94732e08876a715745a814'
 
-[storage]
-root = 'bundle'
-layout = 'arch-first'
-
-[[asset]]
+[[locked]]
 id = 'lifecycle'
 version = '0.21.29'
-default = true
 
-[asset.info]
-name = 'CNB Lifecycle'
-homepage = 'https://github.com/buildpacks/lifecycle'
-license = 'Apache-2.0'
-
-[asset.unpack]
-kind = 'tgz'
-strip = 1
-dir = 'lifecycle/{version}'
-expect = ['detector', 'analyzer', 'builder', 'exporter', 'launcher']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.x86-64.tgz'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/buildpacks/lifecycle/releases/download/v0.21.29/lifecycle-v0.21.29+linux.x86-64.tgz'
 size = 11161939
 sha256 = 'd261ccc62f8b00f4c63d7d137b371f369eb706e3ab6aedb3ff67eda4aa7d1ac2'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/buildpacks/lifecycle/releases/download/v{version}/lifecycle-v{version}+linux.arm64.tgz'
-size = 10031616
-sha256 = '1237e4314158511f5435a34e3c74be6d4959da7e9b65c3067af1246182984212'
+[locked.platform.linux-arm64]
+url = 'https://github.com/buildpacks/lifecycle/releases/download/v0.21.29/lifecycle-v0.21.29+linux.arm64.tgz'
+size = 11161939
+sha256 = 'd261ccc62f8b00f4c63d7d137b371f369eb706e3ab6aedb3ff67eda4aa7d1ac2'
 
-[[asset]]
+[[locked]]
 id = 'fnm'
 version = '1.39.0'
-default = true
 
-[asset.info]
-name = 'fnm'
-homepage = 'https://github.com/Schniz/fnm'
-license = 'GPL-3.0'
-
-[asset.unpack]
-kind = 'zip'
-strip = 0
-dir = 'fnm/{version}'
-expect = ['fnm']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/Schniz/fnm/releases/download/v{version}/fnm-linux.zip'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/Schniz/fnm/releases/download/v1.39.0/fnm-linux.zip'
 size = 3360953
 sha256 = '7807664f39d39fc518da1c35ba0181e4b3267603c4b1dedeb4b5fc6ae440a224'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/Schniz/fnm/releases/download/v{version}/fnm-arm64.zip'
-size = 3685524
-sha256 = '4eaff58b2c5bf30d0934027572dd0b5bbb60d2a1af309230b53662d4b1d45599'
+[locked.platform.linux-arm64]
+url = 'https://github.com/Schniz/fnm/releases/download/v1.39.0/fnm-arm64.zip'
+size = 3360953
+sha256 = '7807664f39d39fc518da1c35ba0181e4b3267603c4b1dedeb4b5fc6ae440a224'
 
-[[asset]]
+[[locked]]
 id = 'uv'
 version = '0.13.8'
-default = true
 
-[asset.info]
-name = 'uv'
-homepage = 'https://github.com/astral-sh/uv'
-license = 'Apache-2.0'
-
-[asset.unpack]
-kind = 'tgz'
-strip = 1
-dir = 'uv/{version}'
-expect = ['uv', 'uvx']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/astral-sh/uv/releases/download/{version}/uv-x86_64-unknown-linux-musl.tar.gz'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/astral-sh/uv/releases/download/0.13.8/uv-x86_64-unknown-linux-musl.tar.gz'
 size = 18577654
 sha256 = '61fb26dabc4f0cf1d050fc6c67d40e43e4fae2994af21ebc1e050b233bf2b5ed'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/astral-sh/uv/releases/download/{version}/uv-aarch64-unknown-linux-musl.tar.gz'
-size = 17171170
-sha256 = '0c6f8593fcf1eadfc60e663b685c408267559d7c5d61c689bbb9f3a7e369ba32'
+[locked.platform.linux-arm64]
+url = 'https://github.com/astral-sh/uv/releases/download/0.13.8/uv-aarch64-unknown-linux-musl.tar.gz'
+size = 18577654
+sha256 = '61fb26dabc4f0cf1d050fc6c67d40e43e4fae2994af21ebc1e050b233bf2b5ed'
 
-[[asset]]
+[[locked]]
 id = 'docker'
 version = '27.0.3'
-default = true
 
-[asset.info]
-name = 'Docker CLI'
-homepage = 'https://docs.docker.com/engine/install/binaries/'
-license = 'Apache-2.0'
-
-[asset.unpack]
-kind = 'tgz'
-strip = 0
-dir = 'docker/{version}'
-expect = ['docker/dockerd']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-{version}.tgz'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-27.0.3.tgz'
 size = 73823487
 sha256 = 'f6299aeada422d527cba35061fe56df5e2294776f6d39b7830d699335054b1e6'
 
-[asset.platform.linux-arm64]
-url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/aarch64/docker-{version}.tgz'
-size = 68032420
-sha256 = 'b6705031e453bd3754b14da5bf0160458322e4927733d31f1e8e6e4d63d391c1'
+[locked.platform.linux-arm64]
+url = 'https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/aarch64/docker-27.0.3.tgz'
+size = 73823487
+sha256 = 'f6299aeada422d527cba35061fe56df5e2294776f6d39b7830d699335054b1e6'
 
-[[asset]]
+[[locked]]
 id = 'jq'
 version = '1.8.2'
-default = true
 
-[asset.info]
-name = 'jq'
-homepage = 'https://github.com/jqlang/jq'
-license = 'MIT'
-
-[asset.unpack]
-kind = 'bin'
-strip = 0
-dir = 'jq/{version}'
-expect = ['jq']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-amd64'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64'
 size = 2267912
 sha256 = 'b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/jqlang/jq/releases/download/jq-{version}/jq-linux-arm64'
-size = 1797688
-sha256 = '8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309'
+[locked.platform.linux-arm64]
+url = 'https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-arm64'
+size = 2267912
+sha256 = 'b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f'
 
-[[asset]]
+[[locked]]
 id = 'yq'
 version = '4.54.3'
-default = true
 
-[asset.info]
-name = 'yq'
-homepage = 'https://github.com/mikefarah/yq'
-license = 'MIT'
-
-[asset.unpack]
-kind = 'bin'
-strip = 0
-dir = 'yq/{version}'
-expect = ['yq']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_amd64'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/mikefarah/yq/releases/download/v4.54.3/yq_linux_amd64'
 size = 15499424
 sha256 = '129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/mikefarah/yq/releases/download/v{version}/yq_linux_arm64'
-size = 14352544
-sha256 = '89f69310b61b68d1245065a1241d1fc843f7a36cd6103ffd77ad987613bd1b67'
+[locked.platform.linux-arm64]
+url = 'https://github.com/mikefarah/yq/releases/download/v4.54.3/yq_linux_arm64'
+size = 15499424
+sha256 = '129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973'
 
-[[asset]]
+[[locked]]
 id = 'pack'
 version = '0.40.11'
-default = true
 
-[asset.info]
-name = 'pack CLI'
-homepage = 'https://github.com/buildpacks/pack'
-license = 'Apache-2.0'
-
-[asset.unpack]
-kind = 'tgz'
-strip = 0
-dir = 'pack/{version}'
-expect = ['pack']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux.tgz'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/buildpacks/pack/releases/download/v0.40.11/pack-v0.40.11-linux.tgz'
 size = 11200796
 sha256 = '280a53ff6526f1aa26cc903b5c5aab515afef25e3d7abac977fe193331d3b301'
 
-[asset.platform.linux-arm64]
-url = 'https://github.com/buildpacks/pack/releases/download/v{version}/pack-v{version}-linux-arm64.tgz'
-size = 9991034
-sha256 = '3f8ccaacd512a203849944b3591f19f3ec5994188203386cb0f7abfb5fa93c56'
+[locked.platform.linux-arm64]
+url = 'https://github.com/buildpacks/pack/releases/download/v0.40.11/pack-v0.40.11-linux-arm64.tgz'
+size = 11200796
+sha256 = '280a53ff6526f1aa26cc903b5c5aab515afef25e3d7abac977fe193331d3b301'
 
-[[asset]]
+[[locked]]
 id = 'go-sdk'
 version = '1.27.4'
-default = true
 
-[asset.info]
-name = 'Go SDK tarball（BK 离线构建用）'
-homepage = 'https://go.dev/dl/'
-license = 'BSD-3-Clause'
-
-[asset.unpack]
-kind = 'bin'
-strip = 0
-dir = 'go-sdk/{version}'
-expect = ['go-sdk']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-url = 'https://mirrors.aliyun.com/golang/go{version}.linux-amd64.tar.gz'
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://mirrors.aliyun.com/golang/go1.27.4.linux-amd64.tar.gz'
 size = 70680823
 sha256 = '7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840'
 
-[asset.platform.linux-arm64]
-url = 'https://mirrors.aliyun.com/golang/go{version}.linux-arm64.tar.gz'
-size = 67129258
-sha256 = '3392582988a273a87ab5043ee1b2c9c17a2c3c00580bf9326c47a2e0aaaeac92'
+[locked.platform.linux-arm64]
+url = 'https://mirrors.aliyun.com/golang/go1.27.4.linux-arm64.tar.gz'
+size = 70680823
+sha256 = '7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840'
 
-[[asset]]
+[[locked]]
 id = 'cnb'
 version = '3.0.0'
-default = true
 
-[asset.info]
-name = 'cnb CLI（本地构建）'
-homepage = 'https://github.com/debi/learn-cnb-paketo'
-license = 'MIT'
+[locked.platform]
+[locked.platform.linux-amd64]
+sha256 = '9d616230dc31e636eaaded1be11a67dea75af4bae506d7b73528107dc8b72c36'
 
-[asset.unpack]
-kind = 'bin'
-strip = 0
-dir = 'cnb/{version}'
-expect = ['cnb']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-kind = 'local'
-source = 'script/bin/cnb-linux-amd64'
-sha256 = '124983b4cdab4830a3d77e51b8bcf414f64176442497848924f3aab8fcfbab6a'
-
-[asset.platform.linux-arm64]
-kind = 'local'
-source = 'script/bin/cnb-linux-arm64'
+[locked.platform.linux-arm64]
 sha256 = '86674200b6102208277efdc8798eb620f96c580c69488f3ee1ac92f9af01550a'
 
-[[asset]]
+[[locked]]
 id = 'procfile'
 version = '5.15.9'
-default = true
 multi_arch = true
 
-[asset.info]
-name = 'Paketo Procfile buildpack'
-homepage = 'https://github.com/paketo-buildpacks/procfile'
-license = 'Apache-2.0'
-
-[asset.unpack]
-kind = 'tgz'
-strip = 0
-dir = 'procfile/{version}'
-expect = ['buildpack.toml', 'linux/{arch}/bin/run']
-
-[asset.platform]
-[asset.platform.linux-amd64]
-kind = 'http'
+[locked.platform]
+[locked.platform.linux-amd64]
 url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'
 size = 4477649
 sha256 = 'bd05d6ad4a7d42838dddda9d38156525348d71b88c699d134e489c0a8db8043d'
 
-[asset.platform.linux-arm64]
-kind = 'http'
+[locked.platform.linux-arm64]
 url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'
 size = 4477649
 sha256 = 'bd05d6ad4a7d42838dddda9d38156525348d71b88c699d134e489c0a8db8043d'

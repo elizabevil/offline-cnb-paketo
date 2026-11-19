@@ -11,8 +11,9 @@ CNB（Cloud Native Buildpacks）/ Paketo 离线构建的实验与沉淀仓库。
 ```
 Learn-cnb-paketo/
 ├── justfile              # 仓库根入口（just 任意位置可用）
-├── assets.lock.toml      # 物料唯一事实源：版本 / URL / sha256 / 平台矩阵
-├── assets.lock.toml.example  # 新增物料时的模板（注释齐全，just check 会校验它）
+├── assets.toml          # 物料声明：id / version / url / unpack（人写，可注释）
+├── assets.lock.toml     # 物料锁定：解析后的 url / size / sha256（工具生成）
+├── assets.toml.example  # 新增物料时的模板（注释齐全，just check 会校验它）
 ├── script/               # 公共脚本基座
 │   ├── justfile          #   编排（被根 justfile import）
 │   ├── ci.sh             #   门禁：结构 / 配置 / 物料
@@ -63,9 +64,9 @@ cp .env.example .env    # 写入 PROXY_URL
 
 ## 三条硬约定
 
-1. **版本与 URL 只写在 `assets.lock.toml`**。脚本、Dockerfile 里出现硬编码版本号 = 直接 review 拒绝。
+1. **版本与 URL 只写在 `assets.toml`**。脚本、Dockerfile 里出现硬编码版本号 = 直接 review 拒绝。
 2. **物料必须三态幂等**：归档存在 / 哈希匹配 / 解压标记匹配，三者独立判断。只凭"归档在"就跳过解压，会导致产物丢失后无法自愈。
-3. **`bundle/` 不入库，`assets.lock.toml` 必须入库**。前者 60MB+ 可重建，后者是供应链锚点。
+3. **`bundle/` 不入库，`assets.toml` 与 `assets.lock.toml` 必须入库**。前者 60MB+ 可重建，后者是供应链锚点。
 
 文档：
 
@@ -73,4 +74,4 @@ cp .env.example .env    # 写入 PROXY_URL
 - [docs/design/base.md](docs/design/base.md) — 设计、字段含义、踩坑清单
 - [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
-- [assets.lock.toml.example](assets.lock.toml.example) — 新增物料的填写模板
+- [assets.toml.example](assets.toml.example) — 新增物料的填写模板

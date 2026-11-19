@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,5 +60,24 @@ func TestPackTarIsUncompressed(t *testing.T) {
 	}
 	if len(data) < 2 || (data[0] == 0x1f && data[1] == 0x8b) {
 		t.Fatal("PackTar 不应输出 gzip")
+	}
+}
+
+func TestPackTarDeterministic(t *testing.T) {
+	src := t.TempDir()
+	writeFile(t, filepath.Join(src, "b.txt"), "b")
+	writeFile(t, filepath.Join(src, "a.txt"), "a")
+	one := filepath.Join(t.TempDir(), "1.tar")
+	two := filepath.Join(t.TempDir(), "2.tar")
+	if err := PackTar(src, one); err != nil {
+		t.Fatal(err)
+	}
+	if err := PackTar(src, two); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := os.ReadFile(one)
+	b, _ := os.ReadFile(two)
+	if !bytes.Equal(a, b) {
+		t.Fatal("相同内容应产出相同 tar")
 	}
 }

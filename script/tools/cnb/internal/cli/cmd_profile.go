@@ -9,30 +9,59 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
+	platformspec "learn-cnb-paketo/tools/cnb/internal/spec/platform"
 	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-// newProfileCmd — 流水线配置的生成、校验与展示。
+// newProfileCmd covers pipeline config: generate, validate, show.
 func newProfileCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "profile", Short: "流水线配置：生成 / 校验 / 查看"}
+	parent := &cobra.Command{Use: "profile", Short: "pipeline config: init / validate / show"}
+	parent.AddCommand(newProfileInitCmd())
+	parent.AddCommand(newProfileValidateCmd())
+	var showOpts profileShowOptions
+	showCmd := &cobra.Command{
+		Use: "show <file>", Short: "print the config as structured data", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			f, _, err := loadProfileFile(args[0])
+			if err != nil {
+				return err
+			}
+			out, err := render.FormatStruct(f, showOpts.format)
+			if err != nil {
+				return failUsage(err)
+			}
+			fmt.Fprint(cmd.OutOrStdout(), out)
+			return nil
+		},
+	}
+	showCmd.Flags().StringVar(&showOpts.format, "format", "yaml", "output format: yaml | json")
+	parent.AddCommand(showCmd)
 
-	var (
-		initDir      string
-		initPlatform string
-		initDistro   string
-	)
+	return parent
+}
+
+// newProfileInitCmd prints a new project config template.
+// profileInitOptions holds profile init flags.
+type profileInitOptions struct {
+	dir      string
+	platform string
+	distro   string
+}
+
+func newProfileInitCmd() *cobra.Command {
+	var opts profileInitOptions
 	initCmd := &cobra.Command{
-		Use: "init <name>", Short: "生成新项目配置模板", Args: cobra.ExactArgs(1),
+		Use: "init <name>", Short: "generate a new project config template", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			dir := initDir
+			dir := opts.dir
 			if dir == "" {
 				dir = name
 			}
-			platform := initPlatform
+			platform := opts.platform
 			if platform == "" {
-				platform = "linux-amd64"
+				platform = platformspec.DefaultTargetPlatform
 			}
 			out := filepath.Join("config", "projects", name+".toml")
 			if _, err := os.Stat(out); err == nil {
@@ -41,32 +70,36 @@ func newProfileCmd() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
 				return err
 			}
-			content, err := specprofile.Template(name, dir, platform, initDistro)
+			content, err := specprofile.Template(name, dir, platform, opts.distro)
 			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			if err := os.WriteFile(out, []byte(content), fsutil.FileMode); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ 已生成 %s\n", out)
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ wrote %s\n", out)
 			return nil
 		},
 	}
-	initCmd.Flags().StringVar(&initDir, "dir", "", "项目目录（相对仓库根，默认 = name）")
-	initCmd.Flags().StringVar(&initPlatform, "platform", "", "默认平台（默认 linux-amd64）")
-	initCmd.Flags().StringVar(&initDistro, "distro", "debian", "目标发行版：debian | ubuntu | alpine")
-	parent.AddCommand(initCmd)
+	initCmd.Flags().StringVar(&opts.dir, "dir", "", "project directory relative to the repo root (default: name)")
+	initCmd.Flags().StringVar(&opts.platform, "platform", "", "default platform (default: linux-amd64)")
+	initCmd.Flags().StringVar(&opts.distro, "distro", "debian", "target distro: debian | ubuntu | alpine")
+	return initCmd
+}
 
-	parent.AddCommand(&cobra.Command{
-		Use: "validate <file>", Short: "校验流水线配置", Args: cobra.ExactArgs(1),
+// profileShowOptions holds profile show flags.
+type profileShowOptions struct {
+	format string
+}
+
+// newProfileValidateCmd validates a pipeline config.
+func newProfileValidateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use: "validate <file>", Short: "validate a pipeline config", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
+			f, warns, err := loadProfileFile(args[0])
 			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
-			}
-			f, warns, err := specprofile.Parse(data)
-			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return err
 			}
 			failed := 0
 			for _, w := range warns {
@@ -79,37 +112,12 @@ func newProfileCmd() *cobra.Command {
 			if failed > 0 {
 				return &exitError{code: ExitFailure}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ 流水线合法：%s（%d 个物料，%d 个阶段，平台 %s）\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ valid pipeline: %s (%d materials, %d stages, platform %s)\n",
 				f.Metadata.Name, len(f.Spec.Assets), len(f.Spec.Stages), f.Spec.Project.Platform)
 			return nil
 		},
-	})
-
-	var showFormat string
-	showCmd := &cobra.Command{
-		Use: "show <file>", Short: "结构化展示配置", Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
-			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
-			}
-			f, _, err := specprofile.Parse(data)
-			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
-			}
-			out, err := render.FormatStruct(f, showFormat)
-			if err != nil {
-				return &exitError{code: ExitUsage, msg: err.Error()}
-			}
-			fmt.Fprint(cmd.OutOrStdout(), out)
-			return nil
-		},
 	}
-	showCmd.Flags().StringVar(&showFormat, "format", "yaml", "output format: yaml | json")
-	parent.AddCommand(showCmd)
-
-	return parent
 }
 
-// assertWorkspace 保留 workspace 导入的显式使用（便于后续扩展）。
+// assertWorkspace keeps the workspace import in use.
 var _ = workspace.Open

@@ -2,18 +2,26 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+
+	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/materials"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 func newVerifyCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "verify [ids...]", Short: "校验归档哈希、解压标记与预期产物",
+		Use: "verify [ids...]", Short: "verify archive hashes, unpack markers, and expected files",
 		RunE: func(_ *cobra.Command, ids []string) error {
-			l, platform, bundleDir, err := open()
+			ctx, err := workspace.Open(workspace.Options{
+				Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
+			})
 			if err != nil {
 				return err
 			}
-			rep, err := materials.Check(l, bundleDir, platform, ids)
+			if ctx.LockFile != nil && ctx.LockFile.Manifest.SHA256 != "" && ctx.LockFile.Manifest.SHA256 != ctx.ManifestHash {
+				return &exitError{code: ExitFailure, msg: "assets.toml changed; run cnb materials lock first"}
+			}
+			rep, err := materials.Check(ctx.Lock, ctx.Bundle, ctx.Platform, ids, ctx.LockFile)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}

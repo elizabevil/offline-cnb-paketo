@@ -9,6 +9,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
@@ -17,8 +18,9 @@ const (
 	EnvRepoRoot = "CNB_REPO_ROOT"
 	EnvLockFile = "LOCK_FILE"
 
-	DefaultLockName = lock.DefaultLockName
-	DefaultBundle   = lock.DefaultBundle
+	DefaultManifestName = lock.DefaultManifestName
+	DefaultLockName     = lock.DefaultLockName
+	DefaultBundle       = lock.DefaultBundle
 
 	PlatformAMD64 = lock.PlatformAMD64
 	PlatformARM64 = lock.PlatformARM64
@@ -34,11 +36,18 @@ type Options struct {
 
 // Context 是一次命令执行所需的路径上下文。
 type Context struct {
-	Root     string
+	Root string
+	// LockPath 是物料清单（assets.toml）。
 	LockPath string
 	Lock     *lock.File
-	Bundle   string
-	Platform lock.Platform
+	// LockFilePath 是生成的 assets.lock.toml。
+	LockFilePath string
+	// LockFile 是已解析的校验信息（可能为空锁）。
+	LockFile *manifest.LockFile
+	// ManifestHash 是当前清单的指纹，用于 lock 漂移检测。
+	ManifestHash string
+	Bundle       string
+	Platform     lock.Platform
 }
 
 // Open 解析路径并加载物料清单。
@@ -49,7 +58,14 @@ func Open(o Options) (Context, error) {
 	}
 	lockPath := o.LockPath
 	if lockPath == "" {
-		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), filepath.Join(root, DefaultLockName))
+		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), filepath.Join(root, DefaultManifestName))
+		// 兼容旧布局：只有 assets.lock.toml 时仍按清单读取
+		if _, err := os.Stat(lockPath); os.IsNotExist(err) {
+			legacy := filepath.Join(root, DefaultLockName)
+			if _, legacyErr := os.Stat(legacy); legacyErr == nil {
+				lockPath = legacy
+			}
+		}
 	}
 	l, err := lock.Load(lockPath)
 	if err != nil {
@@ -63,7 +79,20 @@ func Open(o Options) (Context, error) {
 	if bundleDir == "" {
 		bundleDir = resolveBundle(filepath.Dir(lockPath), l)
 	}
-	return Context{Root: root, LockPath: lockPath, Lock: l, Bundle: bundleDir, Platform: platform}, nil
+	lockFilePath := filepath.Join(filepath.Dir(lockPath), DefaultLockName)
+	lf, err := manifest.LoadLockFile(lockFilePath)
+	if err != nil {
+		return Context{}, err
+	}
+	manifestHash, err := manifest.Hash(l)
+	if err != nil {
+		return Context{}, err
+	}
+	return Context{
+		Root: root, LockPath: lockPath, Lock: l,
+		LockFilePath: lockFilePath, LockFile: lf, ManifestHash: manifestHash,
+		Bundle: bundleDir, Platform: platform,
+	}, nil
 }
 
 // resolveRepo 解析仓库根：显式参数 > 环境变量 > 标记文件定位。

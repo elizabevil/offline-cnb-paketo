@@ -6,7 +6,7 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/materials"
 )
 
-// printReport 输出校验报告并返回是否通过。
+// printReport prints the verification report and reports success.
 func printReport(rep materials.Report, strict, quiet bool) bool {
 	logr.Info("verify assets", "platform", rep.Platform)
 	for _, r := range rep.Results {
@@ -32,7 +32,7 @@ func printReport(rep materials.Report, strict, quiet bool) bool {
 	return false
 }
 
-// printSuggestions 输出 sha256 回填建议。
+// printSuggestions prints sha256 pin suggestions.
 func printSuggestions(suggests []materials.Suggestion) bool {
 	if len(suggests) == 0 {
 		logr.Warn("no archives to pin")

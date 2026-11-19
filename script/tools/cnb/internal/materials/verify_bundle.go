@@ -5,10 +5,11 @@ import (
 	"os"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 )
 
 // Check 校验物料并返回结构化结果（不打印）。
-func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string) (Report, error) {
+func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string, lockFile *manifest.LockFile) (Report, error) {
 	if !lock.KnownPlatforms[string(platform)] {
 		return Report{}, fmt.Errorf("unsupported platform: %s", platform)
 	}
@@ -20,13 +21,15 @@ func Check(l *lock.File, bundleDir string, platform lock.Platform, ids []string)
 	report := Report{Platform: string(platform)}
 	for i := range assets {
 		a := &assets[i]
-		report.Results = append(report.Results, checkOne(bundleDir, platform, a))
+		report.Results = append(report.Results, checkOne(bundleDir, platform, a, lockFile))
 	}
 	return report, nil
 }
 
 // checkOne 校验单个物料。
-func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) CheckResult {
+func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset, lockFile *manifest.LockFile) CheckResult {
+	opts := Options{LockFile: lockFile, Platform: platform}
+	locked, _ := lockSource(a, platform, opts)
 	if a.IsLocal(platform) {
 		if pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths(platform)) {
 			return CheckResult{Ref: a.Ref(), Status: StatusOK}
@@ -39,15 +42,15 @@ func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset) CheckResu
 	archive := archivePath(bundleDir, platform, a)
 	if _, err := os.Stat(archive); err != nil {
 		problems = append(problems, "archive missing")
-	} else if a.SHA256(platform) == "" {
+	} else if locked.SHA256 == "" {
 		problems = append(problems, "sha256 not pinned")
 	} else if got, err := fileSHA256(archive); err != nil {
 		problems = append(problems, "hash error: "+err.Error())
-	} else if got != a.SHA256(platform) {
+	} else if got != locked.SHA256 {
 		problems = append(problems, "hash mismatch")
 	}
 
-	if !isExtracted(bundleDir, platform, a) {
+	if !isExtracted(bundleDir, platform, a, locked.SHA256) {
 		problems = append(problems, "not extracted or incomplete")
 	}
 	return classify(a.Ref(), problems)

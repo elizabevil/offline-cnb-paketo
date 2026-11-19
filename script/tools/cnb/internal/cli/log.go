@@ -8,10 +8,10 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/render"
 )
 
-// logr 是命令层共享的日志器（在 root PersistentPreRun 初始化）。
+// logr is the shared command logger, initialized in root PersistentPreRun.
 var logr = render.NewLogger(os.Stderr, render.LevelInfo)
 
-// setupLogger 按 --log-level 初始化日志器。
+// setupLogger initializes the logger from --log-level.
 func setupLogger(level string) {
 	logr = render.NewLogger(os.Stderr, level)
 }

@@ -6,7 +6,7 @@ import (
 
 func newValidateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "validate", Short: "校验 lock 结构", Args: cobra.NoArgs,
+		Use: "validate", Short: "validate lock structure", Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			l, _, _, err := open()
 			if err != nil {

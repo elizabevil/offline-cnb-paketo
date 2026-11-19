@@ -10,12 +10,15 @@ if [ "${1:-}" = "--fetch" ]; then
   just fetch
 fi
 
+echo "── Go 静态检查 ──"
+just lint
+
 echo "── 结构自检 ──"
 just check
 
 echo "── lock 校验 ──"
 script/bin/cnb-linux-amd64 materials validate
-script/bin/cnb-linux-amd64 --file assets.lock.toml.example materials validate
+script/bin/cnb-linux-amd64 --file assets.toml.example materials validate
 
 echo "── 流程校验 ──"
 for f in config/projects/*.toml; do

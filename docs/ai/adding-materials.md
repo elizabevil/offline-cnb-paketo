@@ -1,9 +1,22 @@
-# 如何维护 assets.lock.toml
+# 如何维护物料清单（assets.toml / assets.lock.toml）
 
 面向“要加一个新工具 / 升一个版本”的人。先看结论，再看细节。
 
-> lock 由 `materials` 命令写回：**不保留注释**，字段顺序与引号风格由 TOML 序列化决定；
-> 字段语义以本文为准。
+两个文件分工（类似 go.mod / go.sum）：
+
+| 文件 | 谁写 | 内容 |
+|---|---|---|
+| `assets.toml` | 人 | id / version / url / unpack / platform / multi_arch，可保留注释 |
+| `assets.lock.toml` | 工具 | 解析后的 url、size、sha256、manifest 指纹 |
+
+常用命令：
+
+```bash
+cnb materials lock [id]        # 生成/刷新 lock（下载或采用已有归档）
+cnb materials update <id> <v>  # 只改 assets.toml 的 version 行，并重建 lock
+cnb materials sync             # 依据 lock 下载/校验/解包；lock 缺失时补
+cnb materials verify           # 校验 lock 与 bundle；清单改动未刷新会报错
+```
 
 ## 一·0、物料存放位置由 lock 声明
 
@@ -32,8 +45,7 @@ layout = "arch-first"  # arch-first | kind-first
 | `[asset.platform.*] mirrors` | 人（可选） | 回退源，仅传输/HTTP 错误时尝试 |
 | `[asset.platform.*] source` | 人（local） | 本地构建物的仓库相对路径 |
 | `[asset.platform.*] recipe` | 人（可选） | 本地构建物的复现命令 |
-| `[asset.platform.*] sha256` | **自动** | http：`materials sync` 回填；local：`materials publish` 回填 |
-| `[asset.platform.*] size` | **自动** | 字节数；`-1` 表示未知并跳过校验 |
+| `assets.lock.toml` 的 sha256/size | **自动** | `materials lock` / `sync` / `publish` 回填 |
 | `bundle/` 下的文件、`.meta/*.sync.json` | **自动** | 不要手动改 |
 
 原则：**地址与规则人写，哈希与落盘状态机器写。**
@@ -147,7 +159,7 @@ version = "3.0.0"
 
 ```bash
 cnb materials list                      # 清单
-cnb materials get <id> <platform>       # 输出 shell 变量
+cnb materials list                      # 列出物料
 cnb materials sync [ids...]             # 下载 + 校验 + 解包 + marker
 cnb materials sync --check              # 只校验
 cnb materials verify [ids...]           # 校验落盘状态

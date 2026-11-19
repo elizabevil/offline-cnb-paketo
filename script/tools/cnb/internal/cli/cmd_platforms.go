@@ -2,13 +2,14 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 func newPlatformsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "platforms", Short: "平台矩阵（逗号分隔）", Args: cobra.NoArgs,
+		Use: "platforms", Short: "platform matrix (comma separated)", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			l, _, _, err := open()
 			if err != nil {

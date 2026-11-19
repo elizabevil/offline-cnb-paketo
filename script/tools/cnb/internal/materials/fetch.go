@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// defaultBackoff 是物料下载重试的退避间隔。
+const defaultBackoff = 2 * time.Second
+
 // FetchConfig 控制物料下载行为；零值使用 DefaultFetchConfig。
 type FetchConfig struct {
 	// Timeout 是单次请求的超时（含传输）。
@@ -31,7 +34,7 @@ func DefaultFetchConfig() FetchConfig {
 	return FetchConfig{
 		Timeout:   30 * time.Minute,
 		Retries:   3,
-		Backoff:   2 * time.Second,
+		Backoff:   defaultBackoff,
 		UserAgent: "cnb-materials/1",
 	}
 }
@@ -77,7 +80,7 @@ func (c FetchConfig) download(ctx context.Context, src, dest string) error {
 	}
 	tmp := dest + ".part"
 	var lastErr error
-	for attempt := 0; attempt < c.Retries; attempt++ {
+	for attempt := range c.Retries {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():

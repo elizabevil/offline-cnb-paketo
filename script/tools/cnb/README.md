@@ -19,15 +19,15 @@ script/tools/cnb/
 
 ## 一、命令契约（改动前必读）
 
-| 命令 | 输出 | 退出码 | 谁依赖 |
-|---|---|---|---|
-| `list` | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0 | 终端/脚本（`cut -f1`） |
-| `get <id> <platform>` | shell 赋值 8 行，字段名固定 | 0 / 2 | `just` 配方 |
-| `validate` | 成功一行 `✓`；失败逐条 `✗` 到 stderr | 0 / 1 | `just check`、CI |
-| `platforms` | 逗号分隔 | 0 | 人工 |
-| `verify [ids...]` | 逐物料 `✓/✗` | 0 / 1 | `just verify`、CI 门禁 |
-| `pin [ids...]` | TOML 片段（不写回） | 0 / 1 | 人工回填 |
-| `image convert <src> <dst>` | `oci-layout` / `docker-archive` | 0 / 1 | `cnb image convert` |
+| 命令                        | 输出                                              | 退出码 | 谁依赖                 |
+|-----------------------------|---------------------------------------------------|--------|------------------------|
+| `list`                      | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0      | 终端/脚本（`cut -f1`） |
+| `get <id> <platform>`       | shell 赋值 8 行，字段名固定                       | 0 / 2  | `just` 配方            |
+| `validate`                  | 成功一行 `✓`；失败逐条 `✗` 到 stderr            | 0 / 1  | `just check`、CI       |
+| `platforms`                 | 逗号分隔                                          | 0      | 人工                   |
+| `verify [ids...]`           | 逐物料 `✓/✗`                                    | 0 / 1  | `just verify`、CI 门禁 |
+| `pin [ids...]`              | TOML 片段（不写回）                               | 0 / 1  | 人工回填               |
+| `image convert <src> <dst>` | `oci-layout` / `docker-archive`                   | 0 / 1  | `cnb image convert`    |
 
 约定：
 
@@ -113,7 +113,7 @@ script/bin/cnb-linux-amd64 profile validate config/projects/my-proj.toml
 分两步，都在配置里：
 
 1. `assets.lock.toml` 增加物料本体（版本 / URL / sha256 / 平台），
-   模板见仓库根 [`assets.lock.toml.example`](../../../assets.lock.toml.example)。
+   模板见仓库根 [`assets.toml.example`](../../../assets.toml.example)。
 2. 项目 profile 在 `[assets.<id>]` 下声明引用（键名即 id）：
 
 ```toml
@@ -122,7 +122,7 @@ version   = "0.21.29"        # 省略则取 lock 的 default 版本
 platforms = ["linux-amd64"]  # 省略表示全部平台
 ```
 
-`cnb profile validate` 会与 lock 交叉校验：id / 版本 / 平台必须真实存在，
+`cnb pipeline profile validate` 会与 lock 交叉校验：id / 版本 / 平台必须真实存在，
 写错会直接列出可选值。
 
 流程规则（`[[stage]]`）：

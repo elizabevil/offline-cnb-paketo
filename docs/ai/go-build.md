@@ -283,3 +283,151 @@ go mod tidy 行为变化：Go 1.27 起，go mod tidy 会自动将 go.mod 中多�
 | `repack.normalizeWebTar` | 73 语句，manifest/层复制/索引写入拆开 |
 | `lock.Validate` | 认知复杂度 46，按 storage/asset/引用分节 |
 | `repack.extractTar` | 圈复杂度 26，条目类型分支拆成处理函数 |
+
+## 八、实战反模式（来自本仓库的真实返工）
+
+以下每一条都是重构中真实出现、被 review 打回的问题。写代码时就按这里自查。
+
+### 8.1 列举型判断写成 switch
+
+```go
+// ✗ 同一份知识可能出现在两处，且立刻漂移
+switch argv[0] {
+case "docker", "podman", "buildah":
+    return argv[1] == "build" || argv[1] == "buildx"
+}
+
+// ✓ 数据表 + 一个判定函数
+var containerBuildCommands = map[string][]string{
+    "docker": {BuildScript, "buildx"},
+    "podman": {BuildScript},
+}
+```
+
+判断标准：**"哪些 X 会被当作 Y" 是数据，不是控制流**。加一个 X 应该是加一行表项，
+而不是在 N 个 switch 里各加一个 case。
+
+### 8.2 删除函数时留下孤立注释
+
+删除函数体后，函数上方的文档注释仍留在原处，形成"注释指向空气"。
+
+- 删除时用编辑器/gopls 的 remove-unused（连注释一起删）
+- 或删完 grep 被删符号名——注释里通常还带着它
+- `just check` 不覆盖此类问题，靠 review
+
+### 8.3 同类检查各写一个函数
+
+```go
+// ✗ 7 个函数，形状完全相同，只是取的字段不同
+func checkAPIDeclared(bp *buildpack, _ *Ruleset) []string { … }
+func checkIDDeclared(…)      // 同样 5 行
+…
+
+// ✓ 组合子 + 规则表里声明
+{"api-declared", scopeAll, LevelError, "missing api",
+    requireField(func(b *Buildpack) string { return b.API })},
+```
+
+判断标准：**同形状 ≥2 次就必须抽组合子**（对应 2.1），但抽出来的是"参数化的检查"，
+不是"把所有检查塞进一个 kind 字符串分派器"。
+
+### 8.4 把"配置化"做成"逻辑进配置"
+
+```go
+// ✗ 规则写成 TOML 的 kind 字符串，代码里 map[string]func 分派
+//   看代码看不出每条检查做什么，改一条检查要三步跳转
+{"kind": "field", "param": "api"}
+
+// ✓ 逻辑是显式函数（可 grep、可跳转），配置只承载会变的策略
+//   配置文件里只有 level / enabled / message / providers
+{"api-declared", …, checkAPIDeclared}
+```
+
+**边界**：逻辑的枚举属于代码，频繁变化的策略参数（级别、开关、文案、名单）属于配置。
+
+### 8.5 基础能力在多个包里重复实现
+
+```go
+// ✗ 每个包各写一份
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// ✓ 收敛到 fsutil.Exists / DirExists
+```
+
+同类需要收敛的：文件复制、哈希、大小、属主、路径存在性。
+**但不要机械替换**：`os.Stat(...) != nil` 有的是"读失败要报错"，有的是"不存在则回退"，
+语义不同，替换会丢错误上下文。
+
+### 8.6 谓词命名不表达返回值语义
+
+| ✗ | ✓ |
+|---|---|
+| `writesSBOM(paths ...string) bool` | `hasSBOMMarker(dir string) bool` |
+| `checkField(c, rule)` 返回原因字符串 | `requireAPIDeclared(bp) []string` |
+
+布尔返回值的函数用 `Is/Has/Can/Should` 开头；返回"未通过原因"的函数用 `check/require/validate` 开头。
+
+### 8.7 命令参数散落为局部变量
+
+```go
+// ✗
+var initDir, initPlatform, initDistro string
+initCmd.Flags().StringVar(&initDir, "dir", "", …)
+RunE: func(…) { dir := initDir; … }
+
+// ✓
+type profileInitOptions struct{ dir, platform, distro string }
+var opts profileInitOptions
+initCmd.Flags().StringVar(&opts.dir, "dir", "", …)
+```
+
+### 8.8 命令路径在文档里过期
+
+CLI 分层调整后（`cnb profile validate` → `cnb pipeline profile validate`），
+文档仍在写旧路径。**改命令层级时必须全局 grep 文档与脚本。**
+
+自查方式：把文档里出现的每条命令跑一遍 `--help`，能执行才算通过。
+
+### 8.9 为工具方便给统一结构加类型分派
+
+```toml
+# ✗ stage 出现两种形态：image 块 / run 数组 → 执行器要分派
+[[spec.stages]]
+[spec.stages.image]
+dockerfile = "..."
+
+# ✓ stage 永远只有一条命令；检查所需信息放在独立的 checks 段
+[[spec.stages]]
+run = ["podman", "build", ...]
+
+[[spec.checks.dockerfiles]]
+path = "docker/builder.dockerfile"
+```
+
+判断标准：**结构的分支数决定理解成本**。为 checker 便利新增一种 stage 形态，
+会让"列表顺序即执行、每条一条命令"这条最简规则失效。
+
+### 8.10 语言不一致
+
+同一包内注释/帮助文本中英文混排，对外工具尤其突兀。
+
+- 规则：`internal/cli` 与 `internal/checks` 不得出现中文（`just check` 已加门禁）
+- 错误信息必须英文（既有规则）
+- 文档可以中文，代码不行
+
+## 九、代码检查清单（提交前）
+
+```bash
+just lint        # golangci-lint（含 funlen/cyclop/dupl/goconst/revive）
+just check       # gofmt / vet / 协议边界 / 包名 / 中文 / 错误文案
+go test ./...    # 单测
+```
+
+人工自查：
+
+1. 新增的"列举"是否写成表？
+2. 同形状的逻辑是否 ≥2 处？
+3. 删除的函数是否留下注释或引用？
+4. 新增配置项是"策略"还是"逻辑"？
+5. 重复的基础能力是否已在 `fsutil` 等公共包？
+6. 命令/参数变更是否同步了文档？

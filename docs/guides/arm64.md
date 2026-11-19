@@ -55,7 +55,7 @@ just smart /path/to/release-arm64
 
 ```bash
 W=$(mktemp -d)
-tar -xzf dist/s-mart.tar.gz -C "$W" web.tgz
+tar -xzf dist/linux-<arch>/s-mart.tar.gz -C "$W" web.tgz
 mkdir -p "$W/oci" && tar -xf "$W/web.tgz" -C "$W/oci"
 
 python3 - "$W/oci" <<'PY'

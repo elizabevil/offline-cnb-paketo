@@ -25,7 +25,7 @@ func extractAsset(a *lock.Asset, src, binDir string, platform lock.Platform) ([]
 		if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 			return nil, err
 		}
-		if err := fsutil.CopyFile(src, target); err != nil {
+		if err := fsutil.CopyExec(src, target); err != nil {
 			return nil, err
 		}
 		return []string{rel}, nil

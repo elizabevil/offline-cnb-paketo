@@ -31,8 +31,8 @@ Learn-cnb-paketo/
 ```
 build.sh
   └─ cnb pipeline run config/projects/offline-paketo.toml
-       ├─ cnb profile validate   校验镜像/命令/流程引用
-       ├─ cnb profile render     渲染执行计划（fetch_assets / image_build）
+       ├─ cnb pipeline profile validate   校验镜像/命令/流程引用
+       ├─ cnb pipeline plan     渲染执行计划（fetch_assets / image_build）
        └─ eval 计划
             ├─ fetch_assets  → cnb materials sync（按 lock 下载/校验/解压）
             ├─ image_build   → script/lib/image-build.sh（podman/docker）
@@ -103,5 +103,5 @@ just verify                 # 校验本项目物料（范围取自配置）
 | 2026-11 | 删除 `scripts/*.just`（config/download/docker/info/log），流程改为配置驱动 |
 | 2026-11 | `apps/` 改名 `examples/` 且不入库；物料统一到仓库根 `bundle/` |
 | 2026-11 | 构建改用 named build context（`--build-context bundle=…`），Dockerfile 不再写仓库路径 |
-| 2026-11 | 删除 `script/run.sh`，执行并入 `cnb pipeline run`；新增 `cnb pipeline dockerfile check` |
+| 2026-11 | 删除 `script/run.sh`，执行并入 `cnb pipeline run`；新增 `cnb lint`（构建参数与脚本检查） |
 | 2026-11 | 物料目录改为 `<id>/<version>`，URL 支持 `{version}` 占位 |

@@ -40,7 +40,7 @@ script/bin/cnb-linux-amd64 --file assets.lock.toml validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 2) 模板不能腐烂（模板也是文档，改了字段却不同步模板 = 下一个人被误导）
-script/bin/cnb-linux-amd64 --file assets.lock.toml.example validate
+script/bin/cnb-linux-amd64 --file assets.toml.example materials validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 3) shell 语法
@@ -63,8 +63,6 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 | 命令 | 期望输出 | 退出码 |
 |---|---|---|
 | `cnb materials list` | `id\tversion\tkind\tplatforms`，平台按字母序、逗号分隔 | 0 |
-| `cnb materials get lifecycle linux-amd64` | 8 行 `ASSET_*='...'`，单引号包裹 | 0 |
-| `cnb materials get nope linux-amd64` | stderr 提示已定义 id | 2 |
 | `cnb materials validate` | `✓ ...` 或逐条 `✗ ...` | 0 / 1 |
 | `cnb materials verify` | 每物料 `✓/✗` | 0 / 1 |
 | `cnb image convert <不存在路径> <目标>` | `目标不存在` | 1 |
@@ -73,8 +71,8 @@ cd script/tools/cnb && gofmt -l . && go vet ./... && go test ./...
 
 ```bash
 script/bin/cnb-linux-amd64 materials list | cat -A | head -3   # 看 \t 是否是真正的制表符
-script/bin/cnb-linux-amd64 materials get lifecycle linux-amd64
-script/bin/cnb-linux-amd64 materials get nope linux-amd64; echo "exit=$?"   # 期望 2
+script/bin/cnb-linux-amd64 materials list
+script/bin/cnb-linux-amd64 materials verify --platform linux-arm64
 ```
 
 单测覆盖的是同一批契约：

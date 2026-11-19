@@ -8,36 +8,36 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/spec/imagefmt"
 )
 
-// newImageCmd 是镜像格式转换的通用入口（不涉及任何平台包结构）。
+// newImageCmd is the generic image format conversion entry point.
 func newImageCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "image", Short: "镜像归档格式转换（docker-archive / oci-layout）"}
+	parent := &cobra.Command{Use: "image", Short: "image archive format conversion (docker-archive / oci-layout)"}
 
 	var to string
 	convert := &cobra.Command{
 		Use:   "convert <src> <dst>",
-		Short: "镜像格式互转（OCI layout 目录 ↔ docker-archive tar）",
+		Short: "convert between OCI layout and docker-archive",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			src, dst := args[0], args[1]
 			img, from, err := imagefmt.Open(src)
 			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			if to == "" {
 				to = imagefmt.FormatOCILayout
 			}
 			if to == from {
-				return &exitError{code: ExitUsage, msg: fmt.Sprintf("源与目标格式相同（%s）", to)}
+				return &exitError{code: ExitUsage, msg: fmt.Sprintf("source and target formats are identical (%s)", to)}
 			}
 			if err := img.Write(to, dst); err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			layers, _ := img.V1.Layers()
-			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s → %s（%d 层，标签 %v）\n", from, to, len(layers), img.RepoTags)
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s → %s (%d layers, tags %v)\n", from, to, len(layers), img.RepoTags)
 			return nil
 		},
 	}
-	convert.Flags().StringVar(&to, "to", imagefmt.FormatOCILayout, "目标格式：oci-layout | docker-archive")
+	convert.Flags().StringVar(&to, "to", imagefmt.FormatOCILayout, "target format: oci-layout | docker-archive")
 	parent.AddCommand(convert)
 	return parent
 }

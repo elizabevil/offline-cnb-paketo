@@ -2,28 +2,43 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
+
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/materials"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
+// newLockCmd generates or refreshes assets.lock.toml.
 func newLockCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "lock", Short: "lock 维护"}
-	parent.AddCommand(&cobra.Command{
-		Use: "set-sha <ref> <platform> <sha256>", Short: "写入/校验某平台哈希", Args: cobra.ExactArgs(3),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := workspaceLockPath(opts.lockPath)
+	var jobs int
+	cmd := &cobra.Command{
+		Use:   "lock [ids...]",
+		Short: "generate or refresh assets.lock.toml (download and hash)",
+		RunE: func(cmd *cobra.Command, ids []string) error {
+			ctx, err := workspace.Open(workspace.Options{
+				Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
+			})
 			if err != nil {
-				return err
+				return failExecution(err)
 			}
-			changed, err := lock.SetSHA(path, args[0], lock.Platform(args[1]), args[2])
-			if err != nil {
-				return &exitError{code: 1, msg: err.Error()}
+			if err := materials.Generate(ctx.Lock, ctx.LockFile, ids, materials.Options{
+				BundleDir:    ctx.Bundle,
+				Platform:     ctx.Platform,
+				LockFile:     ctx.LockFile,
+				LockFilePath: ctx.LockFilePath,
+				Manifest:     ctx.Lock,
+				ManifestHash: ctx.ManifestHash,
+				Jobs:         jobs,
+				Logger:       logr,
+			}); err != nil {
+				return failExecution(err)
 			}
-			if changed {
-				fmt.Fprintf(cmd.OutOrStdout(), "  + 已固定 %s[%s]\n", args[0], args[1])
-			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s\n", ctx.LockFilePath)
 			return nil
 		},
-	})
-	return parent
+	}
+	cmd.Flags().IntVar(&jobs, "jobs", 4, "parallel downloads")
+	return cmd
 }

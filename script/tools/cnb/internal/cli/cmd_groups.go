@@ -2,32 +2,32 @@ package cli
 
 import "github.com/spf13/cobra"
 
-// newMaterialsCmd 是物料域：清单、落盘、哈希与本地发布。
+// newMaterialsCmd is the materials group: listing, sync, hashes, local publish.
 func newMaterialsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "materials",
 		Short: "asset management (lock, bundle, hashes)",
 	}
 	cmd.AddCommand(
-		newListCmd(), newGetCmd(), newValidateCmd(), newPlatformsCmd(),
+		newListCmd(), newValidateCmd(), newPlatformsCmd(),
 		newVerifyCmd(), newPinCmd(), newUpdateCmd(), newPublishCmd(), newLockCmd(), newSyncCmd(),
 	)
 	return cmd
 }
 
-// newPipelineCmd 是流水线域：计划、执行、体检与静态检查。
+// newPipelineCmd is the pipeline group: plan, run, doctor, static checks.
 func newPipelineCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pipeline",
 		Short: "build pipeline (plan, run, checks)",
 	}
 	cmd.AddCommand(
-		newPlanCmd(), newRunCmd(), newProfileCmd(),
+		newPlanCmd(), newRunCmd(), newProfileCmd(), newVariablesCmd(),
 	)
 	return cmd
 }
 
-// newBuildpackCmd 是 buildpack 域：结构检查与 builder metadata。
+// newBuildpackCmd is the buildpack group: layout checks and builder metadata.
 func newBuildpackCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "buildpack",

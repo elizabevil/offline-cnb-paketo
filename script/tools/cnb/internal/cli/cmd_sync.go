@@ -11,7 +11,7 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-// newSyncCmd 下载 / 解包 / 打标记。
+// newSyncCmd downloads, unpacks, and writes markers.
 func newSyncCmd() *cobra.Command {
 	var (
 		offline bool
@@ -30,7 +30,7 @@ func newSyncCmd() *cobra.Command {
 				Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
 			})
 			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			fetch := materials.FetchConfig{
 				Proxy:     proxy,
@@ -40,20 +40,24 @@ func newSyncCmd() *cobra.Command {
 				UserAgent: "cnb-materials/1",
 			}
 			results, err := materials.Sync(ctx.Lock, ids, materials.Options{
-				BundleDir: ctx.Bundle,
-				LockPath:  ctx.LockPath,
-				Platform:  ctx.Platform,
-				Fetch:     fetch,
-				Jobs:      jobs,
-				Offline:   offline,
-				Check:     check,
-				Logger:    logr,
+				BundleDir:    ctx.Bundle,
+				LockPath:     ctx.LockPath,
+				Manifest:     ctx.Lock,
+				LockFile:     ctx.LockFile,
+				LockFilePath: ctx.LockFilePath,
+				ManifestHash: ctx.ManifestHash,
+				Platform:     ctx.Platform,
+				Fetch:        fetch,
+				Jobs:         jobs,
+				Offline:      offline,
+				Check:        check,
+				Logger:       logr,
 			})
 			for _, r := range results {
 				logr.Info("material", "ref", r.Ref, "action", r.Action.String())
 			}
 			if err != nil {
-				return &exitError{code: ExitFailure, msg: err.Error()}
+				return failExecution(err)
 			}
 			return nil
 		},
@@ -61,14 +65,14 @@ func newSyncCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&offline, "offline", false, "verify only, never download")
 	cmd.Flags().BoolVar(&check, "check", false, "verify only")
 	cmd.Flags().IntVar(&jobs, "jobs", 4, "parallel downloads")
-	cmd.Flags().StringVar(&proxy, "proxy", "", "显式 HTTP 代理（默认读取 HTTPS_PROXY/HTTP_PROXY）")
-	cmd.Flags().DurationVar(&timeout, "timeout", 0, "单次请求超时（默认 30m）")
-	cmd.Flags().IntVar(&retries, "retries", 0, "可重试错误的最大尝试次数（默认 3）")
-	cmd.Flags().StringArrayVar(&headers, "header", nil, "附加请求头，格式 K=V（可重复）")
+	cmd.Flags().StringVar(&proxy, "proxy", "", "explicit HTTP proxy (defaults to HTTPS_PROXY/HTTP_PROXY)")
+	cmd.Flags().DurationVar(&timeout, "timeout", 0, "per-request timeout (default 30m)")
+	cmd.Flags().IntVar(&retries, "retries", 0, "max attempts for retryable errors (default 3)")
+	cmd.Flags().StringArrayVar(&headers, "header", nil, "extra request headers as K=V (repeatable)")
 	return cmd
 }
 
-// parseHeaders 把 K=V 列表解析成 map。
+// parseHeaders turns K=V entries into a map.
 func parseHeaders(items []string) map[string]string {
 	if len(items) == 0 {
 		return nil

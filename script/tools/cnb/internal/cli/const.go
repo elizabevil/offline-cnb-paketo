@@ -1,21 +1,21 @@
 package cli
 
-// CLI 作用域常量。
+// CLI-scoped constants.
 const (
-	// DefaultLockName 与 workspace 保持一致。
-	DefaultLockName = "assets.lock.toml"
-	// DefaultConfigDir 是默认流程配置目录。
+	// DefaultLockName matches the workspace package.
+	DefaultManifestName = "assets.toml"
+	// DefaultConfigDir is the default pipeline config directory.
 	DefaultConfigDir = "config/projects"
 
-	// ExitOK 表示成功。
+	// ExitOK means success.
 	ExitOK = 0
-	// ExitFailure 表示执行失败。
+	// ExitFailure means execution failed.
 	ExitFailure = 1
-	// ExitUsage 表示参数或用法错误。
+	// ExitUsage means invalid arguments or usage.
 	ExitUsage = 2
 
-	// BundleContext 是 Dockerfile 引用物料的命名构建上下文。
+	// BundleContext is the named build context for material references.
 	BundleContext = "bundle"
-	// BuildpacksContext 是引用 buildpack 的命名构建上下文。
+	// BuildpacksContext is the named build context for buildpacks.
 	BuildpacksContext = "buildpacks"
 )

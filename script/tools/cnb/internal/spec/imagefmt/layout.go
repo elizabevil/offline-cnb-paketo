@@ -1,7 +1,6 @@
 package imagefmt
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/v1/empty"
@@ -57,12 +56,3 @@ func (img *Image) writeLayout(dest string) error {
 }
 
 // isLayoutDir 判断目录是否包含 OCI layout 标记。
-func isLayoutDir(dir string) bool {
-	if _, err := layout.FromPath(dir); err != nil {
-		return false
-	}
-	if _, err := statFile(filepath.Join(dir, fileIndexJSON)); err != nil {
-		return false
-	}
-	return true
-}

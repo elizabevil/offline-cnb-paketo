@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -249,12 +248,12 @@ func (e *DockerExecutor) buildSMartPackage(ctx context.Context, workspace string
 	// run-image.tar 只是构建期中间产物，不进 s-mart
 	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
 	appDescPath := filepath.Join(workspace, "app_desc.yaml")
-	if err := os.WriteFile(appDescPath, []byte(e.plan.AppDescContent), 0o755); err != nil {
+	if err := os.WriteFile(appDescPath, []byte(e.plan.AppDescContent), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write app_desc.yaml")
 	}
 
 	builderFlagPath := filepath.Join(workspace, ".Version")
-	if err := os.WriteFile(builderFlagPath, []byte("cnb-image-layers"), 0o755); err != nil {
+	if err := os.WriteFile(builderFlagPath, []byte("cnb-image-layers"), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write builder flag .Version")
 	}
 
@@ -277,19 +276,10 @@ func (e *DockerExecutor) buildSMartPackage(ctx context.Context, workspace string
 	if err := os.RemoveAll(e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to reset dest")
 	}
-	tarball := archiver.NewTarGz()
-	entries, err := os.ReadDir(workspace)
-	if err != nil {
+	if err := utils.PackDirTarGz(workspace, e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to archive src")
 	}
-
-	err = tarball.Archive(lo.Map(entries, func(item os.DirEntry, index int) string {
-		return filepath.Join(workspace, item.Name())
-	}), e.plan.Dest)
-	if err != nil {
-		return errors.Wrap(err, "failed to archive src")
-	}
-	return tarball.Close()
+	return nil
 }
 
 // tarDir 把目录打包成 tar（供 image import 使用）。

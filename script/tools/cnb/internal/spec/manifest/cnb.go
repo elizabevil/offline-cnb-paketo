@@ -21,7 +21,8 @@ const (
 	DefaultStorageLayout = "arch-first"
 
 	// DefaultLockName / DefaultBundle / DefaultConfig 是仓库默认名。
-	DefaultLockName = "assets.lock.toml"
-	DefaultBundle   = "bundle"
-	DefaultConfig   = "config"
+	DefaultManifestName = "assets.toml"
+	DefaultLockName     = "assets.lock.toml"
+	DefaultBundle       = "bundle"
+	DefaultConfig       = "config"
 )

@@ -1,4 +1,4 @@
-// Package cli 是 cnb 的命令行层：cobra 命令、参数解析与输出。
+// Package cli implements the cnb command line: cobra commands, flags, and output.
 package cli
 
 import (
@@ -12,10 +12,10 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-// opts 保存全局命令行选项。
+// opts holds global command line options.
 var opts options
 
-// 版本由 internal/version 的 buildinfo 提供
+// Version metadata comes from internal/version buildinfo.
 
 type options struct {
 	lockPath  string
@@ -27,7 +27,7 @@ type options struct {
 	configDir string
 }
 
-// exitError 携带特定退出码；msg 为空表示错误已由调用方打印。
+// exitError carries an exit code; an empty msg means the caller already printed it.
 type exitError struct {
 	code int
 	msg  string
@@ -50,7 +50,7 @@ func open() (*lock.File, lock.Platform, string, error) {
 	return ctx.Lock, ctx.Platform, ctx.Bundle, nil
 }
 
-// resolveRepo 解析仓库根：--repo > CNB_REPO_ROOT > 可执行文件位置推导。
+// resolveRepo resolves the repo root: --repo, then CNB_REPO_ROOT, then the executable path.
 func resolveRepo() (string, error) {
 	if opts.repo != "" {
 		return filepath.Abs(opts.repo)
@@ -68,22 +68,11 @@ func resolveRepo() (string, error) {
 	return root, nil
 }
 
-// workspaceLockPath 是 workspace 解析的薄包装，供少数只取路径的调用点复用。
-func workspaceLockPath(explicit string) (string, error) {
-	ctx, err := workspace.Open(workspace.Options{Repo: opts.repo, LockPath: explicit})
-	if err != nil {
-		return "", err
-	}
-	return ctx.LockPath, nil
-}
+// workspaceLockPath is a thin wrapper for callers that only need the path.
 
-// mustProfilePath 返回 config/projects/<name>.toml（相对仓库根）。
-func mustProfilePath(name string) string {
-	root, _ := resolveRepo()
-	return filepath.Join(root, opts.configDir, "projects", name+".toml")
-}
+// mustProfilePath returns config/projects/<name>.toml relative to the repo root.
 
-// Execute 运行 CLI，并按 exitError 决定退出码。
+// Execute runs the CLI and maps exitError to a process exit code.
 func Execute() {
 	if err := newRootCmd().Execute(); err != nil {
 		if ee, ok := errors.AsType[*exitError](err); ok {

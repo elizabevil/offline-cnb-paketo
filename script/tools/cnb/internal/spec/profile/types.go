@@ -36,12 +36,26 @@ type Spec struct {
 	Project Project          `toml:"project"`
 	Assets  map[string]Asset `toml:"assets"`
 	Stages  []Stage          `toml:"stages"`
+	Checks  Checks           `toml:"checks,omitempty"`
+}
+
+// Checks declares static checks that are not expressible through stage argv.
+type Checks struct {
+	// Dockerfiles lists Dockerfiles whose COPY sources must exist.
+	Dockerfiles []DockerfileCheck `toml:"dockerfiles,omitempty"`
+}
+
+// DockerfileCheck pins one Dockerfile and the contexts its COPY uses.
+type DockerfileCheck struct {
+	Path     string            `toml:"path"`
+	Context  string            `toml:"context,omitempty"`  // default: project dir
+	Contexts map[string]string `toml:"contexts,omitempty"` // named --from contexts
 }
 
 // Project 是项目标识与默认平台。
 type Project struct {
-	Dir      string `toml:"dir"`
-	Platform string `toml:"platform"`
+	Directory string `toml:"directory"`
+	Platform  string `toml:"platform"`
 	// Base 是各平台的运行时基础镜像（如 debian 的 arch 专用 tag）。
 	Base map[string]string `toml:"base,omitempty"`
 }
@@ -52,7 +66,7 @@ type Asset struct {
 	Platforms []string `toml:"platforms,omitempty"`
 }
 
-// Stage 是一个执行阶段：一条命令 + 运行位置。
+// Stage is one execution step: exactly one command, no type dispatch.
 type Stage struct {
 	Name            string            `toml:"name"`
 	Run             []string          `toml:"run"`

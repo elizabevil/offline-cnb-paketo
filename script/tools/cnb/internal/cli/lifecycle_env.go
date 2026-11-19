@@ -2,16 +2,17 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lifecycle"
 	"learn-cnb-paketo/tools/cnb/internal/spec/platform"
 )
 
-// 适配层：把平台环境契约（platform.Env）映射为 lifecycle.Config。
-// cnb 不感知具体平台；环境变量名与默认值集中在 spec/platform。
+// Adapter: maps the platform env contract (platform.Env) to lifecycle.Config.
+// cnb stays platform agnostic; env names and defaults live in spec/platform.
 const defaultLifecycleDir = "/cnb/lifecycle"
 
-// configFromEnv 由平台契约生成 lifecycle 配置。
+// configFromEnv builds a lifecycle config from the platform contract.
 func configFromEnv() (lifecycle.Config, error) {
 	env, warns, err := platform.Parse(os.Getenv)
 	if err != nil {
@@ -55,19 +56,19 @@ func configFromEnv() (lifecycle.Config, error) {
 	}, nil
 }
 
-// joinRequired 把已切分的 required 条目还原为 lifecycle 期望的原始串。
+// joinRequired restores split required entries to the raw lifecycle string.
 func joinRequired(items []string) string {
-	out := ""
+	var out strings.Builder
 	for i, it := range items {
 		if i > 0 {
-			out += ";"
+			out.WriteString(";")
 		}
-		out += it
+		out.WriteString(it)
 	}
-	return out
+	return out.String()
 }
 
-// envUser 返回运行 detect/build 的用户（默认 cnb）。
+// envUser returns the user running detect/build (default cnb).
 func envUser() string {
 	if u := os.Getenv("CNB_RUN_USER"); u != "" {
 		return u

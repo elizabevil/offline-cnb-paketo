@@ -1,6 +1,12 @@
 // Package manifest 定义物料清单（assets.lock.toml）的结构、解析与校验。
 package manifest
 
+// 物料来源类型。
+const (
+	// KindLocal 表示来源是本地文件。
+	KindLocal = "local"
+)
+
 // 语义别名：让函数签名自解释，且与 string 互通、无需类型转换。
 type (
 	// ID 是物料标识（如 lifecycle）。
@@ -69,6 +75,8 @@ const (
 	KindZip Kind = "zip"
 	// KindBin 是单文件二进制。
 	KindBin Kind = "bin"
+	// KindHTTP 是下载源类型（默认）。
+	KindHTTP = "http"
 )
 
 // Unpack 描述如何解包；Dir 支持 {version}。
@@ -84,7 +92,7 @@ type Unpack struct {
 // Source 是某平台的下载源。
 // Source 描述某平台物料的来源。
 type Source struct {
-	// Kind 为 "http"（默认）或 "local"。
+	// Kind 为 KindHTTP（默认）或 KindLocal。
 	Kind string `toml:"kind,omitempty"`
 	// URL 是 http 来源地址，允许唯一占位符 {version}。
 	URL string `toml:"url,omitempty"`
@@ -94,10 +102,6 @@ type Source struct {
 	Source string `toml:"source,omitempty"`
 	// Recipe 是 local 来源的构建命令（可选，便于复现）。
 	Recipe string `toml:"recipe,omitempty"`
-	// Size 是字节数；-1 表示未知。
-	Size int64 `toml:"size,omitempty"`
-	// SHA256 是归档哈希。
-	SHA256 string `toml:"sha256,omitempty"`
 }
 
 // Ref 返回 "id@version"。

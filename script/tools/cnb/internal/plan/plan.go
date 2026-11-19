@@ -2,6 +2,7 @@
 package plan
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -16,7 +17,7 @@ import (
 // DefaultTimeout 是未声明 timeout 时的默认值。
 const DefaultTimeout = 10 * time.Minute
 
-// Stage 是解析后的单个阶段。
+// Stage is one resolved step.
 type Stage struct {
 	Name            string
 	Argv            []string
@@ -26,12 +27,22 @@ type Stage struct {
 	ContinueOnError bool
 }
 
-// Plan 是一次执行的完整计划。
+// Plan is a full execution plan.
 type Plan struct {
 	Project  string
 	Platform string
 	Bundle   string
 	Stages   []Stage
+	// Dockerfiles are resolved spec.checks targets (absolute paths).
+	Dockerfiles []DockerfileTarget
+}
+
+// DockerfileTarget is one Dockerfile plus the contexts its COPY uses.
+type DockerfileTarget struct {
+	Name       string
+	Dockerfile string
+	Context    string
+	Contexts   map[string]string
 }
 
 // Options 是构建计划所需的运行环境。
@@ -40,6 +51,15 @@ type Options struct {
 	Repo string
 	// Bundle 是物料目录（绝对路径），对应 ${bundle}。
 	Bundle string
+}
+
+// Placeholders returns the supported variables and their resolved values.
+func Placeholders(f *profile.File, lock *manifest.File, opts Options) ([]Placeholder, error) {
+	v, err := newVars(f, lock, opts)
+	if err != nil {
+		return nil, err
+	}
+	return v.Table(), nil
 }
 
 // Build 展开占位符、绝对化路径，生成执行计划。
@@ -57,6 +77,11 @@ func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []warn.Wa
 		}
 		p.Stages = append(p.Stages, expanded)
 	}
+	targets, err := expandChecks(f, vars, opts.Repo)
+	if err != nil {
+		return nil, nil, err
+	}
+	p.Dockerfiles = targets
 	return p, allWarns, nil
 }
 
@@ -88,6 +113,55 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 		Name: st.Name, Argv: argv, Workdir: workdir, Env: env,
 		Timeout: timeout, ContinueOnError: st.ContinueOnError,
 	}, nil
+}
+
+// expandChecks resolves spec.checks.dockerfiles with the same placeholder table
+// as stages, so ${repo} / ${bundle} mean exactly what they mean in run.
+//
+// path and context are relative to spec.project.directory; contexts are relative to
+// the repo root (bundle and buildpacks live there).
+func expandChecks(f *profile.File, v vars, repo string) ([]DockerfileTarget, error) {
+	if len(f.Spec.Checks.Dockerfiles) == 0 {
+		return nil, nil
+	}
+	projectDir := filepath.Join(repo, f.Spec.Project.Directory)
+	out := make([]DockerfileTarget, 0, len(f.Spec.Checks.Dockerfiles))
+	for i, dc := range f.Spec.Checks.Dockerfiles {
+		field := fmt.Sprintf("spec.checks.dockerfiles[%d]", i)
+		pathValue, err := v.expand(dc.Path)
+		if err != nil {
+			return nil, &errs.Invalid{Field: field + ".path", Value: dc.Path, Reason: err.Error()}
+		}
+		dockerfile := joinAbs(projectDir, pathValue)
+
+		contextDir := projectDir
+		if dc.Context != "" {
+			contextValue, err := v.expand(dc.Context)
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".context", Value: dc.Context, Reason: err.Error()}
+			}
+			contextDir = joinAbs(projectDir, contextValue)
+		}
+
+		contexts := make(map[string]string, len(dc.Contexts))
+		for _, name := range slices.Sorted(maps.Keys(dc.Contexts)) {
+			value, err := v.expand(dc.Contexts[name])
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".contexts." + name, Value: dc.Contexts[name], Reason: err.Error()}
+			}
+			contexts[name] = joinAbs(repo, value)
+		}
+		out = append(out, DockerfileTarget{Name: dc.Path, Dockerfile: dockerfile, Context: contextDir, Contexts: contexts})
+	}
+	return out, nil
+}
+
+// joinAbs resolves p against base unless p is already absolute.
+func joinAbs(base, p string) string {
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	return filepath.Join(base, p)
 }
 
 // absPath 把相对路径按仓库根绝对化。

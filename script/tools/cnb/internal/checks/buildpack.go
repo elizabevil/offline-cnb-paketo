@@ -1,4 +1,8 @@
-// Package checks 提供静态检查与元数据生成：buildpack 结构、Dockerfile 源、环境体检、builder metadata。
+// Package checks runs static checks for buildpack layout, Dockerfile sources,
+// environment health, and builder metadata.
+//
+// Rule text lives next to the check that enforces it; default_rules.toml can
+// override level, enabled, and message without a rebuild.
 package checks
 
 import (
@@ -7,41 +11,45 @@ import (
 	"path/filepath"
 	"strings"
 
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
+	specchecks "learn-cnb-paketo/tools/cnb/internal/spec/checksrules"
 	speclifecycle "learn-cnb-paketo/tools/cnb/internal/spec/lifecycle"
 )
 
-// 检查规则与约定。
+// File and layout conventions.
 const (
-	ManifestName   = "buildpack.toml"
-	DetectScript   = "detect"
-	BuildScript    = "build"
-	BinDir         = "bin"
-	IDPrefix       = "paketo-buildpacks_"
-	IDPrefixSlash  = "paketo-buildpacks/"
-	FileModeExec   = 0o111
-	ProviderMarker = ".sbom."
+	ManifestName = "buildpack.toml"
+	DetectScript = "detect"
+	BuildScript  = "build"
+	BinDir       = "bin"
+
+	IDPrefix        = "paketo-buildpacks_"
+	IDPrefixSlash   = "paketo-buildpacks/"
+	FileModeExec    = 0o111
+	SBOMMarker      = ".sbom."
+	defaultLevelErr = specchecks.LevelError
 )
 
-// Providers 是必须声明 [[metadata.dependencies]] 的组件（提供外部 SDK）。
-var Providers = map[string]bool{
-	"node-engine": true,
-	"cpython":     true,
-	"go-dist":     true,
-}
+// Rule scopes.
+const (
+	scopeAll       = "all"
+	scopeMeta      = "meta"
+	scopeComponent = "component"
+)
 
-// Finding 是一条检查结果。
+// Finding is one check result.
 type Finding struct {
 	Name    string
 	Message string
 	IsError bool
 }
 
-// BuildpackReport 是一个 buildpack 目录的检查结果。
+// BuildpackReport is the result for one buildpack directory.
 type BuildpackReport struct {
 	Findings []Finding
 }
 
-// Errors 返回错误条数。
+// Errors returns the error count.
 func (r BuildpackReport) Errors() int {
 	n := 0
 	for _, f := range r.Findings {
@@ -52,135 +60,276 @@ func (r BuildpackReport) Errors() int {
 	return n
 }
 
-// Warnings 返回警告条数。
+// Warnings returns the warning count.
 func (r BuildpackReport) Warnings() int { return len(r.Findings) - r.Errors() }
 
-// OK 判断是否无错误。
+// OK reports whether there are no errors.
 func (r BuildpackReport) OK() bool { return r.Errors() == 0 }
 
-// CheckBuildpack 检查单个 buildpack 目录。
+// buildpack is the parsed view used by the checks.
+type buildpack struct {
+	leaf    string
+	dir     string
+	readErr error
+	parsed  *speclifecycle.Buildpack
+	parseOK bool
+}
+
+// isMeta reports whether the buildpack is an order-only meta buildpack.
+func (b *buildpack) isMeta() bool {
+	return b.parsed != nil && len(b.parsed.Order) > 0
+}
+
+// rule is one enforceable check plus its default presentation.
+type rule struct {
+	id      string
+	scope   string
+	level   string
+	message string
+	run     func(*buildpack, *Ruleset) []string // reasons; empty means pass
+}
+
+// ruleTable is the single place where checks are declared.
+func ruleTable() []rule {
+	return []rule{
+		{"manifest-exists", scopeAll, defaultLevelErr, "missing buildpack.toml", checkManifestExists},
+		{"manifest-parses", scopeAll, defaultLevelErr, "invalid buildpack.toml", checkManifestParses},
+		{"api-declared", scopeAll, defaultLevelErr, "missing api", requireField(func(b *speclifecycle.Buildpack) string { return b.API })},
+		{"id-declared", scopeAll, defaultLevelErr, "missing [buildpack] id", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.ID })},
+		{"version-declared", scopeAll, defaultLevelErr, "missing [buildpack] version", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.Version })},
+		{"name-declared", scopeAll, defaultLevelErr, "missing [buildpack] name", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.Name })},
+		{"dir-id-match", scopeAll, defaultLevelErr, "directory name does not match buildpack id", checkDirIDMatch},
+		{"meta-no-scripts", scopeMeta, defaultLevelErr, "meta buildpack must not ship bin scripts", forbidScripts},
+		{"order-refs-exist", scopeMeta, defaultLevelErr, "order references missing buildpack", checkOrderRefs},
+		{"detect-present", scopeComponent, defaultLevelErr, "missing bin/detect", requireScript(DetectScript)},
+		{"build-present", scopeComponent, defaultLevelErr, "missing bin/build", requireScript(BuildScript)},
+		{"scripts-executable", scopeComponent, defaultLevelErr, "script is not executable", checkScriptsExecutable},
+		{"sbom-formats-declared", scopeComponent, specchecks.LevelWarn, "writes SBOM but declares no sbom-formats", checkSBOMDeclared},
+		{"dependencies-declared", scopeComponent, specchecks.LevelWarn, "provider buildpack without [[metadata.dependencies]]", checkProviderDeps},
+	}
+}
+
+// CheckBuildpack checks one directory with the embedded default ruleset.
 func CheckBuildpack(dir string) BuildpackReport {
+	rs, err := DefaultRuleset()
+	if err != nil {
+		return BuildpackReport{Findings: []Finding{{Name: filepath.Base(dir), Message: err.Error(), IsError: true}}}
+	}
+	return CheckBuildpackWith(dir, rs)
+}
+
+// CheckBuildpackWith checks one directory against the given ruleset.
+func CheckBuildpackWith(dir string, rs *Ruleset) BuildpackReport {
+	bp := loadBuildpack(dir)
 	var rep BuildpackReport
-	leaf, versionDir := locate(dir)
-	add := func(ok bool, msg string) {
-		if !ok {
-			rep.Findings = append(rep.Findings, Finding{Name: leaf, Message: msg, IsError: true})
+	for _, r := range ruleTable() {
+		if !inScope(r.scope, bp) {
+			continue
+		}
+		level, message, enabled := r.level, r.message, true
+		if o, ok := rs.Lookup(r.id); ok {
+			if o.Level != "" {
+				level = o.Level
+			}
+			if o.Message != "" {
+				message = o.Message
+			}
+			if o.Enabled != nil {
+				enabled = *o.Enabled
+			}
+		}
+		if !enabled {
+			continue
+		}
+		for _, reason := range r.run(bp, rs) {
+			rep.Findings = append(rep.Findings, Finding{
+				Name: bp.leaf, Message: withReason(message, reason), IsError: level == specchecks.LevelError,
+			})
 		}
 	}
-	warn := func(ok bool, msg string) {
-		if !ok {
-			rep.Findings = append(rep.Findings, Finding{Name: leaf, Message: msg})
-		}
-	}
-
-	data, err := os.ReadFile(filepath.Join(versionDir, ManifestName))
-	if err != nil {
-		add(false, "missing "+ManifestName)
-		return rep
-	}
-	bp, warns, err := speclifecycle.ParseBuildpack(data)
-	if err != nil {
-		add(false, "invalid "+ManifestName+": "+err.Error())
-		return rep
-	}
-	for _, w := range warns {
-		rep.Findings = append(rep.Findings, Finding{Name: leaf, Message: w.String()})
-	}
-
-	add(bp.API != "", "missing api")
-	add(bp.BuildpackInfo.ID != "", "missing [buildpack] id")
-	add(bp.BuildpackInfo.Version != "", "missing [buildpack] version")
-	add(bp.BuildpackInfo.Name != "", "missing [buildpack] name")
-	add(idMatchesDir(bp.BuildpackInfo.ID, leaf),
-		fmt.Sprintf("dir %s does not match id %s", leaf, bp.BuildpackInfo.ID))
-
-	if len(bp.Order) > 0 {
-		checkMeta(&rep, versionDir, bp.Order)
-		return rep
-	}
-	checkComponent(&rep, versionDir, leaf, bp, warn)
 	return rep
 }
 
-// locate 返回目录名与含 buildpack.toml 的目录（支持 <id>/<version>）。
-func locate(dir string) (string, string) {
-	leaf := filepath.Base(dir)
-	if exists(filepath.Join(dir, ManifestName)) {
-		return leaf, dir
-	}
-	subs, err := os.ReadDir(dir)
-	if err != nil {
-		return leaf, dir
-	}
-	for _, s := range subs {
-		cand := filepath.Join(dir, s.Name())
-		if s.IsDir() && exists(filepath.Join(cand, ManifestName)) {
-			return leaf, cand
+// loadBuildpack locates and parses buildpack.toml, tolerating <id>/<version>.
+func loadBuildpack(dir string) *buildpack {
+	bp := &buildpack{leaf: filepath.Base(dir), dir: dir}
+	if !fsutil.Exists(filepath.Join(dir, ManifestName)) {
+		if versionDir := firstVersionDir(dir); versionDir != "" {
+			bp.dir = versionDir
 		}
 	}
-	return leaf, dir
+	data, err := os.ReadFile(filepath.Join(bp.dir, ManifestName))
+	if err != nil {
+		bp.readErr = err
+		return bp
+	}
+	parsed, _, err := speclifecycle.ParseBuildpack(data)
+	if err == nil && parsed != nil {
+		bp.parsed, bp.parseOK = parsed, true
+	}
+	return bp
 }
 
-// checkMeta 检查 meta buildpack：不得含脚本，order 引用的组件需存在。
-func checkMeta(rep *BuildpackReport, dir string, order []speclifecycle.Group) {
-	add := func(ok bool, msg string) {
-		if !ok {
-			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})
+// firstVersionDir returns the first subdirectory holding a buildpack.toml.
+func firstVersionDir(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		cand := filepath.Join(dir, e.Name())
+		if e.IsDir() && fsutil.Exists(filepath.Join(cand, ManifestName)) {
+			return cand
 		}
 	}
-	detect := filepath.Join(dir, BinDir, DetectScript)
-	build := filepath.Join(dir, BinDir, BuildScript)
-	add(!exists(detect) && !exists(build), "meta buildpack must not contain bin scripts")
+	return ""
+}
 
-	root := filepath.Dir(dir)
-	for _, g := range order {
-		gid := g.ID
-		if gid == "" {
+func inScope(scope string, bp *buildpack) bool {
+	switch scope {
+	case scopeMeta:
+		return bp.isMeta()
+	case scopeComponent:
+		return bp.parsed != nil && !bp.isMeta()
+	default:
+		return true
+	}
+}
+
+// withReason appends a concrete reason to the rule message.
+func withReason(message, reason string) string {
+	if reason == "" {
+		return message
+	}
+	return fmt.Sprintf("%s: %s", message, reason)
+}
+
+// ── individual checks ──────────────────────────────────────────────────────
+
+func checkManifestExists(bp *buildpack, _ *Ruleset) []string {
+	if bp.readErr != nil {
+		return []string{""}
+	}
+	return nil
+}
+
+func checkManifestParses(bp *buildpack, _ *Ruleset) []string {
+	if bp.readErr != nil || bp.parseOK {
+		return nil
+	}
+	return []string{"unparsable"}
+}
+
+// requireField reports a missing manifest field.
+func requireField(get func(*speclifecycle.Buildpack) string) func(*buildpack, *Ruleset) []string {
+	return func(bp *buildpack, _ *Ruleset) []string {
+		if bp.parsed != nil && get(bp.parsed) != "" {
+			return nil
+		}
+		return []string{""}
+	}
+}
+
+// forbidScripts reports a meta buildpack that ships build scripts.
+func forbidScripts(bp *buildpack, _ *Ruleset) []string {
+	if fsutil.Exists(filepath.Join(bp.dir, BinDir, DetectScript)) ||
+		fsutil.Exists(filepath.Join(bp.dir, BinDir, BuildScript)) {
+		return []string{"bin/ contains scripts"}
+	}
+	return nil
+}
+
+func checkDirIDMatch(bp *buildpack, _ *Ruleset) []string {
+	if bp.parsed == nil || bp.parsed.BuildpackInfo.ID == "" || idMatchesDir(bp.parsed.BuildpackInfo.ID, bp.leaf) {
+		return nil
+	}
+	return []string{fmt.Sprintf("dir %s vs id %s", bp.leaf, bp.parsed.BuildpackInfo.ID)}
+}
+
+func checkOrderRefs(bp *buildpack, _ *Ruleset) []string {
+	if bp.parsed == nil {
+		return nil
+	}
+	root := filepath.Dir(bp.dir)
+	var missing []string
+	for _, g := range bp.parsed.Order {
+		if g.ID == "" || orderTargetExists(root, g.ID) {
 			continue
 		}
-		name := IDPrefix + strings.TrimPrefix(gid, IDPrefixSlash)
-		add(exists(filepath.Join(root, name)) ||
-			exists(filepath.Join(root, strings.TrimPrefix(gid, IDPrefixSlash))),
-			fmt.Sprintf("order references missing buildpack %s", gid))
+		missing = append(missing, g.ID)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return []string{strings.Join(missing, ", ")}
+}
+
+func orderTargetExists(root, id string) bool {
+	leaf := strings.TrimPrefix(id, IDPrefixSlash)
+	return fsutil.Exists(filepath.Join(root, IDPrefix+leaf)) || fsutil.Exists(filepath.Join(root, leaf))
+}
+
+// requireScript reports a missing bin script.
+func requireScript(name string) func(*buildpack, *Ruleset) []string {
+	return func(bp *buildpack, _ *Ruleset) []string {
+		if fsutil.Exists(filepath.Join(bp.dir, BinDir, name)) {
+			return nil
+		}
+		return []string{"not found"}
 	}
 }
 
-// checkComponent 检查实现型 buildpack：脚本、权限、SBOM 与依赖声明。
-func checkComponent(rep *BuildpackReport, dir, leaf string, bp *speclifecycle.Buildpack, warn func(bool, string)) {
-	add := func(ok bool, msg string) {
-		if !ok {
-			rep.Findings = append(rep.Findings, Finding{Message: msg, IsError: true})
+func checkScriptsExecutable(bp *buildpack, _ *Ruleset) []string {
+	var notExec []string
+	for _, name := range []string{DetectScript, BuildScript} {
+		info, err := os.Stat(filepath.Join(bp.dir, BinDir, name))
+		if err != nil {
+			continue
+		}
+		if info.Mode()&FileModeExec == 0 {
+			notExec = append(notExec, name)
 		}
 	}
-	detect := filepath.Join(dir, BinDir, DetectScript)
-	build := filepath.Join(dir, BinDir, BuildScript)
-	add(exists(detect), "missing bin/detect")
-	add(exists(build), "missing bin/build")
-	for _, f := range []string{detect, build} {
-		if info, err := os.Stat(f); err == nil && info.Mode()&FileModeExec == 0 {
-			add(false, filepath.Base(f)+" is not executable")
-		}
+	if len(notExec) == 0 {
+		return nil
 	}
-	if writesSBOM(detect, build) {
-		warn(len(bp.SBOMFormats) > 0, "writes SBOM but declares no sbom-formats")
-	}
-	if Providers[leaf] {
-		warn(len(bp.MetadataSection.Dependencies) > 0, "provider buildpack without [[metadata.dependencies]]")
-	}
+	return []string{strings.Join(notExec, ", ")}
 }
 
-// writesSBOM 判断脚本是否写出 SBOM。
-func writesSBOM(paths ...string) bool {
-	for _, p := range paths {
-		data, err := os.ReadFile(p)
-		if err == nil && strings.Contains(string(data), ProviderMarker) {
+func checkSBOMDeclared(bp *buildpack, _ *Ruleset) []string {
+	if !hasSBOMMarker(bp.dir) || hasSBOMFormats(bp.parsed) {
+		return nil
+	}
+	return []string{"sbom-formats is empty"}
+}
+
+func hasSBOMFormats(bp *speclifecycle.Buildpack) bool {
+	return bp != nil && len(bp.BuildpackInfo.SBOMFormats) > 0
+}
+
+func checkProviderDeps(bp *buildpack, rs *Ruleset) []string {
+	if !rs.IsProvider(bp.leaf) || hasDependencies(bp.parsed) {
+		return nil
+	}
+	return []string{"dependencies is empty"}
+}
+
+func hasDependencies(bp *speclifecycle.Buildpack) bool {
+	return bp != nil && len(bp.MetadataSection.Dependencies) > 0
+}
+
+// hasSBOMMarker reports whether the build scripts mention an SBOM file name.
+func hasSBOMMarker(dir string) bool {
+	for _, name := range []string{DetectScript, BuildScript} {
+		data, err := os.ReadFile(filepath.Join(dir, BinDir, name))
+		if err == nil && strings.Contains(string(data), SBOMMarker) {
 			return true
 		}
 	}
 	return false
 }
 
-// idMatchesDir 判断目录名与 id 是否匹配（兼容 paketo-buildpacks/x 与 x）。
+// idMatchesDir reports whether a directory name matches a buildpack id.
 func idMatchesDir(id, leaf string) bool {
 	if id == "" {
 		return true
@@ -188,5 +337,3 @@ func idMatchesDir(id, leaf string) bool {
 	last := id[strings.LastIndex(id, "/")+1:]
 	return leaf == IDPrefix+strings.TrimPrefix(id, IDPrefixSlash) || leaf == last
 }
-
-func exists(p string) bool { _, err := os.Stat(p); return err == nil }

@@ -32,7 +32,7 @@ export GOCACHE="${cache}/build"
 export GOFLAGS="${GOFLAGS:--mod=mod}"
 
 cd "${app_dir}"
-go build -o "${layer}/app" -trimpath -ldflags '-s -w' . >&2
+go build -o "${layer}/app" -trimpath -buildvcs=false -ldflags '-s -w' . >&2
 
 cat > "${layer}.toml" <<TOML
 [types]

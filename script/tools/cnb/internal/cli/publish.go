@@ -8,24 +8,24 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
-// newPublishCmd — 把本地构建产物发布成物料（复制 + 回填 sha256）
+// newPublishCmd publishes a local build artifact as a material (copy + pin sha256).
 func newPublishCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "publish <id[@version]>",
-		Short: "把 [asset.local] 的构建产物发布到 bundle 并回填哈希",
+		Short: "publish [asset.local] build output into the bundle and pin its hash",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			path, err := workspaceLockPath(opts.lockPath)
-			if err != nil {
-				return err
-			}
-			l, err := lock.Load(path)
+			ctx, err := workspace.Open(workspace.Options{
+				Repo: opts.repo, LockPath: opts.lockPath, Bundle: opts.bundle, Platform: lock.Platform(opts.platform),
+			})
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
+			l := ctx.Lock
 			a, err := lock.Find(l, args[0])
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
@@ -35,7 +35,7 @@ func newPublishCmd() *cobra.Command {
 				platform = string(workspace.HostPlatform())
 			}
 			if !a.IsLocal(lock.Platform(platform)) {
-				return &exitError{code: 2, msg: a.Ref() + " 不是本地物料（缺少 [asset.local]）"}
+				return &exitError{code: 2, msg: a.Ref() + " is not a local material (missing [asset.local])"}
 			}
 			root, err := resolveRepo()
 			if err != nil {
@@ -43,11 +43,11 @@ func newPublishCmd() *cobra.Command {
 			}
 			srcTpl := a.Platform[platform].Source
 			if srcTpl == "" {
-				return &exitError{code: 2, msg: a.Ref() + " 在 " + platform + " 平台缺少 source"}
+				return &exitError{code: 2, msg: a.Ref() + " has no source for platform " + platform}
 			}
 			src := filepath.Join(root, srcTpl)
 			if _, err := os.Stat(src); err != nil {
-				return &exitError{code: 1, msg: "找不到构建产物: " + src}
+				return &exitError{code: 1, msg: "build output not found: " + src}
 			}
 			name := a.Unpack.Expect[0]
 			bundleDir := opts.bundle
@@ -65,10 +65,12 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			changed, err := lock.SetSHA(path, a.Ref(), lock.Platform(platform), sum)
-			if err != nil {
+			ctx.LockFile.Set(a, platform, manifest.LockedSource{SHA256: sum})
+			ctx.LockFile.Manifest.SHA256 = ctx.ManifestHash
+			if err := manifest.SaveLockFile(ctx.LockFilePath, ctx.LockFile); err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
+			changed := true
 			logr.Info("published", "ref", a.Ref(), "dest", dst)
 			if changed {
 				logr.Info("pinned local sha256", "ref", a.Ref(), "sha256", sum)

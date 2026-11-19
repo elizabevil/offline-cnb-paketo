@@ -8,8 +8,9 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/checks"
 )
 
-// newLintCmd 检查 buildpack 结构是否符合官方约定。
+// newBuildpackCmd groups buildpack structure checks and builder metadata.
 func newLintCmd() *cobra.Command {
+	var rulesPath string
 	cmd := &cobra.Command{
 		Use:   "lint [dir…]",
 		Short: "check buildpack layout against official conventions",
@@ -17,13 +18,17 @@ func newLintCmd() *cobra.Command {
 			if len(dirs) == 0 {
 				root, err := resolveRepo()
 				if err != nil {
-					return &exitError{code: ExitFailure, msg: err.Error()}
+					return failExecution(err)
 				}
 				dirs, _ = filepath.Glob(filepath.Join(root, "buildpacks", "*", "*"))
 			}
+			rules, err := checks.LoadRuleset(rulesPath)
+			if err != nil {
+				return &exitError{code: ExitFailure, msg: "load ruleset: " + err.Error()}
+			}
 			var errs, warns int
 			for _, dir := range dirs {
-				rep := checks.CheckBuildpack(dir)
+				rep := checks.CheckBuildpackWith(dir, rules)
 				for _, f := range rep.Findings {
 					if f.IsError {
 						logr.Error("buildpack lint", "buildpack", f.Name, "problem", f.Message)
@@ -41,5 +46,6 @@ func newLintCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&rulesPath, "rules", "", "external ruleset TOML (defaults to the embedded ruleset)")
 	return cmd
 }

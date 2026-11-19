@@ -2,7 +2,6 @@ package lock
 
 import (
 	"bytes"
-	"io"
 	"testing"
 )
 
@@ -45,13 +44,6 @@ func TestListColumns(t *testing.T) {
 	want := "fnm\t1.39.0\ttgz\tlinux-amd64\n"
 	if buf.String() != want {
 		t.Fatalf("list 输出不符合契约\n got: %q\nwant: %q", buf.String(), want)
-	}
-}
-
-func TestGetUnknownAsset(t *testing.T) {
-	f := &File{Assets: []Asset{asset("a", "1", true)}}
-	if err := WriteShell(io.Discard, f, "nope", "linux-amd64"); err == nil {
-		t.Fatal("未知物料应返回错误")
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 )
 
 // Options 是同步参数。
@@ -22,11 +23,16 @@ type Options struct {
 	Fetch FetchConfig
 	// LockPath 非空且允许写回时，未固定的 sha256/size 会在下载后自动回填。
 	LockPath string
-	Platform lock.Platform
-	Jobs     int
-	Offline  bool
-	Check    bool
-	Logger   *slog.Logger
+	// LockFile / LockFilePath / ManifestHash 对应生成的 assets.lock.toml。
+	Manifest     *manifest.File
+	LockFile     *manifest.LockFile
+	LockFilePath string
+	ManifestHash string
+	Platform     lock.Platform
+	Jobs         int
+	Offline      bool
+	Check        bool
+	Logger       *slog.Logger
 }
 
 // Pin 是待回填的 sha256 与大小。
@@ -130,19 +136,19 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	archive := archivePath(opts.BundleDir, opts.Platform, a)
 	binDir := binariesDir(opts.BundleDir, opts.Platform)
 	unpack := unpackID(a)
-	pinned := a.SHA256(opts.Platform)
+	locked, _ := lockSource(a, opts.Platform, opts)
+	pinned := locked.SHA256
 	marker := readMarker(opts.BundleDir, opts.Platform, parsed)
 
 	// 快速路径：已固定 + marker 匹配 + 产物齐全 + 归档仍通过校验
-	if pinned != "" && marker != nil && marker.SHA256 == pinned && marker.Unpack == unpack &&
-		expectOK(opts.BundleDir, opts.Platform, a) {
-		if ok, _ := verifyArchive(archive, pinned, a.Size(opts.Platform)); ok {
+	if pinned != "" && markerConsistent(marker, pinned, unpack) && expectOK(opts.BundleDir, opts.Platform, a) {
+		if ok, _ := verifyArchive(archive, pinned, locked.Size); ok {
 			return res
 		}
 	}
 
 	if opts.Check || opts.Offline {
-		if !isExtracted(opts.BundleDir, opts.Platform, a) {
+		if !isExtracted(opts.BundleDir, opts.Platform, a, locked.SHA256) {
 			res.Err = fmt.Errorf("offline: %s not synced", a.Ref())
 		}
 		return res
@@ -158,12 +164,17 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	effectiveSHA := art.SHA256
 
 	// 归档未变化且解包配置一致、产物齐全：只需补写标记
-	if marker != nil && marker.SHA256 == effectiveSHA && marker.Unpack == unpack &&
-		expectOK(opts.BundleDir, opts.Platform, a) {
+	if markerConsistent(marker, effectiveSHA, unpack) && expectOK(opts.BundleDir, opts.Platform, a) {
 		res.Action = ActionSkipped
 		return res
 	}
 
+	// 重新解包并写入标记
+	return applyExtraction(res, a, opts, archive, binDir, unpack, effectiveSHA, parsed, art)
+}
+
+// applyExtraction 清理旧产物、解包、写标记，返回最终结果。
+func applyExtraction(res Result, a *lock.Asset, opts Options, archive, binDir, unpack, sha string, parsed lock.AssetRef, art artifact) Result {
 	// 重新解包前先清掉旧目录，避免新旧文件混合
 	if err := cleanTarget(a, binDir, opts.Platform); err != nil {
 		res.Err = err
@@ -177,7 +188,7 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		return res
 	}
 	res.Action = ActionExtracted
-	if err := writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), effectiveSHA); err != nil {
+	if err := writeLegacyMarker(opts.BundleDir, opts.Platform, a.Ref(), sha); err != nil {
 		res.Err = err
 	}
 
@@ -186,12 +197,17 @@ func syncOne(a *lock.Asset, opts Options) Result {
 		size = art.Size
 	}
 	if err := writeMarker(opts.BundleDir, opts.Platform, Marker{
-		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: effectiveSHA,
+		ID: parsed.ID, Version: parsed.Version, Platform: opts.Platform, SHA256: sha,
 		Size: size, Unpack: unpack, Files: files,
 	}); err != nil {
 		res.Err = err
 	}
 	return res
+}
+
+// markerConsistent 判断标记是否与当前哈希、解包配置一致。
+func markerConsistent(m *Marker, sha, unpack string) bool {
+	return m != nil && m.SHA256 == sha && m.Unpack == unpack
 }
 
 // unpackID 由解包配置生成指纹，配置变化时 marker 失效。
@@ -215,19 +231,35 @@ func writePins(results []Result, opts Options) error {
 	if opts.Check || opts.Offline || opts.LockPath == "" {
 		return nil
 	}
+	if opts.LockFile == nil || opts.LockFilePath == "" {
+		return nil // 没有 lock 文件时保持旧行为（由调用方决定）
+	}
 	for _, r := range results {
-		if r.Pinned == nil {
+		if r.Pinned == nil || opts.Manifest == nil {
 			continue
 		}
-		if _, err := lock.SetSHA(opts.LockPath, r.Ref, opts.Platform, r.Pinned.SHA256); err != nil {
+		ref, err := lock.ParseRef(r.Ref)
+		if err != nil {
 			return err
 		}
-		if _, err := lock.SetSize(opts.LockPath, r.Ref, opts.Platform, r.Pinned.Size); err != nil {
-			return err
+		var asset *manifest.Asset
+		for i := range opts.Manifest.Assets {
+			if opts.Manifest.Assets[i].ID == ref.ID && opts.Manifest.Assets[i].Version == ref.Version {
+				asset = &opts.Manifest.Assets[i]
+				break
+			}
 		}
+		if asset == nil {
+			continue
+		}
+		url, _ := asset.URL(opts.Platform)
+		opts.LockFile.Set(asset, string(opts.Platform), manifest.LockedSource{
+			URL: url, SHA256: r.Pinned.SHA256, Size: r.Pinned.Size,
+		})
 		opts.Logger.Info("pinned", "ref", r.Ref, "platform", opts.Platform, "sha256", r.Pinned.SHA256)
 	}
-	return nil
+	opts.LockFile.Manifest.SHA256 = opts.ManifestHash
+	return manifest.SaveLockFile(opts.LockFilePath, opts.LockFile)
 }
 
 // isExtracted 判断预期产物是否齐全。

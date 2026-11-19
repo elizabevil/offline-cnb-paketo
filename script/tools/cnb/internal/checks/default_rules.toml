@@ -1,0 +1,12 @@
+# Lint rule overrides. Built-in rules live in internal/checks/buildpack.go;
+# this file only changes level / enabled / message, so most policy edits need
+# no rebuild.
+#
+#   [[rule]]
+#   id      = "dir-id-match"
+#   level   = "warn"        # error | warn
+#   enabled = false         # disable a rule
+#   message = "custom text"
+schema = 1
+
+providers = ["node-engine", "cpython", "go-dist"]

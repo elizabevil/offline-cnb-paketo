@@ -23,10 +23,12 @@ type (
 	// Platform 是目标平台。
 	Platform = manifest.Platform
 
-	// ID / Version / Ref 与 string 互通。
-	ID      = manifest.ID
+	// ID 是物料标识。
+	ID = manifest.ID
+	// Version 是物料版本号。
 	Version = manifest.Version
-	Ref     = manifest.Ref
+	// Ref 是物料引用（id@version）。
+	Ref = manifest.Ref
 )
 
 // 常量再导出。
@@ -35,6 +37,7 @@ const (
 	KindTarGz            = manifest.KindTarGz
 	KindZip              = manifest.KindZip
 	KindBin              = manifest.KindBin
+	KindHTTP             = manifest.KindHTTP
 	PlatformAMD64        = manifest.PlatformAMD64
 	PlatformARM64        = manifest.PlatformARM64
 	ArchPrefix           = manifest.ArchPrefix
@@ -43,6 +46,7 @@ const (
 	KindFetch            = manifest.KindFetch
 	ContextBundle        = manifest.ContextBundle
 	ContextBuildpacks    = manifest.ContextBuildpacks
+	DefaultManifestName  = manifest.DefaultManifestName
 	DefaultLockName      = manifest.DefaultLockName
 	DefaultBundle        = manifest.DefaultBundle
 	DefaultConfig        = manifest.DefaultConfig

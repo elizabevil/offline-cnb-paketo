@@ -20,7 +20,18 @@ const (
 // vars 保存受控占位符的替换表。
 type vars struct {
 	replacer *strings.Replacer
+	entries  []Placeholder
 }
+
+// Placeholder is one supported variable and where its value came from.
+type Placeholder struct {
+	Name   string
+	Value  string
+	Source string
+}
+
+// Table returns the supported placeholders in declaration order.
+func (v vars) Table() []Placeholder { return v.entries }
 
 // newVars 构建替换表：platform/arch/bundle + 每个已声明物料的 version。
 func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
@@ -28,13 +39,14 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 	if _, err := manifest.ParsePlatform(string(platform)); err != nil {
 		return vars{}, err
 	}
-	pairs := []string{
-		PlaceholderPrefix + "platform" + PlaceholderSuffix, string(platform),
-		PlaceholderPrefix + "arch" + PlaceholderSuffix, manifest.ArchOf(platform),
-		PlaceholderPrefix + "oci_platform" + PlaceholderSuffix, strings.Replace(string(platform), "-", "/", 1),
-		PlaceholderPrefix + "base_image" + PlaceholderSuffix, f.Spec.Project.Base[string(platform)],
-		PlaceholderPrefix + "bundle" + PlaceholderSuffix, opts.Bundle,
-		PlaceholderPrefix + "repo" + PlaceholderSuffix, opts.Repo,
+	entries := []Placeholder{
+		{"spec.project.platform", string(platform), "spec.project.platform"},
+		{"spec.project.directory", f.Spec.Project.Directory, "spec.project.directory"},
+		{"spec.project.base", f.Spec.Project.Base[string(platform)], "spec.project.base[platform]"},
+		{"derived.architecture", manifest.ArchOf(platform), "derived from spec.project.platform"},
+		{"derived.container_platform", strings.Replace(string(platform), "-", "/", 1), `derived from spec.project.platform, "/" instead of "-" (for --platform)`},
+		{"runtime.repo", opts.Repo, "repository root (--repo / CNB_REPO_ROOT / executable path)"},
+		{"runtime.bundle", opts.Bundle, "bundle directory (--bundle or the lock directory)"},
 	}
 	for _, id := range slices.Sorted(maps.Keys(f.Spec.Assets)) {
 		version := f.Spec.Assets[id].Version
@@ -45,16 +57,20 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 			}
 			version = a.Version
 		}
-		pairs = append(pairs, PlaceholderPrefix+"asset."+id+".version"+PlaceholderSuffix, version)
+		entries = append(entries, Placeholder{"spec.assets." + id + ".version", version, "spec.assets." + id + ".version or lock default"})
 	}
-	return vars{replacer: strings.NewReplacer(pairs...)}, nil
+	pairs := make([]string, 0, len(entries)*2)
+	for _, e := range entries {
+		pairs = append(pairs, PlaceholderPrefix+e.Name+PlaceholderSuffix, e.Value)
+	}
+	return vars{replacer: strings.NewReplacer(pairs...), entries: entries}, nil
 }
 
 // expand 一次性替换已知占位符；出现未知占位符时报错。
 func (v vars) expand(s string) (string, error) {
 	out := v.replacer.Replace(s)
 	if i := strings.Index(out, PlaceholderPrefix); i >= 0 {
-		return "", &errs.Invalid{Field: "placeholder", Value: placeholderAt(out, i), Reason: "unknown placeholder"}
+		return "", &errs.Invalid{Field: "placeholder", Value: placeholderAt(out, i), Reason: "unknown placeholder (see `cnb pipeline variables <profile>`)"}
 	}
 	return out, nil
 }

@@ -43,7 +43,11 @@ fixtures *args:
 _bps  := env_var_or_default("BPS_BIN", _root / "script" / "bin" / "bksmartpacker-linux-amd64")
 # 夹具目录：默认 fixtures/single，可用 S_MART_SRC 指向其它夹具（如 fixtures/multi）
 _fx   := env_var_or_default("S_MART_SRC", _dir / "fixtures/single")
-_out  := env_var_or_default("S_MART_OUT", _dir / "dist")
+# 目标平台：优先 BKS_PLATFORM（linux/arm64），否则按宿主架构
+_host_platform := "linux-" + (if arch() == "aarch64" { "arm64" } else { "amd64" })
+_bks_platform  := env_var_or_default("BKS_PLATFORM", "")
+_platform      := if _bks_platform != "" { replace(_bks_platform, "/", "-") } else { _host_platform }
+_out  := env_var_or_default("S_MART_OUT", _dir / "dist" / _platform)
 _arch := if arch() == "aarch64" { "arm64" } else { "amd64" }
 smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:" + _arch)
 # 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：
@@ -75,6 +79,7 @@ smart-bps:
 #   just smart                      使用 S_MART_SRC（默认 fixtures/single）
 #   just smart /path/to/app         打包任意应用目录（需含 app_desc.yaml）
 smart src="{{_fx}}": smart-builder smart-bps
+    @umask 022
     @if [ -n "{{runtimes}}" ] && [ ! -d "{{runtimes}}" ]; then \
         echo "  ✗ CNB_RUNTIMES 指向的目录不存在: {{runtimes}}"; exit 1; fi
     @mkdir -p {{cache_dir}} {{_out}}
@@ -87,11 +92,14 @@ smart src="{{_fx}}": smart-builder smart-bps
     @echo
     @echo "== 产物路径 ==" && ls -lh {{_out}}/s-mart.tar.gz
     @echo "== 缓存目录 ==" && du -sh {{cache_dir}} 2>/dev/null || true
-    @echo "== 包结构 ==" 
+    @echo "== 包结构 =="
     @{{_bps}} --inspect {{_out}}/s-mart.tar.gz
+    @(cd {{_out}} && sha256sum s-mart.tar.gz > s-mart.tar.gz.sha256)
+    @echo "== 校验和 ==" && cat {{_out}}/s-mart.tar.gz.sha256
 
 # 只打包指定目录（跳过建镜像，复用已有 builder）：just pack-case /path/to/app
 pack-case src:
+    @umask 022
     @test -d "{{src}}" || { echo "  ✗ 目录不存在: {{src}}"; exit 1; }
     @mkdir -p {{_out}} {{cache_dir}}
     @rm -f {{_out}}/s-mart.tar.gz
@@ -99,6 +107,7 @@ pack-case src:
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tar.gz
     @{{_bps}} --inspect {{_out}}/s-mart.tar.gz
+    @(cd {{_out}} && sha256sum s-mart.tar.gz > s-mart.tar.gz.sha256)
 
 # 清理打包产物
 smart-clean:

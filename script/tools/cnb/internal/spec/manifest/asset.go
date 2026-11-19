@@ -1,4 +1,4 @@
-// Package lock 的物料访问方法。
+// Package manifest 负责物料清单的解析、校验与访问。
 package manifest
 
 import (
@@ -60,12 +60,7 @@ func (a Asset) URL(platform Platform) (string, bool) {
 
 // IsLocal 表示该平台物料来自本地构建。
 func (a Asset) IsLocal(platform Platform) bool {
-	return a.Platform[string(platform)].Kind == "local"
-}
-
-// SHA256 返回该平台固定的哈希（可能为空）。
-func (a Asset) SHA256(platform Platform) string {
-	return a.Platform[string(platform)].SHA256
+	return a.Platform[string(platform)].Kind == KindLocal
 }
 
 // Load 读取并解析 lock。
@@ -79,23 +74,6 @@ func (f *File) Platforms() []string {
 }
 
 // Select 返回指定 id 的物料；ids 为空返回全部。
-
-func isHex64(s string) bool {
-	if len(s) != 64 {
-		return false
-	}
-	for _, r := range s {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-// Size 返回该平台声明的大小（未声明时为 0）。
-func (a Asset) Size(platform Platform) int64 {
-	return a.Platform[string(platform)].Size
-}
 
 // Mirrors 返回该平台声明的回退源。
 func (a Asset) Mirrors(platform Platform) []string {

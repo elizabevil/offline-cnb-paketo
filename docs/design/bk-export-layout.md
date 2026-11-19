@@ -125,8 +125,8 @@ cd project/offline-paketo-bk
 just smart /home/debi/Desktop/cmdb-saas/release-amd64
 # 期望日志：prepare run image → export -layout → pack layout
 # 产物检查：
-tar -tzf dist/s-mart.tar.gz | head
-tar -xzOf dist/s-mart.tar.gz web.tgz | tar -tf - | grep -E '^(oci-layout|index.json|blobs/)$'
+tar -tzf dist/linux-<arch>/s-mart.tar.gz | head
+tar -xzOf dist/linux-<arch>/s-mart.tar.gz web.tgz | tar -tf - | grep -E '^(oci-layout|index.json|blobs/)$'
 ```
 
 ## 七、回退方案

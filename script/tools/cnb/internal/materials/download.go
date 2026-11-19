@@ -14,12 +14,12 @@ import (
 )
 
 // 下载参数。
-const fileModeRead = 0o644
 
 // ensureArchive 确保归档存在且通过 sha256 + size 校验。
 // 返回需要回填的 sha256/size（空表示已固定）；写回 lock 由 Sync 统一完成。
 func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options) (string, int64, error) {
-	want := a.SHA256(opts.Platform)
+	locked, _ := lockSource(a, opts.Platform, opts)
+	want, wantSize := locked.SHA256, locked.Size
 	writable := !opts.Check && !opts.Offline && opts.LockPath != ""
 
 	if want == "" {
@@ -52,11 +52,11 @@ func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options
 		return "", 0, fmt.Errorf("%s: all sources failed%s", a.Ref(), srcErrs)
 	}
 
-	if ok, err := verifyArchive(dest, want, a.Size(opts.Platform)); err == nil && ok {
+	if ok, err := verifyArchive(dest, want, wantSize); err == nil && ok {
 		return "", 0, nil
 	}
 	// 多架构共用同一归档：优先从其它平台的归档复制，避免重复下载
-	if a.MultiArch && reuseMultiArch(dest, a, want, opts) {
+	if a.MultiArch && reuseMultiArch(dest, a, want, wantSize, opts) {
 		return "", 0, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -68,7 +68,7 @@ func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options
 			srcErrs.add(url, err)
 			continue
 		}
-		ok, err := verifyArchive(dest, want, a.Size(opts.Platform))
+		ok, err := verifyArchive(dest, want, wantSize)
 		if err != nil {
 			return "", 0, err
 		}
@@ -132,7 +132,7 @@ func verifyArchive(path, want string, wantSize int64) (bool, error) {
 }
 
 // reuseMultiArch 从其它平台目录复制同一归档（multi_arch 物料）。
-func reuseMultiArch(dest string, a *lock.Asset, want string, opts Options) bool {
+func reuseMultiArch(dest string, a *lock.Asset, want string, wantSize int64, opts Options) bool {
 	urls := sources(a, opts.Platform)
 	if len(urls) == 0 {
 		return false
@@ -143,13 +143,13 @@ func reuseMultiArch(dest string, a *lock.Asset, want string, opts Options) bool 
 		if src == dest {
 			continue
 		}
-		if ok, _ := verifyArchive(src, want, a.Size(opts.Platform)); !ok {
+		if ok, _ := verifyArchive(src, want, wantSize); !ok {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return false
 		}
-		if err := fsutil.CopyFile(src, dest); err != nil {
+		if err := fsutil.CopyExec(src, dest); err != nil {
 			return false
 		}
 		return true

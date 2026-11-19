@@ -1,13 +1,14 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
 	"learn-cnb-paketo/tools/cnb/internal/materials"
+
+	"github.com/spf13/cobra"
 )
 
 func newPinCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "pin [ids...]", Short: "由本地归档反推 sha256（只打印，不写回）",
+		Use: "pin [ids...]", Short: "compute sha256 from local archives (prints only)",
 		RunE: func(_ *cobra.Command, ids []string) error {
 			l, platform, bundleDir, err := open()
 			if err != nil {
