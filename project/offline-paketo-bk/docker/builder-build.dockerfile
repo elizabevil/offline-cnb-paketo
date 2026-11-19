@@ -8,11 +8,12 @@
 
 ARG BASE_IMAGE_TAG
 
-FROM ${BASE_IMAGE_TAG}
+FROM ${BASE_IMAGE_TAG:?BASE_IMAGE_TAG is required}
 
 # pack 要求：构建容器使用的非 root 用户/组
 ENV CNB_USER_ID=1000
 ENV CNB_GROUP_ID=1000
+ARG DOCKER_VERSION
 ARG FNM_VERSION
 ARG JQ_VERSION
 ARG LIFECYCLE_VERSION
@@ -58,8 +59,8 @@ RUN chmod +x /cnb/buildpacks/*/*/bin/* 2>/dev/null || true
 # procfile 来自物料（官方多架构 release 包）
 ARG PROCFILE_VERSION
 ARG BUILDPACK_ARCH
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
+COPY --from=bundle /procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
+COPY --from=bundle /procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
 RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/bin/*
 
 # ═══════════════════════════════════════════════════════════
@@ -79,6 +80,8 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/jq/${JQ_VERSION}/jq   /usr/local/bin
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/yq/${YQ_VERSION}/yq   /usr/local/bin/yq
 
 # ── Docker CLI（bksmartpacker 镜像层推送用） ─────────────────
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/docker/${DOCKER_VERSION}/docker/docker /usr/local/bin/docker
+RUN chmod +x /usr/local/bin/docker
 
 # ── pack CLI（调试用，bksmartpacker 场景不需要） ────────────
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/pack/${PACK_VERSION}/pack  /usr/local/bin/pack

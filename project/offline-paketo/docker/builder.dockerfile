@@ -21,7 +21,7 @@
 ARG BASE_IMAGE_TAG
 
 # ── 基于 base 镜像构建最终 builder ──────────────────────────────────────
-FROM ${BASE_IMAGE_TAG} AS final
+FROM ${BASE_IMAGE_TAG:?BASE_IMAGE_TAG is required} AS final
 
 # pack 要求：构建容器使用的非 root 用户/组
 ENV CNB_USER_ID=1000
@@ -65,8 +65,8 @@ COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 # procfile 来自物料（官方多架构 release 包）
 ARG PROCFILE_VERSION
 ARG BUILDPACK_ARCH
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
+COPY --from=bundle /procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
+COPY --from=bundle /procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
 RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/bin/*
 
 # ── 全局 order（决定 detect 顺序） ───────────────────────────────────────
