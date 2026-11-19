@@ -11,7 +11,6 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 	"learn-cnb-paketo/tools/cnb/internal/spec/profile"
-	"learn-cnb-paketo/tools/cnb/internal/spec/warn"
 )
 
 // DefaultTimeout 是未声明 timeout 时的默认值。
@@ -64,13 +63,13 @@ func Placeholders(f *profile.File, lock *manifest.File, opts Options) ([]Placeho
 }
 
 // Build 展开占位符、绝对化路径，生成执行计划。
-func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []warn.Warning, error) {
+func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []errs.Warning, error) {
 	vars, err := newVars(f, lock, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 	p := &Plan{Project: f.Metadata.Name, Platform: f.Spec.Project.Platform, Bundle: opts.Bundle}
-	var allWarns []warn.Warning
+	var allWarns []errs.Warning
 	for _, st := range f.Spec.Stages {
 		expanded, err := expandStage(st, vars, opts.Repo)
 		if err != nil {

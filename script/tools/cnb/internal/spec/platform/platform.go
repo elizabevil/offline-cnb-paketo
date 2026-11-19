@@ -6,7 +6,6 @@ import (
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
-	"learn-cnb-paketo/tools/cnb/internal/spec/warn"
 )
 
 // 环境变量名（唯一来源）。
@@ -73,7 +72,7 @@ type Env struct {
 }
 
 // Parse 读取环境变量并填默认值。
-func Parse(getenv func(string) string) (Env, []warn.Warning, error) {
+func Parse(getenv func(string) string) (Env, []errs.Warning, error) {
 	env := Env{
 		SourceURL:        getenv(EnvSourceURL),
 		Required:         splitList(getenv(EnvRequired)),

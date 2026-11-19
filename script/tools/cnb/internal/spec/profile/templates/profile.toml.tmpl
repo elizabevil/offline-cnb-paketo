@@ -35,6 +35,13 @@ name = "{{.Name}}"
 directory = "{{.Dir}}"
 platform = "{{.Platform}}"
 
+# ── 各平台的基础镜像（stage 里用 ${spec.project.base} 引用）────────────────
+#    这是整个项目的地基：所有 stage 都基于它构建。
+#    · 国内环境通常换成镜像站地址
+#    · 多平台构建时每个平台各加一行
+  [spec.project.base]
+  {{.Platform}} = "{{.BaseImage}}"
+
 # ── 物料：本项目锁定的版本（省略则取 assets.lock.toml 的 default）──────────
 [spec.assets.lifecycle]
 version = "0.21.29"
@@ -46,7 +53,7 @@ workdir = "."
 run = [
   "podman", "build",
   "-f", "{{.Dir}}/docker/Dockerfile.base",
-  "-t", "{{.Name}}-base:latest",
-  "--build-arg", "BASE_IMAGE={{.BaseImage}}",
+  "-t", "{{.Name}}-base:${derived.architecture}",
+  "--build-arg", "BASE_IMAGE=${spec.project.base}",
   ".",
 ]

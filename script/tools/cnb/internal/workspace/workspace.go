@@ -15,8 +15,9 @@ import (
 
 // 环境变量与默认值。
 const (
-	EnvRepoRoot = "CNB_REPO_ROOT"
-	EnvLockFile = "LOCK_FILE"
+	EnvRepoRoot    = "CNB_REPO_ROOT"
+	EnvLockFile    = "LOCK_FILE"
+	EnvRootMarkers = "CNB_ROOT_MARKERS"
 
 	DefaultManifestName = lock.DefaultManifestName
 	DefaultLockName     = lock.DefaultLockName
@@ -54,7 +55,16 @@ type Context struct {
 func Open(o Options) (Context, error) {
 	root, err := resolveRepo(o.Repo)
 	if err != nil {
-		return Context{}, err
+		// An explicit lock path makes the project root optional: fall back to
+		// the directory holding the manifest so any layout works.
+		if o.LockPath == "" {
+			return Context{}, err
+		}
+		abs, absErr := filepath.Abs(o.LockPath)
+		if absErr != nil {
+			return Context{}, err
+		}
+		root = filepath.Dir(abs)
 	}
 	lockPath := o.LockPath
 	if lockPath == "" {

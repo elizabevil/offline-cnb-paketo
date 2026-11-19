@@ -44,9 +44,9 @@ func newProfileCmd() *cobra.Command {
 // newProfileInitCmd prints a new project config template.
 // profileInitOptions holds profile init flags.
 type profileInitOptions struct {
-	dir      string
-	platform string
-	distro   string
+	dir       string
+	platform  string
+	baseImage string
 }
 
 func newProfileInitCmd() *cobra.Command {
@@ -70,7 +70,7 @@ func newProfileInitCmd() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
 				return err
 			}
-			content, err := specprofile.Template(name, dir, platform, opts.distro)
+			content, err := specprofile.Template(name, dir, platform, opts.baseImage)
 			if err != nil {
 				return failExecution(err)
 			}
@@ -83,7 +83,7 @@ func newProfileInitCmd() *cobra.Command {
 	}
 	initCmd.Flags().StringVar(&opts.dir, "dir", "", "project directory relative to the repo root (default: name)")
 	initCmd.Flags().StringVar(&opts.platform, "platform", "", "default platform (default: linux-amd64)")
-	initCmd.Flags().StringVar(&opts.distro, "distro", "debian", "target distro: debian | ubuntu | alpine")
+	initCmd.Flags().StringVar(&opts.baseImage, "base-image", "", "base image written into [spec.project.base] (default debian:trixie-slim)")
 	return initCmd
 }
 

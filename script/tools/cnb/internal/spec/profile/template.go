@@ -10,50 +10,29 @@ import (
 //go:embed templates/*.tmpl
 var templateFS embed.FS
 
-// 支持的 Linux 发行版（决定包管理器与默认 base 镜像）。
-const (
-	DistroDebian = "debian"
-	DistroUbuntu = "ubuntu"
-	DistroAlpine = "alpine"
-)
+// DefaultBaseImage is only a starting point for new profiles. The base image
+// decides what every stage is built on, so callers are expected to pass a real
+// (usually registry-mirrored) reference.
+const DefaultBaseImage = "debian:trixie-slim"
 
-// distroDefaults 返回发行版的默认 base 镜像、包管理器与 stack id。
-func distroDefaults(distro string) (base, pkgManager, stackID string) {
-	switch distro {
-	case DistroAlpine:
-		return "alpine:3.20", "apk", "io.buildpacks.stacks.alpine"
-	case DistroUbuntu:
-		return "ubuntu:24.04", "apt", "io.buildpacks.stacks.jammy"
-	default:
-		return "debian:trixie-slim", "apt", "io.buildpacks.stacks.bionic"
-	}
-}
-
-// TemplateData 是模板渲染所需的数据。
+// TemplateData is the data available to profile.toml.tmpl.
 type TemplateData struct {
-	Name       string
-	Dir        string
-	Platform   string
-	Distro     string
-	BaseImage  string
-	PkgManager string
-	StackID    string
+	Name      string
+	Dir       string
+	Platform  string
+	BaseImage string
 }
 
-// Template 渲染项目配置模板（内容在 templates/profile.toml.tmpl）。
-func Template(name, dir, platform, distro string) (string, error) {
-	if distro == "" {
-		distro = DistroDebian
+// Template renders the project profile template.
+func Template(name, dir, platform, baseImage string) (string, error) {
+	if baseImage == "" {
+		baseImage = DefaultBaseImage
 	}
-	base, _, _ := distroDefaults(distro)
-	data := TemplateData{
-		Name: name, Dir: dir, Platform: platform,
-		Distro: distro, BaseImage: base,
-	}
+	data := TemplateData{Name: name, Dir: dir, Platform: platform, BaseImage: baseImage}
 	return renderTemplate("templates/profile.toml.tmpl", data)
 }
 
-// renderTemplate 渲染 templates/ 下的模板。
+// renderTemplate renders one template from templates/.
 func renderTemplate(name string, data any) (string, error) {
 	raw, err := templateFS.ReadFile(name)
 	if err != nil {

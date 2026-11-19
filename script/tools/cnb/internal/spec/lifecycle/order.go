@@ -7,7 +7,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"learn-cnb-paketo/tools/cnb/internal/spec/warn"
+	"learn-cnb-paketo/tools/cnb/internal/errs"
 )
 
 // Order 是 order.toml 的结构化表示。
@@ -28,7 +28,7 @@ type Group struct {
 }
 
 // ParseOrder 解析 order.toml。
-func ParseOrder(data []byte) (*Order, []warn.Warning, error) {
+func ParseOrder(data []byte) (*Order, []errs.Warning, error) {
 	var o Order
 	if err := toml.Unmarshal(data, &o); err != nil {
 		return nil, nil, err
@@ -83,15 +83,15 @@ func normalize(s string) string {
 }
 
 // orderWarnings 报告顶层未知键（协议升级信号）。
-func orderWarnings(data []byte) []warn.Warning {
+func orderWarnings(data []byte) []errs.Warning {
 	var raw map[string]any
 	if err := toml.Unmarshal(data, &raw); err != nil {
 		return nil
 	}
-	var out []warn.Warning
+	var out []errs.Warning
 	for k := range raw {
 		if k != "order" {
-			out = append(out, warn.Warning{Path: k, Message: "unknown top-level key in order.toml"})
+			out = append(out, errs.Warning{Path: k, Message: "unknown top-level key in order.toml"})
 		}
 	}
 	return out

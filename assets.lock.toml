@@ -129,7 +129,7 @@ version = '3.0.0'
 
 [locked.platform]
 [locked.platform.linux-amd64]
-sha256 = '9d616230dc31e636eaaded1be11a67dea75af4bae506d7b73528107dc8b72c36'
+sha256 = 'b5e1d051d64dc68994dbd8b00beb29ee73ac833d86d8413455187882af4c4be4'
 
 [locked.platform.linux-arm64]
 sha256 = '86674200b6102208277efdc8798eb620f96c580c69488f3ee1ac92f9af01550a'
