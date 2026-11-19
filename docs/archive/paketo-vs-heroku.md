@@ -1,3 +1,5 @@
+> **归档**：Heroku 组件已从仓库移除，本文仅作上游对比参考。
+
 # Paketo 与 Heroku CNB 对比
 
 > 范围：**Paketo** 与 **Heroku Cloud Native Buildpacks**。

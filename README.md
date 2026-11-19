@@ -25,9 +25,12 @@ Learn-cnb-paketo/
 │       ├── binaries/          #   解压产物
 │       └── sdk/               #   预置 SDK（规划中，见 docs/design/base.md）
 ├── docs/                 # 设计文档
-├── project/              # 子项目目录
+├── project/              # 子项目（每个目录自包含：配置 + Dockerfile + justfile）
 │   ├── offline-paketo/       # Paketo 离线 builder
-│   ├── offline-paketo-bk/    # Paketo × 蓝鲸 SmartPackage
+│   │   ├── pipeline.toml     #   流水线配置
+│   │   ├── justfile          #   项目任务入口
+│   │   └── docker/           #   Dockerfile 与构建上下文
+│   └── offline-paketo-bk/    # Paketo × 蓝鲸 SmartPackage
 ```
 
 ---
@@ -36,12 +39,14 @@ Learn-cnb-paketo/
 
 ```bash
 just                 # 列出全部命令
-just doctor          # 环境自检（依赖 / python / 代理 / 磁盘）
-just list            # 物料状态：归档 / 哈希 / 解压
-just fetch           # 下载 + 解压（三态幂等，断了可重跑）
+just doctor          # 物料自检：落盘状态、哈希、解压产物
+just list            # 物料清单（TSV：id / version / 解包方式 / 平台）
+just fetch           # 下载 + 校验 + 解包（三态幂等，断了可重跑）
 just verify          # 校验哈希与产物（CI 门禁用）
-just check           # 结构自检（lock / 模板 / shell 语法 / gofmt / vet / 单测）
-just repack <路径>   # 规范化 SmartPackage 的 web.tgz（docker-save → OCI layout）
+just check           # 结构自检（lock / shell 语法 / gofmt / vet / 单测）
+just test            # 单测 + 契约测试
+just tools           # 编译 cnb / bksmartpacker 到 script/bin/
+just convert <src> <dst>   # 镜像归档格式转换（oci-layout ↔ docker-archive）
 ```
 
 切换架构：
@@ -69,8 +74,10 @@ cp .env.example .env    # 写入 PROXY_URL
 
 文档：
 
-- [docs/design/pipeline.md](docs/design/pipeline.md) — **完整流水线**：一图看懂执行链路与改动入口
+- [docs/design/architecture.md](docs/design/architecture.md) — **架构与两条案例流程**：工具 → 功能 → 效果
+- [docs/design/pipeline.md](docs/design/pipeline.md) — 流水线的执行细节
 - [docs/design/base.md](docs/design/base.md) — 设计、字段含义、踩坑清单
 - [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
-- `cnb init <name>` — 生成流水线配置与 assets.toml 脚手架
+- [docs/design/scaffold.md](docs/design/scaffold.md) — **脚手架**：从参考项目生成新项目
+- [docs/ai/pitfalls.md](docs/ai/pitfalls.md) — 18 条真实故障：现象 → 原因 → 修法

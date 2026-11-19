@@ -151,12 +151,15 @@ func HostPlatform() lock.Platform {
 	return lock.Platform(PlatformAMD64)
 }
 
-// ProfilePath 返回 config/projects/<name>.toml 的绝对路径。
+// ProfilePath returns <root>/project/<name>/pipeline.toml.
+//
+// Each project keeps its pipeline config next to its files, so a project
+// directory is self-contained and can be copied as a whole.
 func ProfilePath(root, configDir, name string) string {
 	if configDir == "" {
-		configDir = "config"
+		configDir = "project"
 	}
-	return filepath.Join(root, configDir, "projects", name+".toml")
+	return filepath.Join(root, configDir, name, "pipeline.toml")
 }
 
 // UserProfilePath 把 name 或路径统一成配置文件路径。

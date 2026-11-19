@@ -1,112 +1,124 @@
-> **历史文档**：流水线已改为 `spec/profile`（K8s 风格 TOML，`[[spec.stages]]`），
-> 本文中的 `[[stage]]`、`[commands.*]`、`pipeline repack` 等均已移除。
-> 当前设计见 `docs/design/protocol-layers.md` 与 `docs/ai/protocol-spec.md`。
+# 流水线执行细节
 
-# 完整流水线
+本文讲**一条配置如何被执行**。架构与两条案例见 [architecture.md](architecture.md)。
 
-一份配置描述流程，两个脚本负责执行，物料只有一份。
+## 1. 一次构建的输入
 
-```
-┌─ 配置（唯一改动点）──────────────────────────────────────────────┐
-│ assets.lock.toml            物料：版本 / URL / sha256 / 平台      │
-│ config/projects/<p>.toml    流程：物料 / 镜像 / 命令 / 顺序       │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-        项目/build.sh ────────┴──────── just build / just plan
-                              │
-                    script/bin/cnb-linux-amd64 pipeline run <profile>
-                              │
-                 ┌────────────┴─────────────┐
-                 │ cnb pipeline run：校验 + 计划 + 执行 │
-                 └────────────┬─────────────┘
-                              │ eval
-        ▼
-  stages：按列表顺序逐条执行
-  run = [<命令>, <参数>…]（占位符已展开，workdir 已绝对化）
-        │
-        ▼
-  bundle/、镜像、产物由各条命令自行产出
+| 输入 | 位置 | 作用 |
+|---|---|---|
+| 流水线配置 | `project/<name>/pipeline.toml` | stages、占位符、静态检查 |
+| 物料声明 | `<repo>/assets.toml` | 版本 / URL / 解包规则 |
+| 物料锁 | `<repo>/assets.lock.toml` | sha256 / size |
+| 物料目录 | `bundle/<platform>/` | 下载与解包结果 |
+
+配置里只写"做什么"，不写"物料从哪下载"——后者由物料清单决定。
+
+## 2. 执行链路
+
+```mermaid
+flowchart LR
+    A["pipeline.toml"] -->|"cnb pipeline plan"| B["计划：stages<br/>占位符已展开、路径已绝对化"]
+    B -->|"cnb pipeline run"| C["逐条执行 run 数组"]
+    C --> D["产物：镜像 / 目录 / 打包文件"]
+    E["assets.lock.toml"] -->|"cnb materials sync"| F["bundle/&lt;platform&gt;/"]
+    F --> C
 ```
 
-## 一次完整构建
+`plan` 与 `run` 是同一套展开逻辑：`run` 等于 `plan` 之后逐条执行。
 
-```bash
-./project/offline-paketo-bk/build.sh --dry-run    # 1. 看计划
-./project/offline-paketo-bk/build.sh              # 2. 执行
+## 3. stage 的结构
+
+```toml
+[[spec.stages]]
+name        = "builder"
+description = "构建 builder 镜像（lifecycle + buildpacks）"
+workdir     = "project/offline-paketo"
+run = [
+  "podman", "build", "-f", "docker/builder.dockerfile",
+  "-t", "offline-builder:${derived.architecture}",
+  "--build-context", "bundle=${runtime.bundle}",
+  ".",
+]
 ```
 
-展开后等价于：
-
-```bash
-# ① 物料：按 lock 下载 + 校验 + 解压（三态幂等，断了可重跑）
-script/fetch.sh fetch lifecycle@0.21.13 fnm@1.39.0 … --platform linux-amd64
-
-# ② 镜像：顺序来自 [[stage]]，上下文固定为仓库根
-podman build -f project/offline-paketo-bk/docker/builder-base.dockerfile \
-  -t offline-builder-base-bk:latest --build-arg BASE_IMAGE=… .
-
-# ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb image convert 规范化）
-(cd <repo>/project/offline-paketo-bk && scripts/build.sh)
-```
-
-## 分工
-
-| 层 | 位置 | 负责 | 不负责 |
-|---|---|---|---|
-| 事实 | `assets.lock.toml` | 物料版本 / URL / 哈希 | 流程 |
-| 流程 | `config/projects/*.toml` | 用哪些物料、建哪些镜像、顺序 | 具体命令实现 |
-| 规划 | `cnb pipeline plan` | 校验 + 生成 shell 计划 | 执行 |
-| 执行 | `cnb pipeline run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
-| 原语 | `spec.stages[].run` | 单条命令（下载、构建、打包皆可） | 顺序 |
-| 资产 | `<proj>/docker/`、`<proj>/scripts/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
-
-## 改东西去哪
-
-| 想改 | 改这里 |
+| 字段 | 语义 |
 |---|---|
-| 升物料版本 | `assets.lock.toml` |
-| 某项目锁版本 | profile 的 `[assets.<id>] version` |
-| 换基础镜像 / tag | profile 的 `[images.*]` `base` / `tag` |
-| 加一个构建步骤 | `[commands.<名>]` + 一条 `[[stage]]` |
-| 调顺序 | 移动 `[[stage]]` |
-| 换平台 | `--platform` 或 `[project] platform` |
+| `name` | 阶段名，`--from/--until` 用它定位 |
+| `description` | 仅展示，不参与执行 |
+| `workdir` | 命令执行目录（相对仓库根，执行前绝对化） |
+| `run` | argv，`run[0]` 是命令，其余是参数 |
+| `env` | 追加环境变量（可选） |
+| `timeout` | 单阶段超时（可选，默认 10m）；超时后进程被 kill |
+| `continueOnError` | 失败后是否继续后续 stage（可选）；**整体仍以 exit 1 结束** |
 
-## 校验
+**没有类型分派**：每个 stage 只有一条命令，执行器不解释命令内容。
+
+失败语义（已实测）：
+
+- 默认：任一 stage 失败 → 立即停止，exit 1，后续 stage 不执行
+- `continueOnError = true`：失败后继续执行后续 stage，结束时汇总为 `N stage(s) failed`，exit 1
+- `timeout` 到点：进程被 kill，日志 `stage failed … signal: killed`
+
+## 4. 占位符
+
+`run` 与 `spec.checks` 共用一套变量，命名就是配置路径：
+
+| 占位符 | 含义 |
+|---|---|
+| `${spec.project.platform}` | 目标平台 |
+| `${spec.project.directory}` | 项目目录 |
+| `${spec.project.base}` | 当前平台的基础镜像 |
+| `${spec.assets.<id>.version}` | 物料版本（缺省取 lock） |
+| `${derived.architecture}` | `amd64` / `arm64` |
+| `${derived.container_platform}` | `linux/amd64` |
+| `${runtime.repo}` | 仓库根（绝对路径） |
+| `${runtime.bundle}` | 物料目录（绝对路径） |
+
+未知占位符在 plan 阶段直接报错；`cnb pipeline variables <profile>` 可查看解析值。
+
+## 5. 常用命令
 
 ```bash
-just check                                # lock / 模板 / shell / golang / 单测
-just verify                               # 项目内：只校验本流程用到的物料
-just --justfile justfile verify            # 仓库根：校验 lock 里的全部物料
-cnb pipeline profile validate config/projects/*.toml  # 流程本身
-cnb pipeline profile show config/projects/<p>.toml    # 分组查看
+# 只看计划（不执行）
+just --justfile project/offline-paketo/justfile plan
+
+# 执行全部 stage
+just --justfile project/offline-paketo/justfile build
+
+# 只跑某一段（调试用）
+cnb pipeline run project/offline-paketo/pipeline.toml --until builder
+cnb pipeline run project/offline-paketo/pipeline.toml --from builder
+cnb pipeline run project/offline-paketo/pipeline.toml --dry-run
+
+# 静态检查
+cnb pipeline profile validate project/offline-paketo/pipeline.toml
+cnb lint project/offline-paketo/pipeline.toml
 ```
 
-流程规则（`validate` 强制）：
+## 6. 校验分三层
 
-1. `[[stage]]` 顺序即执行顺序，每步只引用一个 `image` 或 `command`
-2. 定义了却没进流程的镜像/命令会报错
-3. `${image.<n>.tag}` 只能引用流程中更早出现的镜像
+| 层 | 命令 | 查什么 |
+|---|---|---|
+| 结构 | `cnb pipeline profile validate` | 字段必填、stage 非空、平台合法 |
+| 静态 | `cnb lint` | 构建参数、脚本存在、Dockerfile COPY 源 |
+| 物料 | `cnb materials verify` | 归档哈希、解压产物 |
 
-## 执行体验
+`just check` 覆盖前两层与 lock 结构；`just verify` 校验物料落盘。
 
-```bash
-./build.sh                 # 先打印计划摘要，再按 [i/N] 推进，每步计时
-./build.sh --dry-run       # 只看计划（text）
-./build.sh --only builder  # 只跑某一步，其余标注 skipped
-```
+## 7. 改东西去哪
 
-失败时会给出可直接重跑的命令：`cnb pipeline run <cfg> --only <stage>`。
+| 想改 | 改哪里 |
+|---|---|
+| 升物料版本 | `assets.toml` 的 `version` |
+| 某项目锁版本 | `pipeline.toml` 的 `[spec.assets.<id>] version` |
+| 换基础镜像 | `[spec.project.base]` |
+| 加一个构建步骤 | 加一条 `[[spec.stages]]` |
+| 调顺序 | 移动 stage 位置 |
+| 换平台 | `--platform` 或 `[spec.project] platform` |
+| 换容器命令 | `run[0]`（默认 podman） |
 
-## 静态检查
+## 8. 约定
 
-```bash
-cnb lint config/projects/<p>.toml   # 构建参数、脚本与 Dockerfile COPY 源
-```
-
-已接入 `script/ci.sh`，能拦住"改了目录/改名后 Dockerfile 失效"这类问题。
-
-## 尚未完成
-
-- `package` 阶段指向 `scripts/build.sh`，该目录不入库，新克隆仓库需自备
-- Dockerfile 模板化**已决定不做**：只保留 `dockerfile check` 作为路径守卫
-- 物料哈希多为空（`verify` 会提示未固定），对外分发前应改为上游官方值
+1. **物料版本只写在 `assets.toml`**，配置里用 `${spec.assets.<id>.version}` 引用。
+2. **stage 的 argv 原样执行**，工具不做 shell 解析、不注入额外参数。
+3. **静态检查信息写在 `spec.checks`**，不要为检查给 stage 加类型。

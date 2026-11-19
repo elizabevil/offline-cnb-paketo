@@ -5,7 +5,7 @@ source "$(dirname "$0")/../lib/common.sh"
 
 app_dir="$1"; case_name="${2:-$(basename "${app_dir}")}"
 # 项目参数化：默认 offline-paketo，可用 E2E_PROFILE 指向其它配置
-PROFILE="${E2E_PROFILE:-${REPO_ROOT}/config/projects/offline-paketo.toml}"
+PROFILE="${E2E_PROFILE:-${REPO_ROOT}/project/offline-paketo/pipeline.toml}"
 [ -f "${PROFILE}" ] || { echo "找不到 profile: ${PROFILE}" >&2; exit 1; }
 CASE="e2e/lifecycle/${case_name}"
 image="offline-test-${case_name}:latest"

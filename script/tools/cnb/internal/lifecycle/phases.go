@@ -52,10 +52,11 @@ func (c Config) Phases() []Phase {
 	return phases
 }
 
-// Run 依次执行四阶段。
+// Run runs the four phases in order.
 //
-// BK 模式（Export.LayerArchive 非空）下导出走 daemon：exporter 把完整镜像写进
-// 容器运行时，随后由 bksmartpacker 执行 image save，产物格式与平台一致。
+// BK mode (Export.LayerArchive set) exports an OCI layout and then packs that
+// image directory into a layer archive; bksmartpacker copies the archive into
+// the s-mart package. The daemon path is only used when the caller asks for it.
 func (c *Config) Run() error {
 	if c.Export.OutputImage == "" {
 		return &errs.Missing{What: "output image"}

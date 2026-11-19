@@ -189,3 +189,18 @@ sha256 = ""                             # 发布后自动回填
 - `just tools` 编译后自动执行 `cnb materials publish cnb`，复制到
   `bundle/<platform>/binaries/cnb/<version>/cnb` 并回填哈希
 - 本地物料的哈希是**构建指纹**，每次发布覆盖（不是下载物的校验语义）
+
+## 附：脚本层的坑（来自基座早期）
+
+| 坑 | 现象 | 处置 |
+|---|---|---|
+| `just` 的路径函数语义 | import 后 `justfile_directory()` 指向**仓库根**，不是被 import 的文件 | 基座内部一律用 `source_directory()` |
+| `#!/bin/sh` + `set -o pipefail` | Debian 12 以前 `/bin/sh`(dash<0.5.12) 直接报错退出 | shell 脚本统一 `#!/usr/bin/env bash`；或确认基础镜像 dash ≥ 0.5.12 |
+| `tar --strip-components=1` | 归档根部的单文件（如 `lifecycle.toml`）被静默丢弃 | 不要把根级文件当作必需产物；用 `expect` 显式声明 |
+| `stat -c%s` vs `stat -f%z` | Linux/macOS 参数不同 | `common.sh` 里已做双分支兜底 |
+| `unzip --version` | 会先打印 `caution: both -n and -o specified` | 自检输出里只取首行，属正常噪音 |
+| `set -o pipefail` + `\| head -n1` | 上游写满管道被关闭 → SIGPIPE → 退出码 141，`set -e` 直接终止脚本 | 管道末尾加 `\|\| true`，或改用 `awk 'NR==1'` |
+| 只读 `HOME` 下 `go build` | `open ~/.cache/go-build/...: read-only file system` | 显式 `GOCACHE=<仓库>/.cache/go-build` |
+| `bundle/<platform>/binaries` 手工改文件 | 下次 fetch 按标记重解压会覆盖 | 不要在 `binaries/` 下做任何手工修改，改 lock 或改脚本 |
+
+---

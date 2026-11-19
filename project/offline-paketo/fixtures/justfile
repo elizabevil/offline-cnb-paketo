@@ -6,7 +6,7 @@ set shell := ["bash", "-uc"]
 _root := source_directory()
 _repo := _root / "../../.."
 _cnb  := env_var_or_default("CNB_BIN", _repo / "script" / "bin" / "cnb-linux-amd64")
-_profile := _repo / "config/projects/offline-paketo.toml"
+_profile := _repo / "project/offline-paketo/pipeline.toml"
 
 # 默认列出用法
 default:

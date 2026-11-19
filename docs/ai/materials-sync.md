@@ -84,7 +84,7 @@ cnb materials sync --jobs 4
 | JSON marker（含 extractor 版本，规则变化自动失效） | ✅ |
 | `cnb materials sync`（默认 4 并发，--offline / --check / --jobs） | ✅ |
 | 兼容旧 `.sha256` 标记（产物齐全时补写新 marker） | ✅ |
-| `script/fetch.sh` 收编为一行转发 | ⏳ 待做 |
+| `script/fetch.sh` 收编 | ✅ 已删除，just fetch 直接调用 cnb |
 | 契约测试（沿用 test/contract） | ⏳ 待做 |
 
 lock 新增字段：

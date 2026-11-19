@@ -1,85 +1,60 @@
-# 脚手架：构建工具的生成流程
+# 脚手架：从参考项目生成
 
-`cnb init` 负责把「一套构建流程」从零生成出来。它不是代码生成器，而是**模板渲染器**：
-模板在代码里（内嵌），输出是可读可改的配置文件与 Dockerfile。
+`cnb init` 不再渲染手写模板，而是**复制一个能跑的项目**再改写名称。
+模板会与真实项目漂移，参考项目不会。
 
-## 1. 生成什么
+## 1. 用法
+
+```bash
+cnb init demo                                  # 参考 project/offline-paketo
+cnb init demo --from project/offline-paketo    # 显式指定参考项目
+cnb init demo --dir project/x                  # 输出目录
+cnb init demo --only docker                   # 只复制 docker/ 下文件
+cnb init demo --only docker --only assets.toml # 多个 --only 累积
+cnb init demo --skip fixtures --skip docs      # 跳过指定子路径
+cnb init demo --skip assets.toml               # 排除 assets.toml
+cnb init demo --force                          # 覆盖已存在文件
+```
+
+## 2. 生成过程
+
+1. 遍历参考项目目录，逐个文件复制
+2. 文本文件里把 `offline-paketo` 替换为新名字，`project/offline-paketo` 替换为新目录
+3. 二进制文件（含 NUL 字节）原样复制
+4. 仓库根的 `assets.toml` 作为普通候选文件参与过滤，默认复制到 `<dir>/assets.toml`
+
+过滤规则只有一条：pattern 等于路径、是父目录，或匹配 glob（`filepath.Match`）。
+`--only` 与 `--skip` 对参考项目文件与 `assets.toml` 一视同仁——
+因此 `--only docker` 不会带 assets，需要时显式再加一个 `--only assets.toml`。
+
+## 3. 项目目录是自包含的
 
 ```
 project/<name>/
-├── pipeline.toml            # 流水线：阶段、占位符、静态检查
-├── assets.toml              # 物料清单：第三方制品（版本 / URL / 解包规则）
-├── justfile                 # 任务入口：check / lock / sync / plan / build
-├── README.md                # 项目说明：布局与常用命令
-└── docker/
-    ├── base.dockerfile      # 基础镜像：所有阶段的地基
-    └── builder.dockerfile   # 构建镜像：lifecycle + buildpacks
+├── pipeline.toml      # 流水线（配置就在项目内）
+├── assets.toml        # 物料清单
+├── justfile           # 任务入口
+├── docker/            # Dockerfile 与构建上下文
+└── docs/ fixtures/    # 参考项目带走的内容，可用 --skip 排除
 ```
 
-四者是一套，缺一不可：
+`config/projects/` 已删除：配置放在项目目录内，整个目录可复制、可移动。
 
-| 文件 | 谁读它 | 缺失后果 |
-|---|---|---|
-| `pipeline.toml` | `cnb pipeline plan/run` | 无法构建 |
-| `assets.toml` | `cnb materials lock/sync` | `${spec.assets.*}` 解析失败 |
-| `base.dockerfile` | 第一条 stage | 构建失败 |
-| `builder.dockerfile` | 第二条 stage | 无法产出 builder 镜像 |
-
-## 2. 模板注册表
-
-模板清单是**数据**，定义在 `internal/scaffold/scaffold.go` 的 `Templates()`：
-
-| id | 输出 | 渲染来源 |
-|---|---|---|
-| `config` | `<dir>/pipeline.toml` | `internal/spec/profile` 模板 |
-| `assets` | `<dir>/assets.toml` | `internal/spec/manifest` 模板 |
-| `justfile` | `<dir>/justfile` | `internal/scaffold/templates` |
-| `readme` | `<dir>/README.md` | 同上 |
-| `dockerfile-base` | `<dir>/docker/base.dockerfile` | 同上 |
-| `dockerfile-builder` | `<dir>/docker/builder.dockerfile` | 同上 |
-
-新增一种生成文件 = 在 `Templates()` 加一条；删除 = 删一条。命令层不含任何模板知识。
-
-## 3. 选择与覆盖
+## 4. 校验
 
 ```bash
-cnb init demo --list                      # 看注册表
-cnb init demo                             # 全部生成
-cnb init demo --only dockerfile-base      # 只生成指定项
-cnb init demo --skip assets               # 跳过指定项
-cnb init demo --force                     # 覆盖已存在文件
+cnb pipeline profile validate project/demo/pipeline.toml
+cnb materials validate --file project/demo/assets.toml
 ```
 
-默认**不覆盖**已存在文件，避免把用户改过的配置冲掉。
+`just check` 会遍历 `project/*/pipeline.toml` 做同样校验。
 
-## 4. 参数
+## 5. 为什么不再维护模板
 
-| 参数 | 影响 |
+| 手写模板 | 从参考项目复制 |
 |---|---|
-| `--dir` | 项目目录（默认 `project/<name>`） |
-| `--platform` | pipeline 的目标平台（单值） |
-| `--platforms` | assets 声明的平台（多值，默认 amd64+arm64） |
-| `--base-image` | `[spec.project.base]` 的镜像 |
-| `--container` | stage 首项容器命令（默认 `podman`，可用 `CNB_CONTAINER`） |
+| 需要同步每次结构调整 | 结构天然一致 |
+| 出现过命名、环境变量、示例三类漂移 | 不会漂移 |
+| 无法验证"生成的项目能否跑" | 源头就是能跑的项目 |
 
-`platform` 与 `platforms` 是两个概念：前者是**本次构建目标**，后者是**物料覆盖范围**。
-
-## 5. 为什么模板放代码里
-
-- 模板与解析器同仓库，改动时 CI 会渲染并校验（`just check`）
-- 不再维护 `assets.toml.example` 这类"文档即模板"的文件，避免两份漂移
-- 渲染结果由 `profile validate` / `materials validate` 兜底
-
-## 6. 与其他命令的关系
-
-```
-cnb init               生成（本文件）
-   ↓
-cnb materials lock     下载物料并写哈希
-   ↓
-cnb pipeline plan      展开占位符，打印最终 argv
-   ↓
-cnb pipeline run       执行
-   ↓
-cnb lint               静态检查（构建参数、Dockerfile COPY 源）
-```
+代价：会把参考项目里不想要的内容（fixtures、docs）一起带过来，用 `--skip` 处理。

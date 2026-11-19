@@ -1,137 +1,165 @@
-// Package scaffold renders the files a new project starts with.
+// Package scaffold creates a new project from a reference project.
 //
-// The template list is data: adding or removing a generated file means editing
-// Templates(), not the command. Callers can skip entries (--skip) or render a
-// subset (--only).
+// Rendering hand-written templates drifted from the real projects, so the
+// source of truth is now a working project directory: copy it, then rewrite
+// the project name and directory.
 package scaffold
 
 import (
-	"embed"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"learn-cnb-paketo/tools/cnb/internal/lock"
-	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 )
 
-//go:embed templates/*.tmpl
-var templateFS embed.FS
-
-// Options are the inputs shared by all templates.
+// Options are the inputs for a scaffold run.
 type Options struct {
-	Name      string
-	Dir       string
-	Platform  string
-	Platforms []string
-	BaseImage string
-	Container string
+	// Name is the new project name.
+	Name string
+	// Dir is the new project directory (e.g. project/demo).
+	Dir string
+	// From is the reference project directory.
+	From string
+	// Only / Skip filter files by relative path prefix (e.g. "docker").
+	Only []string
+	Skip []string
+	// Assets is an optional assets.toml to copy into the project.
+	Assets string
 }
 
-// File is one rendered output.
+// File is one output file.
 type File struct {
-	// ID is the template id (config, assets, dockerfile-base, …).
-	ID      string
+	// Path is relative to Options.Dir.
 	Path    string
-	Content string
+	Content []byte
 }
 
-// Template describes one generated file.
-type Template struct {
-	ID          string
-	Description string
-	Path        func(Options) string
-	Render      func(Options) (string, error)
-}
-
-// Templates returns the scaffold definition in write order.
-func Templates() []Template {
-	return []Template{
-		{
-			ID:          "config",
-			Description: "pipeline config (stages, placeholders, checks)",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "pipeline.toml") },
-			Render: func(o Options) (string, error) {
-				return specprofile.Template(o.Name, o.Dir, o.Platform, o.BaseImage, o.Container)
-			},
-		},
-		{
-			ID:          "assets",
-			Description: "material manifest (assets.toml)",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "assets.toml") },
-			Render: func(o Options) (string, error) {
-				return lock.Template(o.Name, o.Platforms)
-			},
-		},
-		{
-			ID:          "justfile",
-			Description: "project task runner (just)",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "justfile") },
-			Render:      func(o Options) (string, error) { return renderText("justfile", o.Name) },
-		},
-		{
-			ID:          "readme",
-			Description: "project README",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "README.md") },
-			Render:      func(o Options) (string, error) { return renderText("README.md", o.Name) },
-		},
-		{
-			ID:          "dockerfile-base",
-			Description: "base image Dockerfile",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "docker", "base.dockerfile") },
-			Render:      func(o Options) (string, error) { return renderText("base.dockerfile", o.Name) },
-		},
-		{
-			ID:          "dockerfile-builder",
-			Description: "builder image Dockerfile",
-			Path:        func(o Options) string { return filepath.Join(o.Dir, "docker", "builder.dockerfile") },
-			Render:      func(o Options) (string, error) { return renderText("builder.dockerfile", o.Name) },
-		},
-	}
-}
-
-// renderText renders templates/<kind>.tmpl with the project name substituted.
-// These templates contain literal just syntax ({{...}}), so only the project
-// name placeholder is replaced.
-func renderText(kind, name string) (string, error) {
-	raw, err := templateFS.ReadFile("templates/" + kind + ".tmpl")
+// Render copies the reference project and rewrites name/directory references.
+//
+// Every candidate file — including the optional assets.toml — goes through the
+// same only/skip filter, so filtering has one rule instead of special cases.
+func Render(o Options) ([]File, error) {
+	ref, err := filepath.Abs(o.From)
 	if err != nil {
-		return "", fmt.Errorf("read %s template: %w", kind, err)
+		return nil, err
 	}
-	return strings.ReplaceAll(string(raw), "{{.Name}}", name), nil
-}
+	if !fsutil.DirExists(ref) {
+		return nil, fmt.Errorf("reference project not found: %s", o.From)
+	}
+	oldName := filepath.Base(ref)
+	oldDir := projectRelDir(ref)
 
-// Render produces every selected file. IDs in only/skip filter the list;
-// an empty only means "all".
-func Render(o Options, only, skip []string) ([]File, error) {
-	onlySet := toSet(only)
-	skipSet := toSet(skip)
-	var out []File
-	for _, t := range Templates() {
-		if len(onlySet) > 0 && !onlySet[t.ID] {
+	candidates, err := collect(ref, o.Skip)
+	if err != nil {
+		return nil, err
+	}
+	if o.Assets != "" && fsutil.Exists(o.Assets) {
+		candidates = append(candidates, candidate{rel: "assets.toml", path: o.Assets})
+	}
+
+	var files []File
+	for _, c := range candidates {
+		if !selected(c.rel, o.Only, o.Skip) {
 			continue
 		}
-		if skipSet[t.ID] {
-			continue
-		}
-		content, err := t.Render(o)
+		content, err := os.ReadFile(c.path)
 		if err != nil {
-			return nil, fmt.Errorf("render %s: %w", t.ID, err)
+			return nil, err
 		}
-		out = append(out, File{ID: t.ID, Path: t.Path(o), Content: content})
+		files = append(files, File{Path: c.rel, Content: rewrite(content, oldName, o.Name, oldDir, o.Dir)})
 	}
-	return out, nil
+	return files, nil
 }
 
-func toSet(items []string) map[string]bool {
-	if len(items) == 0 {
+// candidate is one file considered for copying.
+type candidate struct {
+	rel  string
+	path string
+}
+
+// collect walks the reference project, pruning skipped directories early.
+func collect(ref string, skip []string) ([]candidate, error) {
+	var out []candidate
+	err := filepath.WalkDir(ref, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(ref, path)
+		if err != nil || rel == "." {
+			return err
+		}
+		if d.IsDir() {
+			if skipped(rel, skip) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		out = append(out, candidate{rel: rel, path: path})
 		return nil
+	})
+	return out, err
+}
+
+// rewrite replaces project name and directory references in text files.
+func rewrite(content []byte, oldName, newName, oldDir, newDir string) []byte {
+	if isBinary(content) {
+		return content
 	}
-	set := make(map[string]bool, len(items))
-	for _, item := range items {
-		if item = strings.TrimSpace(item); item != "" {
-			set[item] = true
+	s := string(content)
+	if oldDir != "" && newDir != "" {
+		s = strings.ReplaceAll(s, oldDir, newDir)
+	}
+	s = strings.ReplaceAll(s, oldName, newName)
+	return []byte(s)
+}
+
+// isBinary reports whether content looks binary (NUL byte in the head).
+func isBinary(content []byte) bool {
+	head := content
+	if len(head) > 8000 {
+		head = head[:8000]
+	}
+	return slices.Contains(head, byte(0))
+}
+
+// projectRelDir returns "<parent>/<name>" style path from the repo root, based
+// on the conventional project/<name> layout.
+func projectRelDir(abs string) string {
+	parent := filepath.Base(filepath.Dir(abs))
+	name := filepath.Base(abs)
+	if parent == "." || parent == string(filepath.Separator) {
+		return name
+	}
+	return filepath.Join(parent, name)
+}
+
+// selected applies the only/skip filters with one rule:
+// a pattern matches when it equals the path, is a parent directory, or is a
+// glob (filepath.Match) against the path.
+func selected(rel string, only, skip []string) bool {
+	if len(only) > 0 && !matches(rel, only) {
+		return false
+	}
+	return !matches(rel, skip)
+}
+
+// matches reports whether any pattern selects rel.
+func matches(rel string, patterns []string) bool {
+	for _, p := range patterns {
+		if p == "" {
+			continue
+		}
+		if rel == p || strings.HasPrefix(rel, p+string(filepath.Separator)) {
+			return true
+		}
+		if ok, _ := filepath.Match(p, rel); ok {
+			return true
 		}
 	}
-	return set
+	return false
 }
+
+func skipped(rel string, skip []string) bool { return matches(rel, skip) }

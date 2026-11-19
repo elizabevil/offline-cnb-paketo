@@ -4,107 +4,89 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/scaffold"
+	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // initOptions holds `cnb init` flags.
 type initOptions struct {
-	dir       string
-	platform  string
-	platforms string
-	baseImage string
-	container string
-	only      []string
-	skip      []string
-	force     bool
-	list      bool
+	dir   string
+	from  string
+	only  []string
+	skip  []string
+	force bool
 }
 
-// newInitCmd scaffolds a new project from the template registry.
+// newInitCmd scaffolds a new project from a reference project.
 func newInitCmd() *cobra.Command {
 	var opts initOptions
 	cmd := &cobra.Command{
 		Use:   "init <name>",
-		Short: "scaffold a project: pipeline config, assets, Dockerfiles",
-		Long: "Render the project templates (config, assets, Dockerfiles) into <dir>.\n" +
-			"Existing files are kept unless --force is given; --only/--skip select templates.",
+		Short: "scaffold a project from a reference project",
+		Long: "Copy a working project (config, materials, Dockerfiles, justfile) and\n" +
+			"rewrite the project name and directory. The reference project is the\n" +
+			"source of truth, so generated projects cannot drift from it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.list {
-				return listTemplates(cmd)
-			}
 			name := args[0]
-			o := scaffold.Options{
-				Name:      name,
-				Dir:       opts.dir,
-				Platform:  opts.platform,
-				Platforms: splitList(opts.platforms),
-				BaseImage: opts.baseImage,
-				Container: opts.container,
+			from := opts.from
+			if from == "" {
+				from = filepath.Join("project", "offline-paketo")
 			}
-			if o.Dir == "" {
-				o.Dir = filepath.Join("project", name)
+			dir := opts.dir
+			if dir == "" {
+				dir = filepath.Join("project", name)
 			}
-			files, err := scaffold.Render(o, opts.only, opts.skip)
+			files, err := scaffold.Render(scaffold.Options{
+				Name: name, Dir: dir, From: from, Only: opts.only, Skip: opts.skip,
+				Assets: assetsFor(),
+			})
 			if err != nil {
 				return failExecution(err)
 			}
 			for _, f := range files {
-				if fsutil.Exists(f.Path) && !opts.force {
-					fmt.Fprintf(cmd.OutOrStdout(), "  · %-18s %s (exists, skipped)\n", f.ID, f.Path)
+				dest := filepath.Join(dir, f.Path)
+				if fsutil.Exists(dest) && !opts.force {
+					fmt.Fprintf(cmd.OutOrStdout(), "  · %-28s (exists, skipped)\n", dest)
 					continue
 				}
-				if err := writeFile(f.Path, f.Content); err != nil {
+				if err := writeFile(dest, f.Content); err != nil {
 					return failExecution(err)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %-18s %s\n", f.ID, f.Path)
+				fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s\n", dest)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&opts.dir, "dir", "", "project directory (default project/<name>)")
-	cmd.Flags().StringVar(&opts.platform, "platform", "", "default platform for the pipeline (default linux-amd64)")
-	cmd.Flags().StringVar(&opts.platforms, "platforms", "", "platforms for assets.toml (default linux-amd64,linux-arm64)")
-	cmd.Flags().StringVar(&opts.baseImage, "base-image", "", "base image for [spec.project.base]")
-	cmd.Flags().StringVar(&opts.container, "container", os.Getenv("CNB_CONTAINER"), "container CLI for stages: podman | docker")
-	cmd.Flags().StringSliceVar(&opts.only, "only", nil, "render only these template ids")
-	cmd.Flags().StringSliceVar(&opts.skip, "skip", nil, "skip these template ids")
+	cmd.Flags().StringVar(&opts.from, "from", "", "reference project (default project/offline-paketo)")
+	cmd.Flags().StringSliceVar(&opts.only, "only", nil, "copy only these paths (relative)")
+	cmd.Flags().StringSliceVar(&opts.skip, "skip", nil, "skip these paths (relative)")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite existing files")
-	cmd.Flags().BoolVar(&opts.list, "list", false, "list available templates")
 	return cmd
 }
 
-// listTemplates prints the template registry.
-func listTemplates(cmd *cobra.Command) error {
-	for _, t := range scaffold.Templates() {
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-18s %s\n", t.ID, t.Description)
+// assetsFor returns the manifest next to the reference repo root, if any.
+func assetsFor() string {
+	root, err := workspace.Resolve("")
+	if err != nil {
+		return ""
 	}
-	return nil
-}
-
-// splitList parses a comma separated flag value.
-func splitList(raw string) []string {
-	if raw == "" {
-		return nil
+	candidate := filepath.Join(root, "assets.toml")
+	if fsutil.Exists(candidate) {
+		return candidate
 	}
-	var out []string
-	for item := range strings.SplitSeq(raw, ",") {
-		if item = strings.TrimSpace(item); item != "" {
-			out = append(out, item)
-		}
-	}
-	return out
+	return ""
 }
 
 // writeFile creates parent directories and writes content.
-func writeFile(path, content string) error {
+func writeFile(path string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), fsutil.DirMode); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), fsutil.FileMode)
+	return os.WriteFile(path, content, fsutil.FileMode)
 }

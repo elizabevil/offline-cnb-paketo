@@ -4,8 +4,8 @@ package cli
 const (
 	// DefaultLockName matches the workspace package.
 	DefaultManifestName = "assets.toml"
-	// DefaultConfigDir is the default pipeline config directory.
-	DefaultConfigDir = "config/projects"
+	// DefaultConfigDir is where a project keeps its pipeline config.
+	DefaultConfigDir = "project"
 
 	// ExitOK means success.
 	ExitOK = 0

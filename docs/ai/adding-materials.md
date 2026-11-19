@@ -91,7 +91,7 @@ script/bin/cnb-linux-amd64 materials validate
 script/bin/cnb-linux-amd64 materials verify mytool
 ```
 
-4. 在项目的 `config/projects/*.toml` 里引用并注入版本：
+4. 在项目的 `project/*/pipeline.toml` 里引用并注入版本：
 
 ```toml
 [assets.mytool]

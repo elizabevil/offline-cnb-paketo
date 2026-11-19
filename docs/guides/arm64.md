@@ -13,8 +13,7 @@
 
 ## 二、前置：固定 arm64 物料哈希
 
-`assets.lock.toml` 中 arm64 条目已有 URL，但 `sha256` 为空（`materials sync` 不会自动补）。
-在 arm64 机器上执行：
+arm64 条目的 `sha256` 已回填。若新增物料尚无哈希，在 arm64 机器上执行：
 
 ```bash
 # 逐个下载后回填 sha256（一次性）
@@ -32,7 +31,7 @@ script/bin/cnb-linux-arm64 materials list --platform linux-arm64
 TARGET=linux-arm64 just --justfile script/tools/cnb/justfile build
 TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 script/bin/cnb-linux-amd64 materials verify --platform linux-arm64
-script/bin/cnb-linux-amd64 pipeline plan config/projects/offline-paketo-bk.toml --platform linux-arm64
+script/bin/cnb-linux-amd64 pipeline plan project/offline-paketo-bk/pipeline.toml --platform linux-arm64
 ```
 
 即：交叉编译工具、校验 arm64 物料、生成 arm64 计划。
@@ -81,10 +80,10 @@ podman run --rm --platform linux/arm64 debian:trixie-slim uname -m   # aarch64
 
 注意：bksmartpacker 启动 builder 时目前没有 `--platform` 透传，qemu 场景需要额外参数支持。
 
-## 七、已知阻塞
+## 七、当前状态
 
 | 项 | 状态 |
 |---|---|
-| arm64 物料 sha256 | 未固定，`materials sync --platform linux-arm64` 会失败 |
-| `bundle/linux-arm64` | 尚未生成 |
-| bksmartpacker 的 `--platform` | 未支持，仅影响 qemu 交叉构建 |
+| arm64 物料 sha256 | ✅ 已固定（`materials verify --platform linux-arm64` 通过） |
+| `bundle/linux-arm64` | ✅ 已同步（`just fetch` 按平台落盘） |
+| bksmartpacker 的 `--platform` | ❌ 未支持，仅影响 qemu 交叉构建 |

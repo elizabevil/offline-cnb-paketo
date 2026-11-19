@@ -13,7 +13,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "cnb",
 		Short: "foundation tooling: materials / pipeline / image / lifecycle",
-		Long: "cnb reads assets.lock.toml and config/projects/*.toml,\n" +
+		Long: "cnb reads assets.lock.toml and project/*/pipeline.toml,\n" +
 			"providing material resolution, pipeline rendering, and SmartPackage normalization.",
 		SilenceUsage:  true,
 		SilenceErrors: true,

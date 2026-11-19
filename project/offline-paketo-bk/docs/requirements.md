@@ -5,7 +5,7 @@
 
 ## 一、目标
 
-1. **从零构建**：一条命令从空 bundle 产出 base / run / builder 三个镜像
+1. **从零构建**：一条命令从空 bundle 产出 base / builder 两个镜像（run 镜像由 exporter 指定，本项目用 `scratch`）
 2. **离线 + 缓存**：SDK 与依赖首次下载后落 `/layers/cache`，之后不再联网
 3. **只输出应用层**：导出镜像的 run 镜像为 `scratch`，产物只含 app 层，
    由 bksmartpacker `docker image save` 后打成 s-mart
@@ -62,52 +62,58 @@ CNB_RUNTIMES=/opt/cnb-runtimes just smart
 容器内挂到 `/cnb/runtimes`（只读），组件按
 挂载 → `/layers/cache` → 镜像源 的优先级取用。
 
-## 四·六、导出不依赖 daemon
+## 四·六、导出方式
 
-为同时兼容 docker 与 podman，导出改走 OCI layout：
+导出方式由 `CNB_EXPORT_MODE` 决定（`cnb lifecycle run` 读取）：
 
-```
-detect → build → export -layout -layout-dir=/layers/oci
-                       → 转 docker-archive（cnb 内置转换）
-```
+| 取值 | 行为 | 适用 |
+|---|---|---|
+| `layout`（BK 默认） | 写 OCI layout，再打包为层归档（`CNB_LAYER_ARCHIVE`） | bksmartpacker 直接取用 |
+| `daemon` | 通过容器运行时导出 | 仅真 dockerd（`BKS_EXPORT_MODE=daemon`） |
+| `none` | 只构建不导出 | 仅验证 detect/build |
 
-理由：podman 5.4 下 lifecycle 0.21 走 daemon 会报
-`singleton connection already in use`；docker 与 podman 在 layout 模式下行为一致。
+BK 默认路径不需要 daemon：bksmartpacker 挂载 `<workspace>/layers` 到 `/cnb-layer`，
+cnb 把 `<module>.tgz` 写进去，构建后由 bksmartpacker 复制进 s-mart。
 
 ## 五、流水线
 
+配置只有两条 stage（`pipeline.toml`）：
+
 ```
-prepare(app_desc.yaml → 模块) → fetch(物料) → build(每模块四阶段) → package(bksmartpacker)
+base   → podman build builder-base.dockerfile
+builder→ podman build builder-build.dockerfile（lifecycle + buildpack）
 ```
+
+应用构建不在 stage 里：由 `just smart` 调用 bksmartpacker，
+在容器内跑一次 detect → build → analyze → export，再打包成 s-mart。
 
 ## 六、目录结构
 
 ```
 project/offline-paketo-bk/
-├── build.sh                    # 入口：cnb pipeline run <profile>
-├── justfile                    # build / plan / fetch / verify
-├── fixtures/                   # BK 结构测试项目（新增）
-│   ├── single/{app_desc.yaml, go.mod, main.go}
+├── pipeline.toml               # 入口：cnb pipeline run
+├── justfile                    # build / plan / fetch / verify / smart / pack-case
+├── fixtures/                   # BK 结构测试项目
+│   ├── single/{app_desc.yaml, logo.png, go.mod, main.go}
 │   └── multi/{app_desc.yaml, web/, worker/}
 ├── docker/
 │   ├── builder-base.dockerfile
 │   ├── builder-build.dockerfile
 │   ├── lifecycle-entrypoint.sh # 四阶段 + bksmartpacker 契约
 │   ├── order.toml
-│   ├── apt-sources/
-│   └── buildpacks/             # 11 个自研离线组件
+│   └── apt-sources/
+├── dist/<platform>/            # s-mart 产物（不入库）
 └── docs/
-    ├── architecture.md
-    ├── bk-build-logic.md
-    ├── requirements.md         # 本文件
-    └── delta-from-paketo.md    # 与 offline-paketo 的差异
 ```
+
+自研 buildpack 不在本项目内：位于仓库级 `buildpacks/paketo/`，
+通过 `--build-context buildpacks=…` 引用。
 
 ## 七、验收标准
 
-1. `./build.sh` 从空 bundle 产出三个镜像
+1. `just build` 从空 bundle 产出 base / builder 两个镜像
 2. 二次构建出现 cache hit，不再下载
-3. bksmartpacker 产出 `s-mart.tar.gz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
+3. `just smart` 产出 `dist/<platform>/s-mart.tar.gz`，含 `app_desc.yaml` 与 `.Version=cnb-image-layers`
 4. `<module>.tgz` 只含应用层
 5. `fixtures/single` 与 `fixtures/multi` 均可构建
 6. `cnb materials verify` / `cnb pipeline profile validate` / `cnb buildpack lint` 全绿

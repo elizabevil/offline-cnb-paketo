@@ -1,107 +1,107 @@
 # offline-paketo 架构说明
 
 > 本文描述 `project/offline-paketo` 的**当前实现**。
-> 仓库级流程见 [`docs/design/pipeline.md`](../../../docs/design/pipeline.md)，配置字段见 [`config/projects/offline-paketo.toml`](../../../config/projects/offline-paketo.toml)。
+> 仓库级架构见 [`docs/design/architecture.md`](../../../docs/design/architecture.md)，
+> 执行细节见 [`docs/design/pipeline.md`](../../../docs/design/pipeline.md)。
 
 ## 一、定位
 
 在无外网环境构建 CNB builder 镜像：离线提供 lifecycle、Node/Python 运行时工具与
-自定义 buildpack，让 `pack build` 不依赖任何外部下载。
+自研 buildpack，使 `lifecycle` 四阶段（detect → build → analyze → export）不依赖外部下载。
 
-与早期版本的区别：**流程已配置化**——物料、版本、镜像、顺序全部在配置里，
-项目目录只保留 Dockerfile、buildpack 与入口脚本。
-
-## 二、在仓库中的位置
+## 二、目录
 
 ```
-Learn-cnb-paketo/
-├── assets.lock.toml                     # 物料唯一事实源
-├── config/projects/offline-paketo.toml  # 本项目的流水线定义
-├── bundle/<platform>/binaries/<id>/<ver> # 共享物料（不入库）
-├── script/                              # 执行器：cnb → materials sync
-└── project/offline-paketo/              # 本项目
-    ├── build.sh                         # 入口：cnb pipeline run <配置>
-    ├── justfile                         # build / plan / fetch / verify / test
-    ├── docker/                          # Dockerfile、buildpacks、order.toml
-    └── examples/                        # 测试应用（不入库）
+project/offline-paketo/
+├── pipeline.toml               # 流水线：base / builder 两条 stage
+├── justfile                    # build / plan / fetch / verify / fixtures / test
+├── docker/
+│   ├── base.dockerfile         # 系统依赖层
+│   ├── builder.dockerfile      # lifecycle + 自研 buildpack + fnm/uv
+│   ├── lifecycle-entrypoint.sh # 容器入口（四阶段串联，可选）
+│   ├── order.toml              # detect 顺序
+│   └── apt-sources/            # 国内 apt 源
+├── docs/
+└── fixtures/                   # 测试应用（源码在 fixtures-src/）
 ```
+
+buildpack 组件不在本项目内：它们是**仓库级资产**，位于 `buildpacks/paketo/`，
+通过 `--build-context buildpacks=<repo>/buildpacks/paketo` 提供给 builder 构建。
 
 ## 三、执行流程
 
-```
-build.sh
-  └─ cnb pipeline run config/projects/offline-paketo.toml
-       ├─ cnb pipeline profile validate   校验镜像/命令/流程引用
-       ├─ cnb pipeline plan     渲染执行计划（fetch_assets / image_build）
-       └─ eval 计划
-            ├─ fetch_assets  → cnb materials sync（按 lock 下载/校验/解压）
-            ├─ image_build   → script/lib/image-build.sh（podman/docker）
-            └─ （无 command 阶段）
+```mermaid
+flowchart LR
+    A["assets.toml / assets.lock.toml"] -->|"just fetch（cnb materials sync）"| B["bundle/&lt;platform&gt;/"]
+    B --> C["pipeline.toml 的 builder stage"]
+    C -->|"just build（cnb pipeline run）"| D["base stage：podman build base.dockerfile"]
+    D --> E["builder stage：podman build builder.dockerfile"]
+    E --> F["镜像 offline-builder:&lt;arch&gt;"]
 ```
 
-查看而不执行：
+常用命令：
 
 ```bash
-./build.sh --dry-run        # 打印计划与将执行的命令
-just plan                   # 同上
-just verify                 # 校验本项目物料（范围取自配置）
+just plan          # 打印最终 argv（不执行）
+just build         # 执行两条 stage
+just fetch         # 同步物料到 bundle/
+just verify        # 校验物料落盘 + 配置结构
+just test          # 对 fixtures 跑四次 lifecycle 构建
 ```
 
 ## 四、镜像
 
-| 阶段 | Dockerfile | 产物 tag | 说明 |
+| stage | Dockerfile | 产物 tag | 内容 |
 |---|---|---|---|
-| base | `docker/base.dockerfile` | `offline-builder-base:<arch>` | 系统依赖层 |
-| run | `docker/run.dockerfile` | `offline-run:latest` | 运行时最小层 |
-| builder | `docker/Dockerfile` | `offline-builder:<arch>` | lifecycle + buildpack + fnm/uv |
+| base | `docker/base.dockerfile` | `offline-builder-base:<arch>` | 系统包（证书、curl、unzip）与 apt 源替换 |
+| builder | `docker/builder.dockerfile` | `offline-builder:<arch>` | lifecycle、cnb CLI、fnm/uv、10 个 buildpack |
 
-- 构建上下文是**仓库根**（`[docker] context = "."`），便于共享 `bundle/`
-- Dockerfile 中物料路径形如 `bundle/${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/…`
-- `<ID>_VERSION` 由渲染器从配置注入，**版本只在 lock 里出现一次**
+builder 的关键约定：
+
+- `FROM ${BASE_IMAGE_TAG}`，tag 由 stage 的 `--build-arg` 传入
+- `COPY --from=bundle` 取物料，`COPY --from=buildpacks` 取自研组件
+- 非 root 用户 `cnb`(1000)，`/layers`、`/workspace`、`/platform` 可写
 
 ## 五、物料
 
-由 `assets.lock.toml` 定义，`cnb materials sync` 落到 `bundle/<platform>/binaries/<id>/<version>/`：
+由仓库根 `assets.toml` 声明、`assets.lock.toml` 固定哈希，`cnb materials sync` 落到
+`bundle/<platform>/binaries/<id>/<version>/`。
 
-| 物料 | 版本 | 用途 |
-|---|---|---|
-| lifecycle | 0.21.13 | CNB 生命周期 |
-| fnm | 1.39.0 | 安装 Node |
-| uv | 0.11.26 | Python 环境 |
+本项目用到的物料（版本以 `assets.toml` 为准）：
+
+| 物料 | 用途 |
+|---|---|
+| lifecycle | 四阶段可执行文件 |
+| fnm | 安装 Node |
+| uv | 安装 Python / 依赖 |
+| cnb | 容器内执行器（可选） |
+| procfile | Procfile 支持 |
 
 三态幂等：归档存在 / 哈希匹配 / 解压标记匹配，任一不满足就重做；
-解压后再用 `unpack.expect` 校验产物是否齐全。
+解压后用 `unpack.expect` 校验产物齐全。
 
-## 六、Buildpack
+## 六、buildpack 与 order
 
-`docker/buildpacks/` 下三个自定义 buildpack + 一个官方 procfile（多阶段 COPY）：
+组件实现见 [`docs/design/buildpack-components.md`](../../../docs/design/buildpack-components.md)。
 
-| id | detect | build |
-|---|---|---|
-| `paketo-buildpacks/node` | `package.json` 等 | fnm 装 Node → npm/yarn/pnpm |
-| `paketo-buildpacks/python` | `requirements.txt` 等 | uv 建 venv → pip 安装 |
-| `paketo-buildpacks/procfile` | 官方镜像 | 官方实现 |
+| meta buildpack | 组成 |
+|---|---|
+| `paketo-buildpacks/go` | go-dist + go-build |
+| `paketo-buildpacks/nodejs` | node-engine + npm-install + npm-start |
+| `paketo-buildpacks/python` | cpython + pip-install |
+| `paketo-buildpacks/procfile` | 官方预编译（物料） |
 
 `docker/order.toml` 决定 detect 顺序：go → node → python → procfile。
 
-## 七、已知缺陷（尚未修复）
+## 七、已知限制
 
-这些属于 buildpack 实现层，与当前配置化改造无关：
-
-1. **layer 元数据文件名错误**：node/python 写 `<layer>.launch`，规范要求 `<layer>.toml` +
-   `[types]` 表 → 生命周期不认，运行时 `PATH` 不会生效
-2. **launch 进程格式**：go 用 `command = ["…"]` 数组，规范要求字符串
-3. **Python 重复进程类型**：`launch.toml` 写了 3 条 `type = "web"`
-4. **并非真离线**：`fnm install` / `uv venv --python` 仍会联网下载 SDK
-
-前三条会导致“构建成功但应用起不来”，修复计划见仓库 `docs/design/base.md` 的 P1。
-
-## 八、历史变更
-
-| 时间 | 变更 |
+| 限制 | 说明 |
 |---|---|
-| 2026-11 | 删除 `scripts/*.just`（config/download/docker/info/log），流程改为配置驱动 |
-| 2026-11 | `apps/` 改名 `examples/` 且不入库；物料统一到仓库根 `bundle/` |
-| 2026-11 | 构建改用 named build context（`--build-context bundle=…`），Dockerfile 不再写仓库路径 |
-| 2026-11 | 删除 `script/run.sh`，执行并入 `cnb pipeline run`；新增 `cnb lint`（构建参数与脚本检查） |
-| 2026-11 | 物料目录改为 `<id>/<version>`，URL 支持 `{version}` 占位 |
+| 首次构建需要网络 | `node-engine` 用 `fnm install`、`cpython` 用 `uv python install`，缓存未命中时会联网；预置 `bundle/<platform>/sdk/` 或已有 `/layers/cache` 后离线 |
+| procfile 依赖官方产物 | 来自物料 `procfile`，版本随 lock 更新 |
+| 单架构镜像 | 镜像按 `<arch>` 打 tag，跨架构需分别构建 |
+| 不产 run 镜像 | exporter 由使用方决定 run 镜像（本项目用 `debian:trixie-slim`） |
+
+## 八、历史
+
+早期实现与结构变更见 [`docs/archive/offline-paketo-history.md`](../../../docs/archive/offline-paketo-history.md)。

@@ -21,7 +21,7 @@ script/bin/cnb-linux-amd64 materials validate
 tmp=$(mktemp -d); script/bin/cnb-linux-amd64 init ci-template --config "$tmp/pipeline.toml" --assets "$tmp/assets.toml" >/dev/null && script/bin/cnb-linux-amd64 --file "$tmp/assets.toml" materials validate; rm -rf "$tmp"
 
 echo "── 流程校验 ──"
-for f in config/projects/*.toml; do
+for f in project/*/pipeline.toml; do
   script/bin/cnb-linux-amd64 pipeline profile validate "$f"
 done
 
@@ -29,7 +29,7 @@ echo "── buildpack 结构检查 ──"
 script/bin/cnb-linux-amd64 buildpack lint buildpacks/*/*
 
 echo "── 流水线 lint ──"
-for f in config/projects/*.toml; do
+for f in project/*/pipeline.toml; do
   script/bin/cnb-linux-amd64 lint "$f"
 done
 
@@ -37,7 +37,7 @@ echo "── arm64：工具与物料 ──"
 TARGET=linux-arm64 just --justfile script/tools/cnb/justfile build
 TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 script/bin/cnb-linux-amd64 materials verify --platform linux-arm64
-script/bin/cnb-linux-amd64 pipeline plan config/projects/offline-paketo-bk.toml --platform linux-arm64 >/dev/null
+script/bin/cnb-linux-amd64 pipeline plan project/offline-paketo-bk/pipeline.toml --platform linux-arm64 >/dev/null
 
 echo "── 物料校验（bundle）──"
 script/bin/cnb-linux-amd64 materials verify

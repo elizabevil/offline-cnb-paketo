@@ -61,7 +61,7 @@ func resolveRepo() (string, error) {
 
 // workspaceLockPath is a thin wrapper for callers that only need the path.
 
-// mustProfilePath returns config/projects/<name>.toml relative to the repo root.
+// mustProfilePath returns project/<name>/pipeline.toml relative to the project root.
 
 // Execute runs the CLI and maps exitError to a process exit code.
 func Execute() {

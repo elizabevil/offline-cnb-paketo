@@ -1,7 +1,7 @@
 # 子项目 justfile 契约
 
 `project/<name>/justfile` 只做**入口转发**，流程与版本全部来自
-`config/projects/<name>.toml`。三个项目遵循同一套 recipe。
+`project/<name>/pipeline.toml`。三个项目遵循同一套 recipe。
 
 ## 一、统一变量
 
@@ -95,7 +95,7 @@ BK 案例目录必须含 `app_desc.yaml`；其余按 detect 规则自动识别�
 
 ```bash
 # 用 bk 的入口跑 offline-paketo 的配置
-CNB_PROFILE=config/projects/offline-paketo.toml just smart
+CNB_PROFILE=project/offline-paketo/pipeline.toml just smart
 
 # 用 multi 夹具打包
 S_MART_SRC=project/offline-paketo-bk/fixtures/multi just smart

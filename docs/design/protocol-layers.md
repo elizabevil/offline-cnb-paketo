@@ -1,312 +1,175 @@
-# 协议分层方案
+# 协议分层
 
-> 状态：已定稿（2026-11）。**不兼容历史遗留**：旧标记、旧脚本、旧双解析器一律删除，不做兼容层。
+> 状态：**当前实现**。本文只描述现在生效的边界与 API，历史方案见 `docs/archive/`。
 
 ## 一、要解决的问题
 
-当前 cnb 同时解析 6 类协议，但边界不清：
+`cnb` 要同时处理多份外部/自有协议。边界不清会导致：同一份文件两处解析、
+格式知识散落、平台私有约定渗进通用包。
 
-| 症状 | 实例 |
-|---|---|
-| 同一协议两套解析器 | `order.toml` 在 `lifecycle/order.go`（toml）与 `checks/buildpack.go`（正则）各解析一次 |
-| 格式知识分散 | docker-archive 在 `archive`/`repack`/`smartpkg` 三处；OCI layout 在 `repack` 与 `smartpkg` |
-| 平台契约外溢 | `CNB_*` 在 cmd，`SOURCE_GET_URL` 在 lifecycle，BK 别名在 cmd |
-| 双协议并存 | 物料标记 `.sha256`（旧）与 `.sync.json`（新） |
-| 无最终值视图 | 同一字段可被 lock / profile / env / flag 覆盖，无从得知生效值 |
-| 阶段类型靠猜 | 旧 profile 用 `image=` / `command=` 的有无判断类型，新增 shell/python 需改解析器 |
-
-## 二、分层模型
+## 二、分层
 
 ```
-spec/manifest   物料清单（本项目自有）
-spec/profile    流水线编排（本项目自有）
-spec/lifecycle  CNB lifecycle 的 6 个文件协议
-spec/platform   平台 → buildpack 契约（环境变量 / flags）
-spec/imagefmt   镜像归档格式（docker-archive / OCI layout）
+internal/spec/manifest    物料清单（assets.toml / assets.lock.toml）
+internal/spec/profile     流水线配置（project/<name>/pipeline.toml）
+internal/spec/lifecycle   CNB 协议：buildpack.toml、order.toml
+internal/spec/platform    平台契约：环境变量 → 结构化 Env
+internal/spec/imagefmt    镜像归档：OCI layout ↔ docker-archive
+internal/spec/checksrules lint 规则覆盖（TOML）
 
-（平台私有）     BK 的 app_desc / artifact.json / s-mart → 只在 bksmartpacker 内
+（平台私有）               BK 的 app_desc / s-mart → 只在 bksmartpacker 内
 ```
 
-依赖方向：业务包 → spec；spec 之间不互相依赖（`platform` 可依赖 `lifecycle` 的枚举，单向）。
+依赖方向：业务包（`cli`/`materials`/`plan`/`checks`）→ `spec`；`spec` 之间只在
+`platform` → `manifest`（取平台常量）这类单向依赖。
 
 ## 三、四条硬规则
 
-1. **单一解析器**：每个协议只有一处 `Parse`；其他包只能消费结构体，不得再解析文本。
-2. **写方向唯一**：`Parse` 与 `Encode` 同包；谁写谁校验（例如 sha256 只能由 `materials` 回填）。
-3. **未知键必须报告**：解析器遇到未知字段返回 `Warn` 列表（不是静默忽略），协议升级必须显式处理。
-4. **平台私有协议不得进入通用包**：`BKS_*`、`app_desc.yaml`、`.Version` 不出现于 `internal/`。
+1. **单一解析器**：每类文件只有一处 `Parse`，其他包只消费结构体，不再解析文本。
+   `just check` 用 grep 强制：`toml.Unmarshal` 只允许出现在 `internal/spec/` 与 `internal/profile/`。
+2. **读写同包**：`Parse` 与写回逻辑同包；写回保留注释（`manifest.EditVersion`）。
+3. **未知键报 Warn**：解析返回 `[]errs.Warning`，不静默忽略。
+4. **平台私有协议不进通用包**：`BKS_*`、`app_desc`、`cnb-image-layers`
+   不得出现在 `internal/`；`just check` 有对应 grep。
 
-## 四、包结构与 API 形状
+## 四、各层 API（与代码一致）
 
-每个 spec 包只做三件事：**解析、编码、校验**。不做 I/O 调度、不读环境变量、不打印。
-
-```go
-package manifest
-
-type File struct { Schema int; Storage Storage; Assets []Asset }
-type Storage struct { Root string; Layout Layout }
-
-func Parse(data []byte) (*File, []warn.Warning, error)
-func (f *File) Encode() ([]byte, error)          // 仅用于生成模板
-func (f *File) Validate() []error
-```
+| 包 | 入口 | 返回 |
+|---|---|---|
+| `spec/manifest` | `Parse([]byte)` | `(*File, []errs.Warning, error)` |
+| | `(*File).Validate()` | `[]error` |
+| | `EditVersion(path, id, old, new)` | `(bool, error)`，保留注释 |
+| | `ParsePlatform(string)` | `(Platform, error)` |
+| `spec/profile` | `Parse([]byte)` | `(*File, []errs.Warning, error)` |
+| | `(*File).Validate()` | `[]error` |
+| `spec/lifecycle` | `ParseBuildpack([]byte)` | `(*Buildpack, []errs.Warning, error)` |
+| | `ParseOrder([]byte)` | `(*Order, []errs.Warning, error)` |
+| `spec/platform` | `Parse(getenv func(string) string)` | `(Env, []errs.Warning, error)` |
+| | `(Env).Validate()` | `error` |
+| `spec/imagefmt` | `Open(path)` | `(*Image, 格式, error)` |
+| | `(*Image).Write(format, dest)` | `error` |
+| `spec/checksrules` | `Parse([]byte)` | `(*Ruleset, error)` |
 
 约定：
 
-- 解析函数统一签名 `Parse([]byte) (T, []warn.Warning, error)`，文件读取由调用方完成
-- 校验返回 `[]error`（可一次报多条），不返回 bool
-- 不导出可变字段以外的行为（无 `Load`、无 `Save`，路径由业务层决定）
+- 读取文件由调用方完成，`spec` 只接收 `[]byte`（`LoadLockFile` 是唯一例外，供 lock 使用）
+- 校验返回 `[]error`（一次报多条），不返回 bool
+- `spec` 不做 I/O 调度、不读环境变量、不打印
 
-## 五、各层协议案例
+## 五、协议样例
 
-### 5.1 spec/manifest —— `assets.lock.toml`
+### 5.1 物料清单 `assets.toml`
 
 ```toml
 schema = 1
 
-[storage]
-root   = "bundle"
-layout = "arch-first"
-
-[asset.info]
-description = "CNB lifecycle 四阶段二进制"
-usage       = "lifecycle run / exporter / analyzer"
-
-[asset.unpack]
-kind   = "tgz"
-strip  = 1
-dir    = "lifecycle/{version}"
-expect = ["lifecycle", "detector", "analyzer", "exporter"]
+[meta]
+name      = "demo"
+platforms = ["linux-amd64", "linux-arm64"]
 
 [[asset]]
 id      = "lifecycle"
 version = "0.21.29"
 default = true
 
+  [asset.info]
+  name    = "CNB lifecycle"
+  license = "Apache-2.0"
+
+  [asset.unpack]
+  kind   = "tgz"
+  strip  = 1
+  dir    = "lifecycle/{version}"
+  expect = ["detector", "builder", "analyzer", "exporter"]
+
   [asset.platform.linux-amd64]
-  url    = "https://github.com/buildpacks/lifecycle/releases/download/v0.21.29/lifecycle-v0.21.29+linux.x86-64.tgz"
-  sha256 = "…"
-  size   = 12345678
+  url = "https://…/lifecycle-v{version}+linux.x86-64.tgz"
 ```
 
-职责：
+- 锁文件 `assets.lock.toml` 由 `cnb materials lock` 生成：`[locked]` 段记录 `url/size/sha256`
+- `unpack.kind`：`tgz` / `tar.gz` / `zip` / `bin`
+- `unpack.dir` 支持 `{version}`；`expect` 是解包后必须存在的相对路径
+- 多架构共用归档时用 `multi_arch = true`，且 `expect` 必须含 `{arch}`
 
-- 结构体：`File` / `Storage` / `Asset` / `Info` / `Unpack` / `Source`
-- 类型化字段：`Kind`（tgz/tar.gz/zip/bin）、`Platform`（linux-amd64…）、`Layout`
-- 校验：schema、id 唯一、平台白名单、url/sha256/size 配对、`dir` 冲突
-- 编辑（保留注释）留在 `tomledit`，由 `materials` 调用
-
-### 5.2 spec/profile —— `config/projects/<name>.toml`（K8s 结构 + 统一 exec）
-
-**格式用 TOML，结构照 K8s**：`apiVersion` / `kind` / `metadata` / `spec`。
-`spec.stages` 是**列表**，顺序即执行顺序；每个 stage 只有一条命令，没有类型分派。
-
-需要静态检查、又无法从命令行推导的信息放在 `spec.checks`（见 5.3），
-**不要为了检查方便给 stage 增加类型字段**——那会让"统一 exec"退化。
+### 5.2 流水线 `project/<name>/pipeline.toml`
 
 ```toml
 apiVersion = "cnb/v1"
 kind       = "Pipeline"
 
 [metadata]
-name = "offline-paketo-bk"
+name = "demo"
 
 [spec.project]
-directory = "project/offline-paketo-bk"
-platform = "linux-amd64"
+directory = "project/demo"
+platform  = "linux-amd64"
 
-# ── 物料：本项目锁定的版本（省略则取 lock 的 default）────────
+  [spec.project.base]
+  linux-amd64 = "debian:trixie-slim"
+
 [spec.assets.lifecycle]
 version = "0.21.29"
 
-[spec.assets.fnm]
-version = "1.39.0"
-
-[spec.assets.cnb]
-version = "3.0.0"
-
-# ── 阶段：列表顺序 = 执行顺序 ───────────────────────────────
-
-# ── 物料版本 ───────────────────────────────────────────────
-[spec.assets.lifecycle]
-version = "0.21.29"
-
-[spec.assets.fnm]
-version = "1.39.0"
-
-[spec.assets.uv]
-version = "0.13.8"
-
-[spec.assets.docker]
-version = "27.0.3"
-
-[spec.assets.jq]
-version = "1.8.2"
-
-[spec.assets.yq]
-version = "4.54.3"
-
-[spec.assets.pack]
-version = "0.40.11"
-
-[spec.assets.cnb]
-version = "3.0.0"
-
 [[spec.stages]]
-name    = "base"
-workdir = "."
+name        = "base"
+description = "build the base image"
+workdir     = "project/demo"
 run = [
-  "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/base.dockerfile",
-  "-t", "offline-builder-base-bk:latest",
-  "--build-arg", "BASE_IMAGE=debian:trixie-slim",
-  "--build-context", "bundle=bundle/linux-amd64",
+  "podman", "build", "-f", "docker/base.dockerfile",
+  "-t", "demo-base:${derived.architecture}",
+  "--build-arg", "BASE_IMAGE=${spec.project.base}",
   ".",
 ]
 
-[[spec.stages]]
-name    = "builder"
-workdir = "."
-run = [
-  "podman", "build",
-  "-f", "project/offline-paketo/docker/builder.dockerfile",
-  "-t", "offline-builder:latest",
-  "--build-context", "bundle=${runtime.bundle}/${spec.project.platform}",
-  "--build-context", "buildpacks=buildpacks/paketo",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
-  "--build-arg", "PROCFILE_BP_TAG=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.13.4",
-  "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}",
-  "--build-arg", "FNM_VERSION=${spec.assets.fnm.version}",
-  "--build-arg", "UV_VERSION=${spec.assets.uv.version}",
-  "--build-arg", "CNB_VERSION=${spec.assets.cnb.version}",
-  ".",
-]
-```
-
-### A.2 offline-paketo-bk（BK 契约，3 个镜像）
-
-```toml
-apiVersion = "cnb/v1"
-kind       = "Pipeline"
-
-[metadata]
-name = "offline-paketo-bk"
-
-[spec.project]
-directory = "project/offline-paketo-bk"
-platform = "linux-amd64"
-
-[[spec.stages]]
-name    = "base"
-workdir = "."
-run = [
-  "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/builder-base.dockerfile",
-  "-t", "offline-builder-base-bk:latest",
-  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
-  ".",
-]
-
-[[spec.stages]]
-name    = "builder"
-workdir = "."
-run = [
-  "podman", "build",
-  "-f", "project/offline-paketo-bk/docker/builder-build.dockerfile",
-  "-t", "offline-builder-build-bk:latest",
-  "--build-context", "bundle=${runtime.bundle}/${spec.project.platform}",
-  "--build-context", "buildpacks=buildpacks/paketo",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base-bk:latest",
-  "--build-arg", "BP_GO_MIRROR=http://192.168.11.4:5000/",
-  "--build-arg", "BUNDLE_ARCH=${spec.project.platform}",
-  ".",
-]
-```
-
-### 5.3 spec.checks —— 无法从 argv 推导的静态检查
-
-```toml
-# Dockerfile 的 COPY 源检查：显式声明待检查的 Dockerfile 与上下文
 [[spec.checks.dockerfiles]]
-path = "docker/builder.dockerfile"
-contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks/paketo" }
+path = "docker/base.dockerfile"
 ```
 
-为什么要单独一段：`run` 是任意命令，参数顺序不稳定，从 argv 反推
-"这条命令在构建哪个 Dockerfile"不可靠。检查目标写在配置里，命令怎么排都不影响。
+规则：
 
-### 5.3.2 脚手架
+- `spec.stages` 是列表，顺序即执行顺序；每个 stage 只有一条命令（`run` 的 argv）
+- 没有类型分派；静态检查信息放 `spec.checks`，不要给 stage 加类型字段
+- 占位符用完整配置路径，见 [pipeline.md](pipeline.md)
 
-```bash
-cnb init demo --container docker --base-image <镜像>
-```
+### 5.3 CNB 协议 `spec/lifecycle`
 
-生成自包含的项目目录：
+- `buildpack.toml`：`api` / `[buildpack]` / `sbom-formats` / `[[order]]` / `[[metadata.dependencies]]`
+- `order.toml`：`[[order]]` + `[[order.group]]`（`id` / `version` / `optional`）
+- 只解析，不生成；`cnb buildpack lint` 基于解析结果做规则检查
 
-```
-project/demo/
-├── pipeline.toml          # 流水线配置（base + builder 两阶段）
-├── assets.toml            # 物料清单（lifecycle / buildpacks / 示例）
-└── docker/
-    ├── base.dockerfile
-    └── builder.dockerfile
-```
+### 5.4 平台契约 `spec/platform`
 
-`assets.toml` 默认放在项目目录内；根目录解析与清单查找都以 profile 位置为准，
-因此在任意目录下运行都能定位自己的项目。
+环境变量 → `Env` 结构体：
 
-### 5.3.1 容器命令
-
-`spec.stages[].run` 的第一项是容器 CLI（默认 `podman`）。脚手架可用
-`--container docker` 或环境变量 `CNB_CONTAINER=docker` 指定；已存在的项目直接改
-`run` 数组首项即可，执行器不感知具体实现。
-
-### 5.4 占位符（stage run 与 spec.checks 通用）
-
-**命名规则：占位符就是配置里的完整路径**，不提供短名。看到 `${spec.project.platform}`
-就能在同一个文件里找到 `[spec.project] platform`，不存在"这个短名从哪来"的问题。
-
-| 占位符 | 含义 | 对应配置 |
-|---|---|---|
-| `${spec.project.platform}` | 目标平台，如 `linux-amd64` | `[spec.project] platform` |
-| `${spec.project.directory}` | 项目目录 | `[spec.project] dir` |
-| `${spec.project.base}` | 当前平台的基础镜像 | `[spec.project.base]` 里 platform 对应的值 |
-| `${spec.assets.<id>.version}` | 物料版本 | `[spec.assets.<id>] version`，缺省取 lock default |
-| `${derived.architecture}` | 架构，如 `amd64` | 由 `platform` 派生 |
-| `${derived.container_platform}` | `linux/amd64`，供 `docker build --platform` | 由 `platform` 把首个 `-` 换成 `/` |
-| `${runtime.repo}` | 仓库根绝对路径 | `--repo` / `CNB_REPO_ROOT` / 可执行文件位置 |
-| `${runtime.bundle}` | 物料目录绝对路径 | `--bundle` 或 lock 同级 `bundle/` |
-
-三个命名空间各有明确含义：
-
-- `spec.*`  —— 配置里能直接找到的值，占位符即路径
-- `derived.*` —— 由配置算出来的值（不另存字段，避免重复来源）
-- `runtime.*` —— 运行时环境提供、不在配置里的值
-
-`${spec.assets.*}` 只为**本 profile 声明过的物料**生成；未知占位符在 plan 阶段报错，
-错误信息提示用 `cnb pipeline variables <profile>` 自省。
-
-```bash
-$ cnb pipeline variables config/projects/offline-paketo.toml
-PLACEHOLDER                       VALUE
-${spec.project.platform}          linux-amd64
-${derived.architecture}           amd64
-${derived.container_platform}     linux/amd64
-${runtime.repo}                   /…/Learn-cnb-paketo
-${runtime.bundle}                 /…/Learn-cnb-paketo/bundle
-${spec.assets.lifecycle.version}  0.21.29
-```
-
-### A.4 旧结构里消失的东西
-
-| 旧字段 | 去处 |
+| 变量 | 字段 |
 |---|---|
-| `schema = 1` | `apiVersion = "cnb/v1"` |
-| `[project]` / `[docker]` | `spec.project`；`bundle_layout` 由 lock `[storage].layout` 决定 |
-| `[assets.*]` | 改为 `spec.assets.*`：仍按项目锁版本，省略取 lock default |
-| `[images.*]` | 删除：直接写进 `spec.stages[].run` |
-| `[commands.*]` | 删除：同上 |
-| `inject_versions` | 删除：改为在 `run` 里显式 `--build-arg X_VERSION=${spec.assets.x.version}` |
-| `desc` | 删除：注释即可 |
-| `after` | 删除：`stages` 列表顺序即顺序 |
-| `${image.base.tag}` | 改为字面量（与 base stage 的 `-t` 相同） |
+| `SOURCE_GET_URL` | `SourceURL` |
+| `REQUIRED_BUILDPACKS` | `Required` |
+| `OUTPUT_IMAGE` | `OutputImage` |
+| `CNB_RUN_IMAGE` | `RunImage` |
+| `CACHE_IMAGE` | `CacheImage` |
+| `CNB_APP_DIR` / `CNB_LAYERS_DIR` / `CNB_PLATFORM_DIR` | 目录 |
+| `CNB_PLATFORM_API` | `PlatformAPI` |
+| `CNB_EXPORT_MODE` | `ExportMode`（`layout` 默认 / `daemon` / `none`） |
+| `CNB_LAYER_ARCHIVE` | `LayerArchive`（layout 导出后的层归档路径） |
+| `CNB_BUILDPACK_ALIASES` | `BuildpackAliases` |
+
+`Parse(getenv)` 便于测试；`Validate()` 检查导出模式与必填项。
+
+### 5.5 镜像归档 `spec/imagefmt`
+
+- `Open(path)`：识别 OCI layout 目录或 docker-archive tar
+- `Write(format, dest)`：按目标格式写出，补齐 docker 兼容文件（`manifest.json`、`repositories`）
+- 供 `cnb image convert` 与 lifecycle 的 `packLayout` 使用
+
+## 六、删除清单（已完成）
+
+以下历史实现已删除，不再兼容：
+
+| 旧物 | 现状 |
+|---|---|
+| `tomledit` | 删除；写回由 `manifest.EditVersion` 完成 |
+| `repack` / `smartpkg` 包 | 删除；格式转换归 `spec/imagefmt` |
+| `.sha256` 与 `.sync.json` 双标记 | 保留 `.sha256`（旧标记）+ `.sync.json`（新），读取时兼容 |
+| profile 的 `[images.*]` / `[commands.*]` | 删除；统一为 `[[spec.stages]]` |
+| `internal/cnbconst` | 合并进 `spec/manifest` 常量 |

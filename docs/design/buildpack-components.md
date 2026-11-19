@@ -1,31 +1,30 @@
-# buildpack 组件化改造方案
+# buildpack 组件
 
 > 目标：**结构照官方模板，实现用自己的**。
 > 官方 buildpack 在构建阶段联网下载 SDK；我们的实现只替换"怎么拿到 SDK/依赖"，
 > 其余契约（目录、层名、launch.toml、detect 输出）与官方保持一致。
 
-## 一、目标结构
+## 一、目录结构
 
 ```
-buildpacks/            # 仓库级共享，按格式分组
-├── paketo/            # 自研组件（node-engine / cpython / go-dist …）
-└── heroku/            # BK/Heroku 风格（bk-buildpack-*，上游预编译）
-├── go/
-│   ├── go-dist/          # 提供 Go SDK（本地优先）
-│   ├── go-build/         # 编译
-│   └── go/               # meta：order 引用上面两个
-├── node/
-│   ├── node-engine/      # fnm 装 Node
-│   ├── npm-install/      # 安装依赖
-│   ├── npm-start/        # 写 launch.toml
-│   └── nodejs/           # meta
-└── python/
-    ├── cpython/          # uv 提供解释器
-    ├── pip-install/      # 安装依赖
-    └── python/           # meta
+buildpacks/                 # 仓库级共享，按格式分组
+└── paketo/                 # 自研组件（buildpack API 0.12）
+    ├── go-dist/            #   提供 Go SDK（本地优先，镜像源可配）
+    ├── go-build/           #   编译 Go 应用
+    ├── go/                 #   meta：order 引用上面两个
+    ├── node-engine/        #   fnm 安装 Node
+    ├── npm-install/        #   安装依赖
+    ├── npm-start/          #   写 launch.toml
+    ├── nodejs/             #   meta
+    ├── cpython/            #   uv 提供解释器
+    ├── pip-install/        #   安装依赖
+    └── python/             #   meta
 ```
 
-每个组件目录下：
+当前只有 `paketo/` 一个分组。`heroku/`（BK 上游预编译组件）曾存在，
+相关项目已移除；需要时按同样的 `<id>/<version>/` 布局新增分组。
+
+每个组件目录：
 
 ```
 <id>/<version>/
@@ -33,8 +32,7 @@ buildpacks/            # 仓库级共享，按格式分组
 └── bin/{detect,build}
 ```
 
-（官方还有 `linux/<arch>/bin/` 分层，我们是单架构脚本，直接放 `bin/` 即可，
- 与官方"打包前"的源码布局一致。）
+单架构脚本直接放 `bin/`，与官方"打包前"的源码布局一致。
 
 ## 二、组件契约
 
@@ -122,38 +120,3 @@ requires = [{ name = "node" }]
 
 > 规则只约束"真正提供外部依赖/SBOM"的组件，避免对 meta 与纯安装类组件
 > 产生无意义告警。
-
-## 七、迁移进度（已完成）
-
-| 语言 | 组件 | 状态 |
-|---|---|---|
-| node | node-engine 8.12.0 / npm-install 2.3.36 / npm-start 2.5.13 / nodejs(meta) | ✅ e2e 通过 |
-| python | cpython 1.18.51 / pip-install 0.7.51 / python(meta) | ✅ e2e 通过 |
-| go | go-dist 2.11.2 / go-build 2.4.48 / go(meta) | ✅ e2e 通过 |
-| procfile | 官方 5.13.4（预编译产物） | ✅ e2e 通过 |
-
-e2e 覆盖：`just test-e2e-core-all`（4 个用例，均 HTTP 200）。
-
-### 下载源（可配置，国内默认）
-
-| 组件 | 变量 | 默认 |
-|---|---|---|
-| go-dist | `BP_GO_MIRROR` | `https://mirrors.aliyun.com/golang/` |
-| cpython | `UV_PYTHON_INSTALL_MIRROR` | gh-proxy 加速的 python-build-standalone |
-| pip-install | `UV_INDEX_URL` | `https://pypi.tuna.tsinghua.edu.cn/simple` |
-| npm-install | `NPM_CONFIG_REGISTRY` | `https://registry.npmmirror.com` |
-
-## 七、迁移步骤
-
-1. **node**：拆 `node-engine` / `npm-install` / `npm-start` + `nodejs` meta，
-   e2e 通过后删除旧的单包 `node`
-2. **python**：拆 `cpython` / `pip-install` + `python` meta
-3. **go**：拆 `go-dist` / `go-build` + `go` meta
-4. 更新 `order.toml` 只引用三个 meta
-5. `cnb buildpack lint` 接入 `script/ci.sh`
-
-## 八、不做的部分
-
-- 不引入官方产物（不再从 builder 镜像复制 buildpacks）
-- 不做动态版本解析（`[[metadata.dependencies]]` 只声明锁定版本）
-- 不支持多架构脚本（沿用现有单架构 + 平台参数）

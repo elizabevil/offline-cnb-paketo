@@ -1,8 +1,8 @@
 # offline-paketo-bk 构建流水线
-#   校验：cnb pipeline profile validate config/projects/offline-paketo-bk.toml
-#   计划：cnb pipeline plan config/projects/offline-paketo-bk.toml
-#   检查：cnb lint config/projects/offline-paketo-bk.toml
-#   占位符：见下方说明；自省用 cnb pipeline variables config/projects/offline-paketo-bk.toml
+#   校验：cnb pipeline profile validate project/offline-paketo-bk/pipeline.toml
+#   计划：cnb pipeline plan project/offline-paketo-bk/pipeline.toml
+#   检查：cnb lint project/offline-paketo-bk/pipeline.toml
+#   占位符：见下方说明；自省用 cnb pipeline variables project/offline-paketo-bk/pipeline.toml
 
 apiVersion = "cnb/v1"
 kind       = "Pipeline"
@@ -30,7 +30,7 @@ name = "offline-paketo-bk"
 #   ${spec.assets.<id>.version}    物料版本
 #                                  ← [spec.assets.<id>] version（缺省取 lock）
 #
-#   自省：cnb pipeline variables config/projects/<name>.toml
+#   自省：cnb pipeline variables project/<name>/pipeline.toml
 
 [spec.project]
 directory = "project/offline-paketo-bk"

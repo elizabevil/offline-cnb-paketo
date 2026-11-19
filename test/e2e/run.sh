@@ -9,7 +9,7 @@ say "e2e: ${case_name}  (${app_dir})"
 
 # 保证 builder 是最新构建（E2E_SKIP_BUILD=1 可跳过）
 if [ "${E2E_SKIP_BUILD:-0}" != "1" ] && [ "${E2E_BUILT:-0}" != "1" ]; then
-  profile="${E2E_PROFILE:-${REPO_ROOT}/config/projects/offline-paketo.toml}"
+  profile="${E2E_PROFILE:-${REPO_ROOT}/project/offline-paketo/pipeline.toml}"
   say "rebuild builder ($(basename "${profile}"))"
   if ! run_step "rebuild builder" "rebuild-${case_name}" \
       "${CNB}" pipeline run "${profile}"; then

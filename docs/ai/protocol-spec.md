@@ -57,7 +57,7 @@ func unknownKeys(data []byte, known map[string]bool) []warn.Warning {
 ```
 
 - `known` 集合显式列出当前支持的键
-- 告警要能被上层展示（`buildpack lint`、`cnb config show`）
+- 告警要能被上层展示（`cnb buildpack lint`、`cnb pipeline variables`）
 - 禁止用 `toml.Decoder.DisallowUnknownFields()` 直接报错：协议升级需要渐进兼容
 
 ## 四、单一解析器

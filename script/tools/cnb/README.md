@@ -97,23 +97,26 @@ gofmt -l . ; go vet ./... ; go test ./...
 
 ---
 
-## 三、新建一个项目（模板）
+## 三、新建一个项目（复制参考项目）
 
 ```bash
-script/bin/cnb-linux-amd64 init my-proj        # 生成 pipeline.toml / assets.toml / Dockerfile
-script/bin/cnb-linux-amd64 profile show config/projects/my-proj.toml # 分组查看（不平铺）
-script/bin/cnb-linux-amd64 profile validate config/projects/my-proj.toml
+script/bin/cnb-linux-amd64 init my-proj                       # 参考 project/offline-paketo
+script/bin/cnb-linux-amd64 init my-proj --from project/offline-paketo
+script/bin/cnb-linux-amd64 pipeline profile validate project/my-proj/pipeline.toml
+script/bin/cnb-linux-amd64 materials validate --file project/my-proj/assets.toml
 ```
 
-模板只写结构与注释，物料/镜像/命令留成占位，避免猜业务。
-`profile show` 按「项目 / 构建 / 物料 / 镜像 / 命令」分组输出。
+生成方式：复制参考项目 → 替换项目名与目录 → 带上 `assets.toml`。
+不维护手写模板，避免与真实项目漂移（见 `docs/design/scaffold.md`）。
+
+项目目录自包含：`pipeline.toml`、`assets.toml`、`justfile`、`docker/`。
 
 ## 四、新增一个物料（不动代码）
 
 分两步，都在配置里：
 
 1. `assets.lock.toml` 增加物料本体（版本 / URL / sha256 / 平台），
-   脚手架：`cnb init <name>`（内嵌模板，渲染后由 just check 校验）。
+   物料清单放在项目目录：`<dir>/assets.toml`（`cnb init` 会带一份）。
 2. 项目 profile 在 `[assets.<id>]` 下声明引用（键名即 id）：
 
 ```toml
@@ -125,11 +128,11 @@ platforms = ["linux-amd64"]  # 省略表示全部平台
 `cnb pipeline profile validate` 会与 lock 交叉校验：id / 版本 / 平台必须真实存在，
 写错会直接列出可选值。
 
-流程规则（`[[stage]]`）：
+流程规则（`spec.stages`）：
 
-- 顺序即数组顺序；每步只能引用一个已定义的 `image` 或 `command`
-- 定义了却没进流程的镜像/命令会报错，防止漏写
-- `${image.<n>.tag}` 只能引用**流程中更早出现**的镜像，反序会直接报错
+- 列表顺序即执行顺序；每个 stage 一条命令（`run` 数组 = argv）
+- `description` 仅用于展示，不影响执行
+- 占位符用完整配置路径（`${spec.project.platform}`），未知占位符在 plan 阶段报错
 
 流程：填 lock → `just fetch <id>@<version>` → `just pin <id>` → 回填 sha256 → `just verify`。
 
@@ -139,7 +142,7 @@ platforms = ["linux-amd64"]  # 省略表示全部平台
 
 ```bash
 just tools     # 编译到 script/bin/cnb-<os>-<arch>
-just check     # lock 结构 + 模板合法性 + bash -n + gofmt + vet + 单测
+just check     # lock 结构 + 脚手架可生成 + bash -n + gofmt + vet + 单测
 go test ./...  # 只跑单测
 ```
 

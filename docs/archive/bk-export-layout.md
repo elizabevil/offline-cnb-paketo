@@ -1,3 +1,6 @@
+> **归档**：layout 导出实验记录。当前 BK 流程走 daemon 导出（bksmartpacker 需要 image save）。
+> 相关计划见 [`docs/proposals/bk-export-plan.md`](../proposals/bk-export-plan.md)。
+
 # BK 导出：layout 预置方案
 
 > 目标：在无 daemon、无 podman 兼容 API 的前提下，用 lifecycle exporter 的
@@ -135,11 +138,3 @@ tar -xzOf dist/linux-<arch>/s-mart.tar.gz web.tgz | tar -tf - | grep -E '^(oci-l
 
 - 回退到方案 B：容器内 `podman load` run 镜像 → `podman build`（`FROM run; COPY . /app`）→ `podman save --format oci-archive`
 - B 需要自行写 `Entrypoint` / `CNB_*` / buildpack 标签，成本更高，但完全绕开 lifecycle exporter
-
-## 八、提交计划
-
-1. `feat(imagefmt): 暴露 ConfigDigest`
-2. `feat(archive): ExtractTar`
-3. `feat(lifecycle): PrepareRunImage + 引用归一化`（含单测）
-4. `refactor(lifecycle): layout 模式使用预置镜像的 identifier`
-5. `docs: 本方案`

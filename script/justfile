@@ -84,7 +84,7 @@ check: tools
       if [ -n "$bad" ]; then echo "  ✗ 禁止无意义包名:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ 包名无 util/common/misc/types/api"
     @cd {{_script}}/.. && \
-      for f in config/projects/*.toml; do \
+      for f in project/*/pipeline.toml; do \
         grep -q "── 占位符" "$f" || { echo "  ✗ $f 缺少占位符说明（配置必须自带占位符说明）"; exit 1; }; \
       done; \
       echo "  ✓ 配置必须自带占位符说明"
@@ -125,9 +125,9 @@ verify *ids:
 pin *ids:
     @{{_cnb_bin}} --platform {{platform}} materials pin {{ids}}
 
-# 规范化 SmartPackage 的 web.tgz（docker-save → OCI layout）；目标为目录或 *.tar.gz
-repack target:
-    @{{_cnb_bin}} pipeline repack {{target}}
+# 镜像归档格式转换：oci-layout ↔ docker-archive
+convert src dst *args:
+    @{{_cnb_bin}} image convert {{src}} {{dst}} {{args}}
 
 
 # ── 维护 ────────────────────────────────────────────────────────────────────

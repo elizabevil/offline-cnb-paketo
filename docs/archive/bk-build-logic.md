@@ -1,5 +1,5 @@
-> **历史文档**：构建已改为 podman build + lifecycle（无 pack builder create），
-> run 镜像不再使用（exporter 使用 bksmartpacker 的 fake runner）。
+> **归档**：`pack builder create` 时代的构建逻辑，已不再执行。
+> 当前实现见 [`project/offline-paketo-bk/docs/architecture.md`](../../project/offline-paketo-bk/docs/architecture.md)。
 
 # BK 方案构建逻辑
 
@@ -286,7 +286,7 @@ just download-all arch=linux-arm64    # 下载 arm64 工具链
 just docker-build arch=linux-arm64    # 构建 arm64 builder
 ```
 
-架构映射关系定义在 `config/projects/*.toml + assets.lock.toml`：
+架构映射关系定义在 `project/*/pipeline.toml + assets.lock.toml`：
 
 | 工具 | amd64 | arm64 |
 |------|-------|-------|
@@ -360,7 +360,7 @@ pack-builder-create    → offline-builder-bk:latest       # 最终 builder（pa
 |------|------|
 | `docker/entrypoint.sh` | 移除 `run_export_image`/`run_export_layers`/`detect_buildpack`，改用标准 exporter |
 | `scripts/docker.just` | 新增 `pack-builder-create`/`docker-build-image`/`docker-build-legacy` 配方 |
-| `config/projects/*.toml + assets.lock.toml` | 新增 `build_image_tag` 变量 |
+| `project/*/pipeline.toml + assets.lock.toml` | 新增 `build_image_tag` 变量 |
 | `apps/build.sh` | 增加 `--buildpack-cfg`、架构自动感应、环境变量支持 |
 
 ### 删除文件

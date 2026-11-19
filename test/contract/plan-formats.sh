@@ -2,7 +2,7 @@
 # 契约：三种格式都能渲染且非空（防输出格式回归）
 source "$(dirname "$0")/../lib/common.sh"
 CASE="contract/plan"
-cfg="${REPO_ROOT}/config/projects/offline-paketo.toml"
+cfg="${REPO_ROOT}/project/offline-paketo/pipeline.toml"
 for f in text shell json yaml; do
   out="$("${CNB}" pipeline plan "${cfg}" --format "${f}" 2>&1)"
   [ -n "${out}" ] && ok "format=${f} 非空" || bad "format=${f} 为空"
