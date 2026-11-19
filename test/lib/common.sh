@@ -5,7 +5,9 @@ set -euo pipefail
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${TEST_ROOT}/.." && pwd)"
 CNB="${CNB_BIN:-${REPO_ROOT}/script/bin/cnb-linux-amd64}"
-BUILDER_IMAGE="${BUILDER_IMAGE:-offline-builder:latest}"
+_e2e_arch="$(uname -m)"
+case "${_e2e_arch}" in aarch64) _e2e_arch=arm64 ;; x86_64) _e2e_arch=amd64 ;; esac
+BUILDER_IMAGE="${BUILDER_IMAGE:-offline-builder:${_e2e_arch}}"
 RUN_IMAGE="${RUN_IMAGE:-offline-run:latest}"
 PASS=0 FAIL=0 CASE=""
 

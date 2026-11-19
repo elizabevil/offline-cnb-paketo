@@ -5,14 +5,14 @@
 # 依赖: 需要先构建 base 镜像 (base.dockerfile) 或指定基础镜像
 # -----------------------------------------------------------------------------
 # 构建方式:
-#   docker build -t offline-builder:latest -f docker/Dockerfile . \
-#     --build-arg BASE_IMAGE_TAG=offline-builder-base:latest
+#   docker build -t offline-builder:<arch> -f docker/Dockerfile . \
+#     --build-arg BASE_IMAGE_TAG=offline-builder-base:<arch>
 #
 #   一步构建（自动先构建 base）:
 #   just docker-build
 # -----------------------------------------------------------------------------
 # 使用方式:
-#   pack build my-app --builder offline-builder:latest
+#   pack build my-app --builder offline-builder:<arch>
 # =============================================================================
 
 # ═════════════════════════════════════════════════════════════════════════

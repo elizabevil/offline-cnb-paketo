@@ -13,7 +13,7 @@ type (
 
 // File 是 assets.lock.toml 的完整结构。
 type File struct {
-	Schema  int
+	Schema  int     `toml:"schema"`
 	Meta    Meta    `toml:"meta"`
 	Storage Storage `toml:"storage"`
 	Assets  []Asset `toml:"asset"`

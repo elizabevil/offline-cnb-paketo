@@ -32,8 +32,9 @@ name    = "base"
 workdir = "project/offline-paketo"
 run = [
   "podman", "build",
+  "--platform", "${oci_platform}",
   "-f", "docker/base.dockerfile",
-  "-t", "offline-builder-base:latest",
+  "-t", "offline-builder-base:${arch}",
   "--build-arg", "BASE_IMAGE=${base_image}",
   ".",
 ]
@@ -43,11 +44,12 @@ name    = "builder"
 workdir = "project/offline-paketo"
 run = [
   "podman", "build",
+  "--platform", "${oci_platform}",
   "-f", "docker/builder.dockerfile",
-  "-t", "offline-builder:latest",
+  "-t", "offline-builder:${arch}",
   "--build-context", "bundle=${bundle}",
   "--build-context", "buildpacks=${repo}/buildpacks/paketo",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:latest",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:${arch}",
   "--build-arg", "BUNDLE_ARCH=${platform}",
   "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}",
   "--build-arg", "FNM_VERSION=${asset.fnm.version}",

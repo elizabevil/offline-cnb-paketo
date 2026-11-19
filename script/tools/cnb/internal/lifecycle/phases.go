@@ -142,8 +142,9 @@ func (c *Config) prepareRunImage() error {
 		// 预置目录由 root 创建，需交给运行时用户，否则 exporter 无法写入
 		return c.chownLayout()
 	}
-	// daemon 模式：run 镜像由调用方（bksmartpacker 创建 fake runner / 真实 base）
-	// 预先存在于运行时中，无需再次载入。
+	// daemon 模式：run 镜像由调用方预先放入运行时，无需再次载入。
+	// 注意：该路径仅在真 dockerd 下可用；podman 兼容层会触发 lifecycle 的
+	// singleton 连接错误（issue #1763），修复前保持 layout 为默认。
 	return nil
 }
 
@@ -217,5 +218,3 @@ func (c Config) log() *slog.Logger {
 	}
 	return slog.New(render.NewCompactHandler(os.Stderr, slog.LevelInfo))
 }
-// daemon 模式依赖容器运行时；podman 兼容层存在 singleton 连接问题
-// （issue #1763），修复前保持 layout 为默认。

@@ -51,9 +51,9 @@ just verify                 # 校验本项目物料（范围取自配置）
 
 | 阶段 | Dockerfile | 产物 tag | 说明 |
 |---|---|---|---|
-| base | `docker/base.dockerfile` | `offline-builder-base:latest` | 系统依赖层 |
+| base | `docker/base.dockerfile` | `offline-builder-base:<arch>` | 系统依赖层 |
 | run | `docker/run.dockerfile` | `offline-run:latest` | 运行时最小层 |
-| builder | `docker/Dockerfile` | `offline-builder:latest` | lifecycle + buildpack + fnm/uv |
+| builder | `docker/Dockerfile` | `offline-builder:<arch>` | lifecycle + buildpack + fnm/uv |
 
 - 构建上下文是**仓库根**（`[docker] context = "."`），便于共享 `bundle/`
 - Dockerfile 中物料路径形如 `bundle/${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/…`

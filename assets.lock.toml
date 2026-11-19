@@ -1,4 +1,4 @@
-Schema = 1
+schema = 1
 
 [meta]
 name = 'learn-cnb-paketo'
@@ -247,7 +247,7 @@ expect = ['cnb']
 [asset.platform.linux-amd64]
 kind = 'local'
 source = 'script/bin/cnb-linux-amd64'
-sha256 = 'fbf6e90f2aa41fe1f29717fc1690f1bf4abf3f5ed5a4660933f8834a32e567b9'
+sha256 = '124983b4cdab4830a3d77e51b8bcf414f64176442497848924f3aab8fcfbab6a'
 
 [asset.platform.linux-arm64]
 kind = 'local'

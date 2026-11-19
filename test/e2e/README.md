@@ -80,7 +80,7 @@ exporter -run-image foo:latest bar:latest   → "-run-image is unsupported"
 | `/cnb/runtimes` | `bundle/runtimes`（可用 `CNB_RUNTIMES` 覆盖） | 只读 | 本地 Node/Python 运行时，完全离线用 |
 
 ```bash
-podman run --rm --userns=keep-id   -v <app>:/workspace:ro   -v <work>/layers:/layers   -v <work>/cache:/layers/cache   -v <work>/platform:/platform   -v bundle/runtimes:/cnb/runtimes:ro   -v $XDG_RUNTIME_DIR/podman/podman.sock:/var/run/docker.sock   -e DOCKER_HOST=unix:///var/run/docker.sock   -e CNB_PLATFORM_API=0.15   --entrypoint /cnb/lifecycle/<phase> offline-builder:latest <args>
+podman run --rm --userns=keep-id   -v <app>:/workspace:ro   -v <work>/layers:/layers   -v <work>/cache:/layers/cache   -v <work>/platform:/platform   -v bundle/runtimes:/cnb/runtimes:ro   -v $XDG_RUNTIME_DIR/podman/podman.sock:/var/run/docker.sock   -e DOCKER_HOST=unix:///var/run/docker.sock   -e CNB_PLATFORM_API=0.15   --entrypoint /cnb/lifecycle/<phase> offline-builder:<arch> <args>
 ```
 
 要点：

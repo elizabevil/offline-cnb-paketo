@@ -194,7 +194,9 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
 	// 导出方式：
 	//   layout（默认）：容器内导出 OCI layout，再打包为层包写回宿主目录
-	//   daemon：导出到容器运行时，构建后由 image save 取回（需要可用 docker 兼容 API）
+	//   daemon：导出到容器运行时，构建后由 image save 取回。
+	//           仅适用于真 dockerd；podman 兼容层存在 singleton 连接问题
+	//           （lifecycle issue #1763），待上游修复后再评估。
 	if exportMode() == "daemon" {
 		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
 	} else {
@@ -389,6 +391,3 @@ func fakeRunnerImage() string {
 	}
 	return cnbFakeRunnerImageBase + ":latest"
 }
-// 注意：daemon 模式仅适用于真 dockerd；podman 的 docker 兼容层会让
-// lifecycle 导出阶段报 "singleton connection already in use"
-// （lifecycle 0.21.29，issue #1763，尚未修复）。
