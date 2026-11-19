@@ -38,7 +38,8 @@ func newPipelineLintCmd() *cobra.Command {
 				targets := make([]checks.DockerfileTarget, 0, len(p.Dockerfiles))
 				for _, t := range p.Dockerfiles {
 					targets = append(targets, checks.DockerfileTarget{
-						Name: t.Name, Dockerfile: t.Dockerfile, Context: t.Context, Contexts: t.Contexts,
+						Name: t.Name, Dockerfile: t.Dockerfile, Context: t.Context,
+						Contexts: t.Contexts, Args: t.Args,
 					})
 				}
 				for _, f := range checks.CheckDockerfiles(targets, p.Bundle, filepath.Join(root, "buildpacks")) {

@@ -19,15 +19,15 @@ script/tools/cnb/
 
 ## 一、命令契约（改动前必读）
 
-| 命令 | 输出 | 退出码 | 谁依赖 |
-|---|---|---|---|
-| `list` | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0 | 终端/脚本（`cut -f1`） |
-| `get <id> <platform>` | shell 赋值 8 行，字段名固定 | 0 / 2 | `just` 配方 |
-| `validate` | 成功一行 `✓`；失败逐条 `✗` 到 stderr | 0 / 1 | `just check`、CI |
-| `platforms` | 逗号分隔 | 0 | 人工 |
-| `verify [ids...]` | 逐物料 `✓/✗` | 0 / 1 | `just verify`、CI 门禁 |
-| `pin [ids...]` | TOML 片段（不写回） | 0 / 1 | 人工回填 |
-| `image convert <src> <dst>` | `oci-layout` / `docker-archive` | 0 / 1 | `cnb image convert` |
+| 命令                        | 输出                                              | 退出码 | 谁依赖                 |
+|-----------------------------|---------------------------------------------------|--------|------------------------|
+| `list`                      | TSV：`id\tversion\tkind\tplatforms`，**列序固定** | 0      | 终端/脚本（`cut -f1`） |
+| `get <id> <platform>`       | shell 赋值 8 行，字段名固定                       | 0 / 2  | `just` 配方            |
+| `validate`                  | 成功一行 `✓`；失败逐条 `✗` 到 stderr            | 0 / 1  | `just check`、CI       |
+| `platforms`                 | 逗号分隔                                          | 0      | 人工                   |
+| `verify [ids...]`           | 逐物料 `✓/✗`                                    | 0 / 1  | `just verify`、CI 门禁 |
+| `pin [ids...]`              | TOML 片段（不写回）                               | 0 / 1  | 人工回填               |
+| `image convert <src> <dst>` | `oci-layout` / `docker-archive`                   | 0 / 1  | `cnb image convert`    |
 
 约定：
 

@@ -43,6 +43,7 @@ type DockerfileTarget struct {
 	Dockerfile string
 	Context    string
 	Contexts   map[string]string
+	Args       map[string]string
 }
 
 // Options 是构建计划所需的运行环境。
@@ -151,7 +152,15 @@ func expandChecks(f *profile.File, v vars, repo string) ([]DockerfileTarget, err
 			}
 			contexts[name] = joinAbs(repo, value)
 		}
-		out = append(out, DockerfileTarget{Name: dc.Path, Dockerfile: dockerfile, Context: contextDir, Contexts: contexts})
+		args := make(map[string]string, len(dc.Args))
+		for _, name := range slices.Sorted(maps.Keys(dc.Args)) {
+			value, err := v.expand(dc.Args[name])
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".args." + name, Value: dc.Args[name], Reason: err.Error()}
+			}
+			args[name] = value
+		}
+		out = append(out, DockerfileTarget{Name: dc.Path, Dockerfile: dockerfile, Context: contextDir, Contexts: contexts, Args: args})
 	}
 	return out, nil
 }

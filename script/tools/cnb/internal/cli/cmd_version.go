@@ -2,8 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"learn-cnb-paketo/tools/cnb/internal/version"
+
+	"github.com/spf13/cobra"
 )
 
 func newVersionCmd() *cobra.Command {

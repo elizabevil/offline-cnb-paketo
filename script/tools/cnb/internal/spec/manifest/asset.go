@@ -5,18 +5,18 @@ import (
 	"strings"
 )
 
-// KnownPlatforms 是受支持的平台集合。
-var KnownPlatforms = map[string]bool{
-	PlatformAMD64: true,
-	PlatformARM64: true,
-}
-
-// Ref 返回 id@version 形式的引用。
+// KnownPlatforms is the set of platforms the manifest accepts. It is derived
+// from the platform whitelist so both cannot drift apart.
+var KnownPlatforms = func() map[string]bool {
+	out := make(map[string]bool, len(SupportedPlatforms()))
+	for _, p := range SupportedPlatforms() {
+		out[p] = true
+	}
+	return out
+}()
 
 // Ref 返回 id@version 形式的引用。
 func (a Asset) Ref() Ref { return a.ID + "@" + a.Version }
-
-// Dir 返回展开后的解压目录（相对 binaries/<platform>）。
 
 // Dir 返回解包目录（相对 binaries）。
 func (a Asset) Dir() string {

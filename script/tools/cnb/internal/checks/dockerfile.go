@@ -2,6 +2,7 @@ package checks
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,9 @@ func (f DockerfileSourceFinding) Describe() string {
 func CheckDockerfiles(targets []DockerfileTarget, bundleDir, buildpacksDir string) []DockerfileSourceFinding {
 	var out []DockerfileSourceFinding
 	for _, t := range targets {
+		vars := dockerfileVars(t.Dockerfile, t.Args)
 		for _, src := range copySources(t.Dockerfile) {
+			src.path = expandVars(src.path, vars)
 			resolved, ok := resolveSource(src, t.Context, t.Contexts, bundleDir, buildpacksDir)
 			if !ok {
 				continue
@@ -43,12 +46,51 @@ func CheckDockerfiles(targets []DockerfileTarget, bundleDir, buildpacksDir strin
 	return out
 }
 
-// DockerfileTarget is one Dockerfile plus the contexts its COPY uses.
+// DockerfileTarget is one Dockerfile plus the contexts and variables its COPY
+// sources use.
 type DockerfileTarget struct {
 	Name       string
 	Dockerfile string
 	Context    string
 	Contexts   map[string]string
+	// Args are the build args (same meaning as --build-arg) used to expand
+	// variables in COPY sources.
+	Args map[string]string
+}
+
+// dockerfileVars collects ARG/ENV defaults from the Dockerfile, then overlays
+// explicitly configured build args. Later values win, mirroring Docker.
+func dockerfileVars(dockerfile string, args map[string]string) map[string]string {
+	vars := map[string]string{}
+	data, err := os.ReadFile(dockerfile)
+	if err == nil {
+		for line := range strings.SplitSeq(string(data), "\n") {
+			fields := strings.Fields(strings.TrimSpace(line))
+			if len(fields) < 2 {
+				continue
+			}
+			switch strings.ToUpper(fields[0]) {
+			case "ARG", "ENV":
+				name, value, ok := strings.Cut(fields[1], "=")
+				if !ok || value == "" {
+					continue // ARG without default: resolved by --build-arg or skipped
+				}
+				vars[name] = value
+			}
+		}
+	}
+	maps.Copy(vars, args)
+	return vars
+}
+
+// expandVars substitutes ${NAME} and $NAME using known values. Unknown
+// variables are left untouched so resolveSource can skip the source.
+func expandVars(s string, vars map[string]string) string {
+	for name, value := range vars {
+		s = strings.ReplaceAll(s, "${"+name+"}", value)
+		s = strings.ReplaceAll(s, "$"+name, value)
+	}
+	return s
 }
 
 // copySource is one COPY/ADD source with its optional --from value.
@@ -64,7 +106,7 @@ func copySources(dockerfile string) []copySource {
 		return nil
 	}
 	var out []copySource
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		fields := strings.Fields(strings.TrimSpace(line))
 		if len(fields) < 3 {
 			continue

@@ -58,3 +58,33 @@ func TestCheckDockerfilesReportsMissing(t *testing.T) {
 		t.Errorf("unexpected source: %s", got[0].Source)
 	}
 }
+
+func TestCheckDockerfilesExpandsVariables(t *testing.T) {
+	dir := t.TempDir()
+	ctx := filepath.Join(dir, "project")
+	if err := os.MkdirAll(filepath.Join(ctx, "binaries", "v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	df := filepath.Join(ctx, "Dockerfile")
+	content := "ARG ARCH=amd64\nARG VERSION\nENV DIR=binaries\nCOPY ${DIR}/${VERSION}/ /out/\nCOPY ${ARCH}/missing/ /out2/\n"
+	if err := os.WriteFile(df, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := CheckDockerfiles([]DockerfileTarget{{
+		Name: "builder", Dockerfile: df, Context: ctx,
+		Args: map[string]string{"VERSION": "v1"},
+	}}, "", "")
+	if len(got) != 1 {
+		t.Fatalf("want 1 finding, got %d: %+v", len(got), got)
+	}
+	if got[0].Source != "amd64/missing/" {
+		t.Errorf("unexpected source: %s", got[0].Source)
+	}
+}
+
+func TestExpandVarsLeavesUnknown(t *testing.T) {
+	got := expandVars("/${KNOWN}/${UNKNOWN}/x", map[string]string{"KNOWN": "k"})
+	if want := "/k/${UNKNOWN}/x"; got != want {
+		t.Errorf("expandVars = %q, want %q", got, want)
+	}
+}

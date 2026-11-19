@@ -80,7 +80,7 @@ func (c FetchConfig) download(ctx context.Context, src, dest string) error {
 	}
 	tmp := dest + ".part"
 	var lastErr error
-	for attempt := 0; attempt < c.Retries; attempt++ {
+	for attempt := range c.Retries {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():

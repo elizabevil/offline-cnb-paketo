@@ -6,9 +6,11 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
@@ -18,7 +20,7 @@ import (
 
 // File and layout conventions.
 const (
-	ManifestName = "buildpack.toml"
+	ManifestName = FileBuildpackManifest
 	DetectScript = "detect"
 	BuildScript  = "build"
 	BinDir       = "bin"
@@ -29,6 +31,10 @@ const (
 	SBOMMarker      = ".sbom."
 	defaultLevelErr = specchecks.LevelError
 )
+
+// SupportedBuildpackAPIs lists the buildpack APIs this toolchain can run.
+// Keep it in sync with the lifecycle version pinned in assets.lock.toml.
+var SupportedBuildpackAPIs = []string{"0.12"}
 
 // Rule scopes.
 const (
@@ -86,7 +92,7 @@ type rule struct {
 	scope   string
 	level   string
 	message string
-	run     func(*buildpack, *Ruleset) []string // reasons; empty means pass
+	run     func(*buildpack, *Ruleset) error // nil means pass
 }
 
 // ruleTable is the single place where checks are declared.
@@ -95,6 +101,7 @@ func ruleTable() []rule {
 		{"manifest-exists", scopeAll, defaultLevelErr, "missing buildpack.toml", checkManifestExists},
 		{"manifest-parses", scopeAll, defaultLevelErr, "invalid buildpack.toml", checkManifestParses},
 		{"api-declared", scopeAll, defaultLevelErr, "missing api", requireField(func(b *speclifecycle.Buildpack) string { return b.API })},
+		{"api-supported", scopeAll, defaultLevelErr, "unsupported buildpack api", checkSupportedAPI},
 		{"id-declared", scopeAll, defaultLevelErr, "missing [buildpack] id", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.ID })},
 		{"version-declared", scopeAll, defaultLevelErr, "missing [buildpack] version", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.Version })},
 		{"name-declared", scopeAll, defaultLevelErr, "missing [buildpack] name", requireField(func(b *speclifecycle.Buildpack) string { return b.BuildpackInfo.Name })},
@@ -141,9 +148,9 @@ func CheckBuildpackWith(dir string, rs *Ruleset) BuildpackReport {
 		if !enabled {
 			continue
 		}
-		for _, reason := range r.run(bp, rs) {
+		if err := r.run(bp, rs); err != nil {
 			rep.Findings = append(rep.Findings, Finding{
-				Name: bp.leaf, Message: withReason(message, reason), IsError: level == specchecks.LevelError,
+				Name: bp.leaf, Message: withReason(message, err), IsError: level == specchecks.LevelError,
 			})
 		}
 	}
@@ -196,57 +203,72 @@ func inScope(scope string, bp *buildpack) bool {
 	}
 }
 
+// errNoDetail marks a failure that needs no extra detail beyond the rule message.
+var errNoDetail = errors.New("no detail")
+
 // withReason appends a concrete reason to the rule message.
-func withReason(message, reason string) string {
-	if reason == "" {
+func withReason(message string, err error) string {
+	if errors.Is(err, errNoDetail) {
 		return message
 	}
-	return fmt.Sprintf("%s: %s", message, reason)
+	return fmt.Sprintf("%s: %s", message, err)
 }
 
 // ── individual checks ──────────────────────────────────────────────────────
 
-func checkManifestExists(bp *buildpack, _ *Ruleset) []string {
+func checkManifestExists(bp *buildpack, _ *Ruleset) error {
 	if bp.readErr != nil {
-		return []string{""}
+		return errNoDetail
 	}
 	return nil
 }
 
-func checkManifestParses(bp *buildpack, _ *Ruleset) []string {
+func checkManifestParses(bp *buildpack, _ *Ruleset) error {
 	if bp.readErr != nil || bp.parseOK {
 		return nil
 	}
-	return []string{"unparsable"}
+	return errors.New("unparsable")
 }
 
 // requireField reports a missing manifest field.
-func requireField(get func(*speclifecycle.Buildpack) string) func(*buildpack, *Ruleset) []string {
-	return func(bp *buildpack, _ *Ruleset) []string {
+func requireField(get func(*speclifecycle.Buildpack) string) func(*buildpack, *Ruleset) error {
+	return func(bp *buildpack, _ *Ruleset) error {
 		if bp.parsed != nil && get(bp.parsed) != "" {
 			return nil
 		}
-		return []string{""}
+		return errNoDetail
 	}
 }
 
 // forbidScripts reports a meta buildpack that ships build scripts.
-func forbidScripts(bp *buildpack, _ *Ruleset) []string {
+func forbidScripts(bp *buildpack, _ *Ruleset) error {
 	if fsutil.Exists(filepath.Join(bp.dir, BinDir, DetectScript)) ||
 		fsutil.Exists(filepath.Join(bp.dir, BinDir, BuildScript)) {
-		return []string{"bin/ contains scripts"}
+		return errors.New("bin/ contains scripts")
 	}
 	return nil
 }
 
-func checkDirIDMatch(bp *buildpack, _ *Ruleset) []string {
+// checkSupportedAPI rejects buildpack API versions this toolchain cannot drive.
+// The list mirrors the lifecycle we ship; adding a version is a one-line change.
+func checkSupportedAPI(bp *buildpack, _ *Ruleset) error {
+	if bp.parsed == nil || bp.parsed.API == "" {
+		return nil
+	}
+	if slices.Contains(SupportedBuildpackAPIs, bp.parsed.API) {
+		return nil
+	}
+	return fmt.Errorf("%s not in %v", bp.parsed.API, SupportedBuildpackAPIs)
+}
+
+func checkDirIDMatch(bp *buildpack, _ *Ruleset) error {
 	if bp.parsed == nil || bp.parsed.BuildpackInfo.ID == "" || idMatchesDir(bp.parsed.BuildpackInfo.ID, bp.leaf) {
 		return nil
 	}
-	return []string{fmt.Sprintf("dir %s vs id %s", bp.leaf, bp.parsed.BuildpackInfo.ID)}
+	return fmt.Errorf("dir %s vs id %s", bp.leaf, bp.parsed.BuildpackInfo.ID)
 }
 
-func checkOrderRefs(bp *buildpack, _ *Ruleset) []string {
+func checkOrderRefs(bp *buildpack, _ *Ruleset) error {
 	if bp.parsed == nil {
 		return nil
 	}
@@ -261,7 +283,7 @@ func checkOrderRefs(bp *buildpack, _ *Ruleset) []string {
 	if len(missing) == 0 {
 		return nil
 	}
-	return []string{strings.Join(missing, ", ")}
+	return errors.New(strings.Join(missing, ", "))
 }
 
 func orderTargetExists(root, id string) bool {
@@ -270,16 +292,16 @@ func orderTargetExists(root, id string) bool {
 }
 
 // requireScript reports a missing bin script.
-func requireScript(name string) func(*buildpack, *Ruleset) []string {
-	return func(bp *buildpack, _ *Ruleset) []string {
+func requireScript(name string) func(*buildpack, *Ruleset) error {
+	return func(bp *buildpack, _ *Ruleset) error {
 		if fsutil.Exists(filepath.Join(bp.dir, BinDir, name)) {
 			return nil
 		}
-		return []string{"not found"}
+		return errors.New("not found")
 	}
 }
 
-func checkScriptsExecutable(bp *buildpack, _ *Ruleset) []string {
+func checkScriptsExecutable(bp *buildpack, _ *Ruleset) error {
 	var notExec []string
 	for _, name := range []string{DetectScript, BuildScript} {
 		info, err := os.Stat(filepath.Join(bp.dir, BinDir, name))
@@ -293,25 +315,25 @@ func checkScriptsExecutable(bp *buildpack, _ *Ruleset) []string {
 	if len(notExec) == 0 {
 		return nil
 	}
-	return []string{strings.Join(notExec, ", ")}
+	return errors.New(strings.Join(notExec, ", "))
 }
 
-func checkSBOMDeclared(bp *buildpack, _ *Ruleset) []string {
+func checkSBOMDeclared(bp *buildpack, _ *Ruleset) error {
 	if !hasSBOMMarker(bp.dir) || hasSBOMFormats(bp.parsed) {
 		return nil
 	}
-	return []string{"sbom-formats is empty"}
+	return errors.New("sbom-formats is empty")
 }
 
 func hasSBOMFormats(bp *speclifecycle.Buildpack) bool {
 	return bp != nil && len(bp.BuildpackInfo.SBOMFormats) > 0
 }
 
-func checkProviderDeps(bp *buildpack, rs *Ruleset) []string {
+func checkProviderDeps(bp *buildpack, rs *Ruleset) error {
 	if !rs.IsProvider(bp.leaf) || hasDependencies(bp.parsed) {
 		return nil
 	}
-	return []string{"dependencies is empty"}
+	return errors.New("dependencies is empty")
 }
 
 func hasDependencies(bp *speclifecycle.Buildpack) bool {

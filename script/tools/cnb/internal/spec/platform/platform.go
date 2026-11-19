@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 	"learn-cnb-paketo/tools/cnb/internal/spec/warn"
 )
 
@@ -34,8 +35,8 @@ const (
 	DefaultRunImage    = "fake-cnb-runner:latest"
 	DefaultPlatformAPI = "0.15"
 	DefaultLayoutDir   = "/layers/oci"
-	// DefaultTargetPlatform 是 profile init 的默认目标平台。
-	DefaultTargetPlatform = "linux-amd64"
+	// DefaultTargetPlatform is the default target platform for profile init.
+	DefaultTargetPlatform = manifest.PlatformAMD64
 )
 
 // ExportMode 是导出方式。
