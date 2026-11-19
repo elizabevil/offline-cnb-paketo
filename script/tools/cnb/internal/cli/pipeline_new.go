@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/exec"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/plan"
 	"learn-cnb-paketo/tools/cnb/internal/render"
@@ -34,7 +37,12 @@ func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
 		}
 		return nil, nil, &exitError{code: ExitFailure}
 	}
-	ctx, err := workspace.Open(workspace.Options{Repo: opts.repo, Platform: lock.Platform(opts.platform)})
+	root := rootForProfile(f, path)
+	ctx, err := workspace.Open(workspace.Options{
+		Repo:     root,
+		LockPath: lockForProfile(f, root, path),
+		Platform: lock.Platform(opts.platform),
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -43,6 +51,55 @@ func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
 		return nil, nil, failExecution(err)
 	}
 	return f, p, nil
+}
+
+// rootForProfile derives the project root from the profile location.
+//
+// The profile lives inside the project (e.g. project/demo/pipeline.toml), so the
+// root is the parent of spec.project.directory. An explicit --repo wins.
+func rootForProfile(f *specprofile.File, profilePath string) string {
+	if opts.repo != "" {
+		return opts.repo
+	}
+	absProfile, err := filepath.Abs(profilePath)
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(absProfile)
+	projDir := filepath.Clean(f.Spec.Project.Directory)
+	suffix := string(filepath.Separator) + projDir
+	if root, ok := strings.CutSuffix(dir, suffix); ok {
+		return root
+	}
+	return ""
+}
+
+// lockForProfile finds the manifest next to the project or the profile.
+//
+// A scaffolded project keeps assets.toml inside the project directory, so the
+// repo-root default does not apply.
+func lockForProfile(f *specprofile.File, root, profilePath string) string {
+	if opts.lockPath != "" {
+		return opts.lockPath
+	}
+	candidates := []string{
+		filepath.Join(root, f.Spec.Project.Directory, "assets.toml"),
+		filepath.Join(filepath.Dir(mustAbs(profilePath)), "assets.toml"),
+	}
+	for _, c := range candidates {
+		if fsutil.Exists(c) {
+			return c
+		}
+	}
+	return ""
+}
+
+// mustAbs makes a path absolute, returning it unchanged on error.
+func mustAbs(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 // newPlanCmd prints the execution plan (final argv per stage).

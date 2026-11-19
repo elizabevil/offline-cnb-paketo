@@ -41,6 +41,7 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&opts.configDir, "config-dir", "config", "config directory (relative to the repo root)")
 
 	root.AddCommand(
+		newInitCmd(),         // scaffold a project
 		newMaterialsCmd(),    // materials
 		newPipelineCmd(),     // pipeline
 		newBuildpackCmd(),    // buildpacks

@@ -34,7 +34,7 @@ const (
 	DefaultRunImage    = "fake-cnb-runner:latest"
 	DefaultPlatformAPI = "0.15"
 	DefaultLayoutDir   = "/layers/oci"
-	// DefaultTargetPlatform is the default target platform for profile init.
+	// DefaultTargetPlatform is the default platform for scaffolded pipelines.
 	DefaultTargetPlatform = manifest.PlatformAMD64
 )
 

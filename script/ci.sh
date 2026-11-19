@@ -18,7 +18,7 @@ just check
 
 echo "── lock 校验 ──"
 script/bin/cnb-linux-amd64 materials validate
-script/bin/cnb-linux-amd64 --file assets.toml.example materials validate
+tmp=$(mktemp -d); script/bin/cnb-linux-amd64 init ci-template --config "$tmp/pipeline.toml" --assets "$tmp/assets.toml" >/dev/null && script/bin/cnb-linux-amd64 --file "$tmp/assets.toml" materials validate; rm -rf "$tmp"
 
 echo "── 流程校验 ──"
 for f in config/projects/*.toml; do

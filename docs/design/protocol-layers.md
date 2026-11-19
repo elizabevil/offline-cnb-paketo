@@ -235,6 +235,32 @@ contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpa
 为什么要单独一段：`run` 是任意命令，参数顺序不稳定，从 argv 反推
 "这条命令在构建哪个 Dockerfile"不可靠。检查目标写在配置里，命令怎么排都不影响。
 
+### 5.3.2 脚手架
+
+```bash
+cnb init demo --container docker --base-image <镜像>
+```
+
+生成自包含的项目目录：
+
+```
+project/demo/
+├── pipeline.toml          # 流水线配置（base + builder 两阶段）
+├── assets.toml            # 物料清单（lifecycle / buildpacks / 示例）
+└── docker/
+    ├── base.dockerfile
+    └── builder.dockerfile
+```
+
+`assets.toml` 默认放在项目目录内；根目录解析与清单查找都以 profile 位置为准，
+因此在任意目录下运行都能定位自己的项目。
+
+### 5.3.1 容器命令
+
+`spec.stages[].run` 的第一项是容器 CLI（默认 `podman`）。脚手架可用
+`--container docker` 或环境变量 `CNB_CONTAINER=docker` 指定；已存在的项目直接改
+`run` 数组首项即可，执行器不感知具体实现。
+
 ### 5.4 占位符（stage run 与 spec.checks 通用）
 
 **命名规则：占位符就是配置里的完整路径**，不提供短名。看到 `${spec.project.platform}`

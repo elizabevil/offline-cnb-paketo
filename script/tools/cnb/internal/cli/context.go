@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
@@ -50,18 +49,10 @@ func open() (*lock.File, lock.Platform, string, error) {
 	return ctx.Lock, ctx.Platform, ctx.Bundle, nil
 }
 
-// resolveRepo resolves the repo root: --repo, then CNB_REPO_ROOT, then the executable path.
+// resolveRepo resolves the project root through the workspace package, so the
+// CLI and the library agree on every fallback (including the current directory).
 func resolveRepo() (string, error) {
-	if opts.repo != "" {
-		return filepath.Abs(opts.repo)
-	}
-	if env := os.Getenv("CNB_REPO_ROOT"); env != "" {
-		return filepath.Abs(env)
-	}
-	if root, err := workspace.FindFromExecutable(); err == nil {
-		return root, nil
-	}
-	root, err := workspace.FindFromWorkingDir()
+	root, err := workspace.Resolve(opts.repo)
 	if err != nil {
 		return "", errs.Wrap("locate repo root", err)
 	}

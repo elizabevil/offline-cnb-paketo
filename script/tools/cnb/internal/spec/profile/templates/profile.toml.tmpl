@@ -1,7 +1,8 @@
-# ─── {{.Name}} 流水线 ──────────────────────────────────────────────────────
-# 结构：apiVersion / kind / metadata / spec（K8s 风格，TOML 格式）
-# 顺序：spec.stages 列表顺序即执行顺序
-# 校验：cnb pipeline profile validate config/projects/{{.Name}}.toml
+# {{.Name}} pipeline
+#   validate: cnb pipeline profile validate {{.Dir}}/pipeline.toml
+#   plan:     cnb pipeline plan {{.Dir}}/pipeline.toml
+#   lint:     cnb lint {{.Dir}}/pipeline.toml
+#   vars:     cnb pipeline variables {{.Dir}}/pipeline.toml
 
 apiVersion = "cnb/v1"
 kind       = "Pipeline"
@@ -9,51 +10,74 @@ kind       = "Pipeline"
 [metadata]
 name = "{{.Name}}"
 
-# ── 占位符（run 与 spec.checks 通用；未知占位符在 plan 阶段报错）──────────
-#   一律使用配置里的完整路径，不用短名，避免歧义。
-#
-#   ${spec.project.platform}       目标平台，如 linux-amd64
-#                                  ← [spec.project] platform
-#   ${spec.project.directory}      项目目录，如 project/offline-paketo
-#                                  ← [spec.project] dir
-#   ${spec.project.base}           当前平台的基础镜像
-#                                  ← [spec.project.base] 里 platform 对应的值
-#   ${derived.architecture}        架构，如 amd64
-#                                  ← 由 spec.project.platform 派生
-#   ${derived.container_platform}  linux/amd64，供 docker build --platform
-#                                  ← 由 spec.project.platform 把首个 "-" 换成 "/"
-#   ${runtime.repo}                仓库根绝对路径
-#                                  ← --repo / CNB_REPO_ROOT / 可执行文件位置
-#   ${runtime.bundle}              物料目录绝对路径
-#                                  ← --bundle 或 lock 同级 bundle/
-#   ${spec.assets.<id>.version}    物料版本
-#                                  ← [spec.assets.<id>] version（缺省取 lock）
-#
-#   自省：cnb pipeline variables config/projects/<name>.toml
+# Placeholders use full config paths, so they are unambiguous:
+#   ${spec.project.platform}       target platform          <- [spec.project] platform
+#   ${spec.project.directory}      project directory        <- [spec.project] directory
+#   ${spec.project.base}           base image for platform  <- [spec.project.base]
+#   ${spec.assets.<id>.version}    material version         <- [spec.assets.<id>] version
+#   ${derived.architecture}        amd64 / arm64            <- derived from platform
+#   ${derived.container_platform}  linux/amd64              <- derived from platform
+#   ${runtime.repo}                project root             <- --repo / CNB_REPO_ROOT
+#   ${runtime.bundle}              material directory       <- --bundle or <lock dir>/bundle
+# Unknown placeholders fail at plan time.
 
 [spec.project]
 directory = "{{.Dir}}"
-platform = "{{.Platform}}"
+platform  = "{{.Platform}}"
 
-# ── 各平台的基础镜像（stage 里用 ${spec.project.base} 引用）────────────────
-#    这是整个项目的地基：所有 stage 都基于它构建。
-#    · 国内环境通常换成镜像站地址
-#    · 多平台构建时每个平台各加一行
+# Base image per platform; all stages build on it.
   [spec.project.base]
   {{.Platform}} = "{{.BaseImage}}"
 
-# ── 物料：本项目锁定的版本（省略则取 assets.lock.toml 的 default）──────────
+# Versions locked by this project (omit to use the lock default).
 [spec.assets.lifecycle]
 version = "0.21.29"
 
-# ── 阶段：一条命令 + 运行位置 ──────────────────────────────────────────────
 [[spec.stages]]
 name    = "base"
-workdir = "."
+workdir = "{{.Dir}}"
 run = [
-  "podman", "build",
-  "-f", "{{.Dir}}/docker/Dockerfile.base",
+  "{{.Container}}", "build", "-f", "docker/base.dockerfile",
   "-t", "{{.Name}}-base:${derived.architecture}",
+  "--platform", "${derived.container_platform}",
   "--build-arg", "BASE_IMAGE=${spec.project.base}",
   ".",
 ]
+
+[[spec.stages]]
+name    = "builder"
+workdir = "{{.Dir}}"
+run = [
+  "{{.Container}}", "build", "-f", "docker/builder.dockerfile",
+  "-t", "{{.Name}}-builder:${derived.architecture}",
+  "--platform", "${derived.container_platform}",
+  "--build-context", "bundle=${runtime.bundle}",
+  "--build-context", "buildpacks=${runtime.repo}/buildpacks",
+  "--build-arg", "BASE_IMAGE_TAG={{.Name}}-base:${derived.architecture}",
+  "--build-arg", "BUNDLE_ARCH=${spec.project.platform}",
+  "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}",
+  ".",
+]
+
+# Optional: run the four lifecycle phases inside the builder image.
+# [[spec.stages]]
+# name    = "lifecycle"
+# workdir = "{{.Dir}}"
+# run = [
+#   "{{.Container}}", "run", "--rm",
+#   "-e", "SOURCE_GET_URL=file:///workspace/source.tgz",
+#   "-e", "OUTPUT_IMAGE={{.Name}}:${derived.architecture}",
+#   "-e", "CNB_RUN_IMAGE=scratch",
+#   "-v", "${runtime.repo}/app:/workspace:ro",
+#   "-v", "${runtime.bundle}:/bundle:ro",
+#   "{{.Name}}-builder:${derived.architecture}}",
+# ]
+
+# Static checks that cannot be derived from argv.
+[[spec.checks.dockerfiles]]
+path = "docker/base.dockerfile"
+
+[[spec.checks.dockerfiles]]
+path     = "docker/builder.dockerfile"
+contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks" }
+args     = { BUNDLE_ARCH = "${spec.project.platform}", LIFECYCLE_VERSION = "${spec.assets.lifecycle.version}" }

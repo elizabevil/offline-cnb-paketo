@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/errs"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 	"learn-cnb-paketo/tools/cnb/internal/strutil"
@@ -68,7 +69,15 @@ func Open(o Options) (Context, error) {
 	}
 	lockPath := o.LockPath
 	if lockPath == "" {
-		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), filepath.Join(root, DefaultManifestName))
+		// Prefer a manifest in the current directory: the tool may run outside
+		// the repository against an arbitrary project tree.
+		cwdManifest := ""
+		if wd, err := os.Getwd(); err == nil {
+			if cand := filepath.Join(wd, DefaultManifestName); fsutil.Exists(cand) {
+				cwdManifest = cand
+			}
+		}
+		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), cwdManifest, filepath.Join(root, DefaultManifestName))
 		// 兼容旧布局：只有 assets.lock.toml 时仍按清单读取
 		if _, err := os.Stat(lockPath); os.IsNotExist(err) {
 			legacy := filepath.Join(root, DefaultLockName)
@@ -105,6 +114,10 @@ func Open(o Options) (Context, error) {
 	}, nil
 }
 
+// Resolve returns the project root: explicit path, CNB_REPO_ROOT, a current
+// directory holding a manifest, then marker-file discovery.
+func Resolve(explicit string) (string, error) { return resolveRepo(explicit) }
+
 // resolveRepo 解析仓库根：显式参数 > 环境变量 > 标记文件定位。
 func resolveRepo(explicit string) (string, error) {
 	if explicit != "" {
@@ -112,6 +125,13 @@ func resolveRepo(explicit string) (string, error) {
 	}
 	if env := os.Getenv(EnvRepoRoot); env != "" {
 		return filepath.Abs(env)
+	}
+	// A directory holding a manifest is a project root: the tool may run
+	// outside the repository against an arbitrary tree.
+	if wd, err := os.Getwd(); err == nil {
+		if fsutil.Exists(filepath.Join(wd, DefaultManifestName)) {
+			return wd, nil
+		}
 	}
 	if root, err := FindFromExecutable(); err == nil {
 		return root, nil

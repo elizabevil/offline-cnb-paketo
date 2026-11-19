@@ -1,0 +1,31 @@
+# {{.Name}} builder image: lifecycle + buildpacks on top of the base image.
+# Build contexts (provided by the pipeline stage):
+#   --build-context bundle=<bundle dir>
+#   --build-context buildpacks=<buildpacks dir>
+ARG BASE_IMAGE_TAG
+FROM ${BASE_IMAGE_TAG}
+
+ARG BUNDLE_ARCH
+ARG LIFECYCLE_VERSION
+
+# Lifecycle binaries: detector, builder, analyzer, exporter.
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/lifecycle/${LIFECYCLE_VERSION}/ /cnb/lifecycle/
+RUN chmod +x /cnb/lifecycle/*
+
+# Buildpacks: one line per component, replace names and versions.
+# COPY --from=buildpacks /go-dist/ /cnb/buildpacks/paketo-buildpacks_go-dist/2.11.2/
+# RUN chmod +x /cnb/buildpacks/paketo-buildpacks_go-dist/2.11.2/bin/*
+
+# Platform directory is buildpack configuration input.
+RUN mkdir -p /platform/env
+
+# detect/build refuse to run as root, so the image ships a build user.
+ENV CNB_USER_ID=1000 \
+    CNB_GROUP_ID=1000
+RUN mkdir -p /layers /workspace && \
+    useradd -u 1000 -m cnb && \
+    chown -R cnb:cnb /cnb /platform /layers /workspace
+USER cnb
+
+# Lifecycle binaries are invoked by absolute path from the stage command.
+ENV PATH="/cnb/lifecycle:${PATH}"

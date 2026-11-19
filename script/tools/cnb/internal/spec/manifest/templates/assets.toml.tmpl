@@ -1,0 +1,81 @@
+# {{.Name}} materials (assets.toml)
+#   lock:     cnb materials lock <id>    download, write hashes to assets.lock.toml
+#   validate: cnb materials validate
+#   sync:     cnb materials sync         unpack into the bundle
+#
+# One [[asset]] block per id@version. Adding a material is copying a block.
+#   url uses {version}; architecture lives in the file name, so each platform
+#   needs its own url. expect lists files that must exist after unpack.
+
+schema = 1
+
+[meta]
+name        = "{{.Name}}"
+description = "{{.Name}} materials"
+platforms   = [{{range $i, $p := .Platforms}}{{if $i}}, {{end}}"{{$p.Name}}"{{end}}]
+
+# CNB lifecycle: the four phase binaries (works out of the box).
+[[asset]]
+id      = "lifecycle"
+version = "0.21.29"
+default = true
+
+  [asset.info]
+  name     = "CNB lifecycle"
+  homepage = "https://github.com/buildpacks/lifecycle"
+  license  = "Apache-2.0"
+
+  [asset.unpack]
+  kind   = "tgz"
+  strip  = 1
+  dir    = "lifecycle/{version}"
+  expect = ["detector", "builder", "analyzer", "exporter"]
+{{- range .Platforms}}
+
+  [asset.platform.{{.Name}}]
+  url = "{{.URL}}"
+{{- end}}
+
+# Other shapes (uncomment and replace values):
+
+# zip with the binary at the archive root (strip=0)
+# [[asset]]
+# id      = "fnm"
+# version = "1.39.0"
+#   [asset.unpack]
+#   kind   = "zip"
+#   strip  = 0
+#   dir    = "fnm/{version}"
+#   expect = ["fnm"]
+#   [asset.platform.linux-amd64]
+#   url = "https://example.com/fnm-linux.zip"
+#   [asset.platform.linux-arm64]
+#   url = "https://example.com/fnm-arm64.zip"
+
+# single binary, not an archive (bin requires strip=0)
+#   [asset.unpack]
+#   kind   = "bin"
+#   strip  = 0
+#   dir    = "jq/{version}"
+#   expect = ["jq"]
+
+# one archive for all platforms (multi_arch requires {arch} in expect)
+# id         = "tool"
+# multi_arch = true
+#   [asset.unpack]
+#   expect = ["bin/tool-{arch}"]
+
+# local file: no download, path relative to the lock file
+#   [asset.platform.linux-amd64]
+#   kind   = "local"
+#   source = "vendor/tool-{version}.tgz"
+
+# partial extraction and fallback mirrors
+#   [asset.unpack]
+#   include = ["bin/*", "lib/*"]
+#   [asset.platform.linux-amd64]
+#   url     = "https://example.com/tool-{version}.tgz"
+#   mirrors = ["https://mirror.example.com/tool-{version}.tgz"]
+
+# default = true marks the version used when lock runs without one.
+# Only one version per id may set it.

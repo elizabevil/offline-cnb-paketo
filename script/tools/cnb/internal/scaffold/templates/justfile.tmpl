@@ -1,0 +1,37 @@
+# {{.Name}} build tasks
+set shell := ["bash", "-uc"]
+
+_dir := justfile_directory()
+cnb  := env_var_or_default("CNB_BIN", "cnb")
+
+_default:
+    @just --list
+
+# print the resolved stage commands
+plan:
+    @{{cnb}} pipeline plan {{_dir}}/pipeline.toml
+
+# validate config and materials (no network, no bundle needed)
+check:
+    @{{cnb}} pipeline profile validate {{_dir}}/pipeline.toml
+    @{{cnb}} materials validate --file {{_dir}}/assets.toml
+
+# check Dockerfile COPY sources (run after "just sync")
+lint:
+    @{{cnb}} lint {{_dir}}/pipeline.toml
+
+# download materials and write hashes
+lock *ids:
+    @{{cnb}} materials lock {{ids}} --file {{_dir}}/assets.toml
+
+# unpack materials into the bundle
+sync:
+    @{{cnb}} materials sync --file {{_dir}}/assets.toml
+
+# list placeholders and their resolved values
+vars:
+    @{{cnb}} pipeline variables {{_dir}}/pipeline.toml
+
+# run the pipeline
+build:
+    @{{cnb}} pipeline run {{_dir}}/pipeline.toml

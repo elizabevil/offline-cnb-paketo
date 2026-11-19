@@ -67,3 +67,11 @@ var (
 	SupportedPlatforms = manifest.SupportedPlatforms
 	ArchOf             = manifest.ArchOf
 )
+
+// Template renders a starter assets.toml (re-exported from spec/manifest).
+func Template(name string, platforms []string) (string, error) {
+	return manifest.Template(name, platforms)
+}
+
+// DefaultPlatforms re-exports the manifest default platform list.
+var DefaultPlatforms = manifest.DefaultPlatforms

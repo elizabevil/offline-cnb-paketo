@@ -40,7 +40,7 @@ script/bin/cnb-linux-amd64 --file assets.lock.toml validate
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 2) 模板不能腐烂（模板也是文档，改了字段却不同步模板 = 下一个人被误导）
-script/bin/cnb-linux-amd64 --file assets.toml.example materials validate
+cnb init demo --config /tmp/p.toml --assets /tmp/a.toml && cnb materials validate --file /tmp/a.toml
 # 期望：  ✓ lock 结构合法：3 个物料，2 个平台
 
 # 3) shell 语法

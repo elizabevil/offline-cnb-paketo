@@ -13,7 +13,6 @@ Learn-cnb-paketo/
 ├── justfile              # 仓库根入口（just 任意位置可用）
 ├── assets.toml          # 物料声明：id / version / url / unpack（人写，可注释）
 ├── assets.lock.toml     # 物料锁定：解析后的 url / size / sha256（工具生成）
-├── assets.toml.example  # 新增物料时的模板（注释齐全，just check 会校验它）
 ├── script/               # 公共脚本基座
 │   ├── justfile          #   编排（被根 justfile import）
 │   ├── ci.sh             #   门禁：结构 / 配置 / 物料
@@ -74,4 +73,4 @@ cp .env.example .env    # 写入 PROXY_URL
 - [docs/design/base.md](docs/design/base.md) — 设计、字段含义、踩坑清单
 - [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
-- [assets.toml.example](assets.toml.example) — 新增物料的填写模板
+- `cnb init <name>` — 生成流水线配置与 assets.toml 脚手架

@@ -2,22 +2,16 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/render"
-	platformspec "learn-cnb-paketo/tools/cnb/internal/spec/platform"
-	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
 	"learn-cnb-paketo/tools/cnb/internal/workspace"
 )
 
 // newProfileCmd covers pipeline config: generate, validate, show.
 func newProfileCmd() *cobra.Command {
-	parent := &cobra.Command{Use: "profile", Short: "pipeline config: init / validate / show"}
-	parent.AddCommand(newProfileInitCmd())
+	parent := &cobra.Command{Use: "profile", Short: "pipeline config: validate / show"}
 	parent.AddCommand(newProfileValidateCmd())
 	var showOpts profileShowOptions
 	showCmd := &cobra.Command{
@@ -39,52 +33,6 @@ func newProfileCmd() *cobra.Command {
 	parent.AddCommand(showCmd)
 
 	return parent
-}
-
-// newProfileInitCmd prints a new project config template.
-// profileInitOptions holds profile init flags.
-type profileInitOptions struct {
-	dir       string
-	platform  string
-	baseImage string
-}
-
-func newProfileInitCmd() *cobra.Command {
-	var opts profileInitOptions
-	initCmd := &cobra.Command{
-		Use: "init <name>", Short: "generate a new project config template", Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
-			dir := opts.dir
-			if dir == "" {
-				dir = name
-			}
-			platform := opts.platform
-			if platform == "" {
-				platform = platformspec.DefaultTargetPlatform
-			}
-			out := filepath.Join("config", "projects", name+".toml")
-			if _, err := os.Stat(out); err == nil {
-				return &exitError{code: ExitFailure, msg: "already exists: " + out}
-			}
-			if err := os.MkdirAll(filepath.Dir(out), fsutil.DirMode); err != nil {
-				return err
-			}
-			content, err := specprofile.Template(name, dir, platform, opts.baseImage)
-			if err != nil {
-				return failExecution(err)
-			}
-			if err := os.WriteFile(out, []byte(content), fsutil.FileMode); err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ wrote %s\n", out)
-			return nil
-		},
-	}
-	initCmd.Flags().StringVar(&opts.dir, "dir", "", "project directory relative to the repo root (default: name)")
-	initCmd.Flags().StringVar(&opts.platform, "platform", "", "default platform (default: linux-amd64)")
-	initCmd.Flags().StringVar(&opts.baseImage, "base-image", "", "base image written into [spec.project.base] (default debian:trixie-slim)")
-	return initCmd
 }
 
 // profileShowOptions holds profile show flags.

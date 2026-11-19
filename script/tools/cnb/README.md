@@ -100,7 +100,7 @@ gofmt -l . ; go vet ./... ; go test ./...
 ## 三、新建一个项目（模板）
 
 ```bash
-script/bin/cnb-linux-amd64 profile init my-proj --dir my-proj       # 生成 config/projects/my-proj.toml
+script/bin/cnb-linux-amd64 init my-proj        # 生成 pipeline.toml / assets.toml / Dockerfile
 script/bin/cnb-linux-amd64 profile show config/projects/my-proj.toml # 分组查看（不平铺）
 script/bin/cnb-linux-amd64 profile validate config/projects/my-proj.toml
 ```
@@ -113,7 +113,7 @@ script/bin/cnb-linux-amd64 profile validate config/projects/my-proj.toml
 分两步，都在配置里：
 
 1. `assets.lock.toml` 增加物料本体（版本 / URL / sha256 / 平台），
-   模板见仓库根 [`assets.toml.example`](../../../assets.toml.example)。
+   脚手架：`cnb init <name>`（内嵌模板，渲染后由 just check 校验）。
 2. 项目 profile 在 `[assets.<id>]` 下声明引用（键名即 id）：
 
 ```toml

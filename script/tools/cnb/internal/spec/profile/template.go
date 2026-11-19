@@ -5,10 +5,18 @@ import (
 	"embed"
 	"fmt"
 	"text/template"
+
+	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
 )
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
+
+// Container CLI defaults for generated profiles.
+const (
+	ContainerPodman = "podman"
+	ContainerDocker = "docker"
+)
 
 // DefaultBaseImage is only a starting point for new profiles. The base image
 // decides what every stage is built on, so callers are expected to pass a real
@@ -21,14 +29,25 @@ type TemplateData struct {
 	Dir       string
 	Platform  string
 	BaseImage string
+	Container string
 }
 
 // Template renders the project profile template.
-func Template(name, dir, platform, baseImage string) (string, error) {
+func Template(name, dir, platform, baseImage, container string) (string, error) {
 	if baseImage == "" {
 		baseImage = DefaultBaseImage
 	}
-	data := TemplateData{Name: name, Dir: dir, Platform: platform, BaseImage: baseImage}
+	if platform == "" {
+		platform = manifest.PlatformAMD64
+	}
+	switch container {
+	case "":
+		container = ContainerPodman
+	case ContainerPodman, ContainerDocker:
+	default:
+		return "", fmt.Errorf("unsupported container %q: want podman | docker", container)
+	}
+	data := TemplateData{Name: name, Dir: dir, Platform: platform, BaseImage: baseImage, Container: container}
 	return renderTemplate("templates/profile.toml.tmpl", data)
 }
 

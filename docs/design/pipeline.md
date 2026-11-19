@@ -20,14 +20,12 @@
                  │ cnb pipeline run：校验 + 计划 + 执行 │
                  └────────────┬─────────────┘
                               │ eval
-        ┌─────────────────────┼──────────────────────┐
-        ▼                     ▼                      ▼
-  fetch_assets          image_build            run_command
-  script/fetch.sh    script/lib/image-build.sh   bash -c
-        │                     │                      │
-        ▼                     ▼                      ▼
-  bundle/<platform>/    podman|docker build     scripts/build.sh
-  {archives,binaries}   (context = 仓库根)      + cnb image convert
+        ▼
+  stages：按列表顺序逐条执行
+  run = [<命令>, <参数>…]（占位符已展开，workdir 已绝对化）
+        │
+        ▼
+  bundle/、镜像、产物由各条命令自行产出
 ```
 
 ## 一次完整构建
@@ -44,8 +42,8 @@
 script/fetch.sh fetch lifecycle@0.21.13 fnm@1.39.0 … --platform linux-amd64
 
 # ② 镜像：顺序来自 [[stage]]，上下文固定为仓库根
-script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerfile.builder-base \
-  offline-builder-base-bk:latest --build-arg BASE_IMAGE=…
+podman build -f project/offline-paketo-bk/docker/builder-base.dockerfile \
+  -t offline-builder-base-bk:latest --build-arg BASE_IMAGE=… .
 
 # ③ 命令：打包（bksmartpacker 产出 SmartPackage，再经 cnb image convert 规范化）
 (cd <repo>/project/offline-paketo-bk && scripts/build.sh)
@@ -59,7 +57,7 @@ script/lib/image-build.sh <repo> <repo>/project/offline-paketo-bk/docker/Dockerf
 | 流程 | `config/projects/*.toml` | 用哪些物料、建哪些镜像、顺序 | 具体命令实现 |
 | 规划 | `cnb pipeline plan` | 校验 + 生成 shell 计划 | 执行 |
 | 执行 | `cnb pipeline run` | 校验、生成计划、调用原语执行（slog 日志） | 决策 |
-| 原语 | `fetch.sh` / `image-build.sh` | 下载解压 / 单镜像构建 | 顺序 |
+| 原语 | `spec.stages[].run` | 单条命令（下载、构建、打包皆可） | 顺序 |
 | 资产 | `<proj>/docker/`、`<proj>/scripts/` | Dockerfile、buildpack、打包脚本 | 不被统一 |
 
 ## 改东西去哪
