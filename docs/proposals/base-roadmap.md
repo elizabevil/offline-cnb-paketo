@@ -18,7 +18,7 @@
 
 ```
 P0  物料基座（已完成）
-    ├─ assets.lock.toml
+    ├─ project/assets.lock.toml
     ├─ script/{justfile, ci.sh} + tools/cnb (Go: 全部逻辑)
     ├─ 根 justfile（任意目录可用）
     └─ bundle/ 骨架 + 三态幂等 + 校验

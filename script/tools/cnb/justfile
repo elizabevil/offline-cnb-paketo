@@ -34,5 +34,5 @@ build:
 
 # 编译并发布为本地物料（供镜像构建 COPY）
 publish: build
-    @{{ bin }} materials publish cnb >/dev/null
+    @{{ bin }} --file {{ _root }}/../project/assets.toml materials publish cnb >/dev/null
     @echo "  ✓ cnb 物料已发布"

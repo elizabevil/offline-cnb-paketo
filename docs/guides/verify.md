@@ -36,7 +36,7 @@ just check && just verify
 
 ```bash
 # 1) 当前清单合法
-script/bin/cnb-linux-amd64 materials validate --file assets.toml
+script/bin/cnb-linux-amd64 materials validate --file project/assets.toml
 # 期望：  ✓ lock structure ok: 10 materials, 2 platforms
 
 # 2) 脚手架可用（从参考项目生成后必须能通过 validate）

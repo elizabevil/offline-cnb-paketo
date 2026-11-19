@@ -18,7 +18,7 @@ kind       = "Pipeline"
 name = "demo"
 
 [spec.project]
-dir      = "project/demo"
+assets   = "assets.toml"
 platform = "linux-amd64"
 
 [spec.assets.lifecycle]
@@ -34,7 +34,7 @@ run     = ["podman", "build", "--build-context", "bundle=${runtime.bundle}/${spe
 
 [[spec.stages]]
 name    = "builder"
-workdir = "project/demo"
+workdir = "."
 run     = ["podman", "build", "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}", "."]
 env     = { MODE = "release", ZED = "1" }
 timeout = "5m"
@@ -49,8 +49,8 @@ continueOnError = true
 const lockSample = `
 schema = 1
 
-[storage]
-root = "bundle"
+[bundle]
+path = "bundle"
 
 [[asset]]
 id      = "lifecycle"
@@ -83,7 +83,8 @@ func TestBuildExpandsPlaceholders(t *testing.T) {
 		t.Fatal(err)
 	}
 	bundle := filepath.Join(repo, "bundle")
-	p, warns, err := Build(f, lock, Options{Repo: repo, Bundle: bundle})
+	project := filepath.Join(repo, "project/demo")
+	p, warns, err := Build(f, lock, Options{Project: project, Repo: repo, Bundle: bundle})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestBuildExpandsPlaceholders(t *testing.T) {
 	if base.Argv[5] != "x-amd64" {
 		t.Fatalf("arch 展开错误: %q", base.Argv[5])
 	}
-	if base.Workdir != repo {
+	if base.Workdir != project {
 		t.Fatalf("workdir 未绝对化: %q", base.Workdir)
 	}
 	if base.Timeout != DefaultTimeout {
@@ -126,7 +127,7 @@ func TestBuildExpandsPlaceholders(t *testing.T) {
 func TestBuildUnknownPlaceholder(t *testing.T) {
 	f, lock := mustParse(t)
 	f.Spec.Stages[0].Run = []string{"echo", "${nope}"}
-	if _, _, err := Build(f, lock, Options{Repo: t.TempDir()}); err == nil {
+	if _, _, err := Build(f, lock, Options{Project: t.TempDir(), Repo: t.TempDir()}); err == nil {
 		t.Fatal("未知占位符应报错")
 	}
 }
@@ -135,7 +136,7 @@ func TestBuildAssetDefaultsToLock(t *testing.T) {
 	f, lock := mustParse(t)
 	delete(f.Spec.Assets, "lifecycle")
 	// 模板引用已删除的 asset → 未知占位符
-	if _, _, err := Build(f, lock, Options{Repo: t.TempDir()}); err == nil {
+	if _, _, err := Build(f, lock, Options{Project: t.TempDir(), Repo: t.TempDir()}); err == nil {
 		t.Fatal("引用未声明物料应报错")
 	}
 }
@@ -143,7 +144,7 @@ func TestBuildAssetDefaultsToLock(t *testing.T) {
 func TestBuildInvalidPlatform(t *testing.T) {
 	f, lock := mustParse(t)
 	f.Spec.Project.Platform = "linux-mips"
-	if _, _, err := Build(f, lock, Options{Repo: t.TempDir()}); err == nil {
+	if _, _, err := Build(f, lock, Options{Project: t.TempDir(), Repo: t.TempDir()}); err == nil {
 		t.Fatal("非法平台应报错")
 	}
 }

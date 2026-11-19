@@ -56,8 +56,10 @@ type DockerfileCheck struct {
 
 // Project 是项目标识与默认平台。
 type Project struct {
-	Directory string `toml:"directory"`
-	Platform  string `toml:"platform"`
+	// Assets is the material manifest path, relative to this config file.
+	// It links the project to a materials root (default "assets.toml").
+	Assets   string `toml:"assets,omitempty"`
+	Platform string `toml:"platform"`
 	// Base 是各平台的运行时基础镜像（如 debian 的 arch 专用 tag）。
 	Base map[string]string `toml:"base,omitempty"`
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -27,11 +28,16 @@ func newVariablesCmd() *cobra.Command {
 			if opts.platform != "" {
 				f.Spec.Project.Platform = opts.platform
 			}
-			ws, err := workspace.Open(workspace.Options{Repo: opts.repo, Platform: lock.Platform(opts.platform)})
+			projectRoot, manifest := projectRoots(f, args[0])
+			ws, err := workspace.Open(workspace.Options{
+				Repo: opts.repo, LockPath: manifest, Platform: lock.Platform(opts.platform),
+			})
 			if err != nil {
 				return failExecution(err)
 			}
-			rows, err := plan.Placeholders(f, ws.Lock, plan.Options{Repo: ws.Root, Bundle: ws.Bundle})
+			rows, err := plan.Placeholders(f, ws.Lock, plan.Options{
+				Project: projectRoot, Materials: filepath.Dir(manifest), Repo: ws.Root, Bundle: ws.Bundle,
+			})
 			if err != nil {
 				return failExecution(err)
 			}

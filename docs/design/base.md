@@ -1,5 +1,10 @@
 # 基座：当前约定
 
+> 路径分三层、两跳相对引用：
+> `pipeline.toml` --(`[spec.project] assets`)--> `assets.toml` --(`[bundle].path`)--> `bundle/`。
+> 每跳以**自己的文件所在目录**为锚点；完整链条与覆盖顺序见
+> [`pipeline.md` §1](pipeline.md#1-路径链条project--assets--bundle)。
+
 > 本文只描述**现在的**职责边界、布局与校验规则。
 > 待拍板决策与演进路线见 [`docs/proposals/base-roadmap.md`](../proposals/base-roadmap.md)。
 > 早期踩坑见 [`docs/ai/pitfalls.md`](../ai/pitfalls.md)。
@@ -13,7 +18,7 @@
 
 | 层 | 位置 | 只做一件事 | 不做什么 |
 |---|---|---|---|
-| 事实层 | `assets.lock.toml` | 声明"要哪些二进制、什么版本、什么哈希" | 不写流程、不写路径 |
+| 事实层 | `project/assets.lock.toml` | 声明"要哪些二进制、什么版本、什么哈希" | 不写流程、不写路径 |
 | 能力层 | `script/lib/common.sh` | 日志 / 平台映射 / 代理（下载解压在 cnb 内） | 不认识物料 id |
 | 解析层 | `script/tools/cnb`（Go） | TOML 解析 / 校验 / 重打包 | 不下载、不改 lock |
 | 编排层 | `cnb materials` | 下载、解压、marker、校验 | 不构建镜像 |
@@ -28,8 +33,7 @@
 bundle/
 ├── linux-amd64/
 │   ├── archives/     原始归档
-│   ├── binaries/     解压产物（含 .meta/ 解压标记）
-│   └── sdk/          预置 SDK
+│   └── binaries/     解压产物（含 .meta/ 标记）
 └── linux-arm64/
     └── ...
 ```
@@ -112,13 +116,13 @@ default = true                    # 省略版本时的选择
 
 结论：**映射关系写在 `spec/manifest`，不散落在脚本里**。
 新增平台 = 在 `KnownPlatforms`/`ArchOf` 加一行，不改其他逻辑；
-`assets.toml` 只声明平台，不重复定义映射。
+`project/assets.toml` 只声明平台，不重复定义映射。
 
 ---
 
 ## 六、信任边界（当前最大的"待还债"）
 
-`assets.toml` 的 `meta.provenance = local-capture`：当前的 sha256 由仓库里已有的归档反推。
+`project/assets.toml` 的 `meta.provenance = local-capture`：当前的 sha256 由仓库里已有的归档反推。
 它保证"同一份归档不被替换"，但**不保证**"与上游官方一致"。
 
 收紧步骤：

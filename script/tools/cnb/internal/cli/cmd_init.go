@@ -48,6 +48,15 @@ func newInitCmd() *cobra.Command {
 			if err != nil {
 				return failExecution(err)
 			}
+			hasPipeline := false
+			for _, f := range files {
+				if f.Path == "pipeline.toml" {
+					hasPipeline = true
+				}
+			}
+			if !hasPipeline {
+				fmt.Fprintf(cmd.OutOrStdout(), "  ! pipeline.toml 未被选中：加 --only pipeline.toml 或去掉 --only\n")
+			}
 			for _, f := range files {
 				dest := filepath.Join(dir, f.Path)
 				if fsutil.Exists(dest) && !opts.force {
@@ -76,9 +85,13 @@ func assetsFor() string {
 	if err != nil {
 		return ""
 	}
-	candidate := filepath.Join(root, "assets.toml")
-	if fsutil.Exists(candidate) {
-		return candidate
+	for _, candidate := range []string{
+		filepath.Join(root, "project", "assets.toml"),
+		filepath.Join(root, "assets.toml"),
+	} {
+		if fsutil.Exists(candidate) {
+			return candidate
+		}
 	}
 	return ""
 }

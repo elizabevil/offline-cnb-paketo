@@ -9,6 +9,8 @@ _cnb := env_var_or_default("CNB_BIN", _root / "script" / "bin" / "cnb-linux-amd6
 #   CNB_PROFILE=project/other/pipeline.toml just smart   （相对仓库根）
 #   CNB_PROFILE=/abs/path/other.toml just smart        （绝对路径）
 _profile_env := env_var_or_default("CNB_PROFILE", "")
+# 物料清单：仓库级 project/assets.toml（脚手架生成的项目会改写为本地 assets.toml）
+_manifest := env_var_or_default("CNB_ASSETS", _dir / ".." / "assets.toml")
 _profile := if _profile_env == "" { _root / "project" / "offline-paketo-bk" / "pipeline.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
 
 _default:
@@ -24,7 +26,7 @@ plan *args:
 
 # ── 物料（委托仓库根基座）──────────────────────────────────────────────────
 
-# 下载 + 校验 + 解包（地址与规则来自 assets.lock.toml，位置由 [storage] 决定）
+# 下载 + 校验 + 解包（地址与规则来自 assets.lock.toml，位置由 [bundle].path 决定）
 fetch *ids:
     @{{_cnb}} materials sync {{ids}}
 
@@ -113,3 +115,20 @@ pack-case src:
 smart-clean:
     @rm -rf {{_out}}
     @echo "  ✓ 已清理 {{_out}}"
+
+# 离线校验：配置 + 物料清单（不依赖 bundle）
+check:
+    @{{_cnb}} pipeline profile validate {{_profile}}
+    @{{_cnb}} materials validate --file {{_manifest}}
+
+# 静态检查：构建参数、脚本、Dockerfile COPY 源（需先 fetch）
+lint:
+    @{{_cnb}} lint {{_profile}}
+
+# 生成/刷新锁文件
+lock *ids:
+    @{{_cnb}} materials lock {{ids}} --file {{_manifest}}
+
+# 打印占位符解析值
+vars:
+    @{{_cnb}} pipeline variables {{_profile}}

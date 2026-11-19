@@ -20,11 +20,13 @@ func (f *File) Validate() []error {
 // storageErrors checks schema and storage layout.
 func (f *File) storageErrors() []error {
 	var errs []error
-	switch f.Storage.Layout {
-	case "", LayoutArchFirst, LayoutKindFirst:
+	switch f.Bundle.Layout {
+	case "", LayoutArchFirst:
 	default:
-		errs = append(errs, fmt.Errorf("[storage].layout must be %q or %q, got %q",
-			LayoutArchFirst, LayoutKindFirst, f.Storage.Layout))
+		// kind-first is reserved but not implemented: bundle paths assume
+		// <platform>/archives|binaries.
+		errs = append(errs, fmt.Errorf("[bundle].layout only supports %q for now, got %q",
+			LayoutArchFirst, f.Bundle.Layout))
 	}
 	if f.Schema != 1 {
 		errs = append(errs, fmt.Errorf("schema must be 1, got %d", f.Schema))

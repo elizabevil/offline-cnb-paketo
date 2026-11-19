@@ -9,7 +9,7 @@
 │ 配置层  project/<name>/pipeline.toml                         │
 │         stages（argv 列表）+ spec.checks + [spec.project]     │
 ├─────────────────────────────────────────────────────────────┤
-│ 物料层  assets.toml → assets.lock.toml → bundle/<platform>/   │
+│ 物料层  project/assets.toml → project/assets.lock.toml → bundle/<platform>/   │
 │         cnb materials lock / sync / verify                    │
 ├─────────────────────────────────────────────────────────────┤
 │ 工具层  cnb（Go）                                             │
@@ -22,12 +22,15 @@
 
 | 层 | 事实来源 | 谁维护 |
 |---|---|---|
-| 配置 | `project/*/pipeline.toml` | 人 |
-| 物料 | `assets.toml`（版本/URL）+ `assets.lock.toml`（哈希） | 人写声明，工具算哈希 |
+| 配置 | `project/*/pipeline.toml` | 人（项目根的基准） |
+| 物料 | `project/assets.toml`（版本/URL）+ `project/assets.lock.toml`（哈希） | 人写声明，工具算哈希（物料根的基准） |
 | 工具 | `script/tools/cnb` | 代码 + `just tools` |
 | 运行时 | 容器 CLI + builder 镜像内的 lifecycle | 镜像构建时固定 |
 
 `cnb` 不解析容器命令行语义：它只做占位符展开与顺序执行，**stage 的 argv 原样交给 execve**。
+
+路径链条（详见 [pipeline.md](pipeline.md#1-路径链条project--assets--bundle)）：
+`pipeline.toml` --(`assets`)--> `assets.toml` --(`[bundle].path`)--> `bundle/`。
 
 ## 2. 案例 A：offline-paketo（纯离线 builder）
 
@@ -35,7 +38,7 @@
 
 ```mermaid
 flowchart TD
-    A["assets.toml<br/>声明 lifecycle/fnm/uv/cnb/procfile 版本"] -->|"cnb materials lock"| B["assets.lock.toml<br/>写入 url/size/sha256"]
+    A["project/assets.toml<br/>声明 lifecycle/fnm/uv/cnb/procfile 版本"] -->|"cnb materials lock"| B["project/assets.lock.toml<br/>写入 url/size/sha256"]
     B -->|"just fetch 或 cnb materials sync"| C["bundle/&lt;platform&gt;/<br/>archives + binaries"]
     C -->|"cnb pipeline plan<br/>展开占位符 → argv"| D["计划：base → builder 两条 podman build"]
     D -->|"cnb pipeline run"| E["podman build base.dockerfile<br/>--build-arg BASE_IMAGE=${spec.project.base}"]
@@ -46,7 +49,7 @@ flowchart TD
 
 | 步骤 a → b | 工具 | 用了什么功能 | 效果 |
 |---|---|---|---|
-| assets.toml → assets.lock.toml | `cnb materials lock` | 下载归档并计算 sha256/size，回填 lock | 版本可复现，哈希入库 |
+| project/assets.toml → project/assets.lock.toml | `cnb materials lock` | 下载归档并计算 sha256/size，回填 lock | 版本可复现，哈希入库 |
 | lock → bundle/ | `cnb materials sync`（`just fetch`） | 按 lock 下载、解包、写 marker；三态幂等 | 离线物料落盘，断了可重跑 |
 | bundle + 配置 → 计划 | `cnb pipeline plan` | 占位符展开（`${spec.project.base}` 等）、路径绝对化 | 打印最终 argv，可审阅 |
 | 计划 → 镜像 | `cnb pipeline run` | 按 stages 顺序执行 argv | 产出 base 与 builder 镜像 |
@@ -95,7 +98,7 @@ flowchart TD
 | `cnb pipeline run` | 按 stages 顺序执行 | 镜像/产物 |
 | `cnb pipeline profile validate` | 校验配置结构 | 错误列表 |
 | `cnb pipeline variables` | 列出占位符解析值 | 排错用 |
-| `cnb materials lock` | 下载并固定哈希 | `assets.lock.toml` |
+| `cnb materials lock` | 下载并固定哈希 | `project/assets.lock.toml` |
 | `cnb materials sync` | 下载、解包、写 marker | `bundle/` |
 | `cnb materials verify` | 校验归档与产物 | 通过/失败 |
 | `cnb lint` | 构建参数、脚本、Dockerfile COPY 源 | 静态问题列表 |

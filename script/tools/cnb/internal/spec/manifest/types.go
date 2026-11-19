@@ -19,17 +19,18 @@ type (
 
 // File 是 assets.lock.toml 的完整结构。
 type File struct {
-	Schema  int     `toml:"schema"`
-	Meta    Meta    `toml:"meta"`
-	Storage Storage `toml:"storage"`
-	Assets  []Asset `toml:"asset"`
+	Schema int     `toml:"schema"`
+	Meta   Meta    `toml:"meta"`
+	Bundle Bundle  `toml:"bundle"`
+	Assets []Asset `toml:"asset"`
 }
 
-// Storage 声明物料落盘位置，避免调用方自己猜路径。
-type Storage struct {
-	// Root 是物料根目录；相对路径以 lock 文件所在目录为基准。
-	Root string `toml:"root"`
-	// Layout 是 bundle 内布局：arch-first（默认）或 kind-first。
+// Bundle declares where unpacked materials are stored.
+type Bundle struct {
+	// Path is the bundle directory, relative to the manifest location.
+	Path string `toml:"path"`
+	// Layout is the directory layout inside the bundle:
+	// arch-first (default) or kind-first.
 	Layout string `toml:"layout"`
 }
 
@@ -98,7 +99,7 @@ type Source struct {
 	URL string `toml:"url,omitempty"`
 	// Mirrors 是可选的回退源，仅在传输/HTTP 错误时尝试。
 	Mirrors []string `toml:"mirrors,omitempty"`
-	// Source 是 local 来源的仓库相对路径。
+	// Source 是 local 来源路径，相对物料清单所在目录。
 	Source string `toml:"source,omitempty"`
 	// Recipe 是 local 来源的构建命令（可选，便于复现）。
 	Recipe string `toml:"recipe,omitempty"`

@@ -47,11 +47,17 @@ type DockerfileTarget struct {
 	Args       map[string]string
 }
 
-// Options 是构建计划所需的运行环境。
+// Options are the resolved roots a plan is built from.
 type Options struct {
-	// Repo 是仓库根（绝对路径），workdir 与路径参数以它为基准。
+	// Project is the directory holding the pipeline config (absolute).
+	// Stage workdir and project-local paths resolve against it.
+	Project string
+	// Materials is the directory holding the manifest (absolute).
+	Materials string
+	// Repo is the workspace root (absolute), used for shared assets
+	// such as buildpacks.
 	Repo string
-	// Bundle 是物料目录（绝对路径），对应 ${bundle}。
+	// Bundle is the material directory (absolute).
 	Bundle string
 }
 
@@ -73,13 +79,13 @@ func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []errs.Wa
 	p := &Plan{Project: f.Metadata.Name, Platform: f.Spec.Project.Platform, Bundle: opts.Bundle}
 	var allWarns []errs.Warning
 	for _, st := range f.Spec.Stages {
-		expanded, err := expandStage(st, vars, opts.Repo)
+		expanded, err := expandStage(st, vars, opts.Project)
 		if err != nil {
 			return nil, nil, err
 		}
 		p.Stages = append(p.Stages, expanded)
 	}
-	targets, err := expandChecks(f, vars, opts.Repo)
+	targets, err := expandChecks(f, vars, opts.Project, opts.Repo)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -88,7 +94,7 @@ func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []errs.Wa
 }
 
 // expandStage 展开单个阶段。
-func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
+func expandStage(st profile.Stage, vars vars, project string) (Stage, error) {
 	argv := make([]string, 0, len(st.Run))
 	for _, arg := range st.Run {
 		value, err := vars.expand(arg)
@@ -97,7 +103,7 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 		}
 		argv = append(argv, value)
 	}
-	workdir, err := absPath(repo, st.Workdir)
+	workdir, err := absPath(project, st.Workdir)
 	if err != nil {
 		return Stage{}, err
 	}
@@ -120,13 +126,13 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 // expandChecks resolves spec.checks.dockerfiles with the same placeholder table
 // as stages, so ${repo} / ${bundle} mean exactly what they mean in run.
 //
-// path and context are relative to spec.project.directory; contexts are relative to
-// the repo root (bundle and buildpacks live there).
-func expandChecks(f *profile.File, v vars, repo string) ([]DockerfileTarget, error) {
+// path and context are relative to the project root (the config directory);
+// contexts are relative to the workspace root (shared assets live there).
+func expandChecks(f *profile.File, v vars, project, repo string) ([]DockerfileTarget, error) {
 	if len(f.Spec.Checks.Dockerfiles) == 0 {
 		return nil, nil
 	}
-	projectDir := filepath.Join(repo, f.Spec.Project.Directory)
+	projectDir := project
 	out := make([]DockerfileTarget, 0, len(f.Spec.Checks.Dockerfiles))
 	for i, dc := range f.Spec.Checks.Dockerfiles {
 		field := fmt.Sprintf("spec.checks.dockerfiles[%d]", i)

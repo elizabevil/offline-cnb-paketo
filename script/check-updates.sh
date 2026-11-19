@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-updates.sh — 对照上游最新版，检查 assets.lock.toml 是否落后
+# check-updates.sh — 对照上游最新版，检查 project/assets.lock.toml 是否落后
 # 需要网络；只读取，不修改任何文件。
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -70,7 +70,7 @@ done
 
 printf '%s\n' "------------------------------------------------------------"
 if [ "$stale" -gt 0 ]; then
-  echo "${stale} 项落后：物料改 assets.lock.toml，buildpack 改 buildpack.toml 的 version/upstream-version 并同步 Dockerfile 与 order.toml"
+  echo "${stale} 项落后：物料改 project/assets.lock.toml，buildpack 改 buildpack.toml 的 version/upstream-version 并同步 Dockerfile 与 order.toml"
   exit 1
 fi
 echo "全部为最新"

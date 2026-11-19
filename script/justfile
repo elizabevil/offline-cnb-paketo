@@ -35,11 +35,11 @@ _cnb_bin := env_var_or_default("CNB_BIN", _script / "bin" / "cnb-linux-amd64")
 
 # 物料清单（TSV：id / version / 解包方式 / 平台）
 list:
-    @{{_cnb_bin}} --platform {{platform}} materials list
+    @{{_cnb_bin}} --platform {{platform}} --file {{_script}}/../project/assets.toml materials list
 
 # 物料自检：落盘状态、哈希、解压产物
 doctor:
-    @{{_cnb_bin}} --platform {{platform}} materials verify
+    @{{_cnb_bin}} --platform {{platform}} --file {{_script}}/../project/assets.toml materials verify
 
 # 编译工具（cnb / bksmartpacker）到 script/bin/<工具>-<os>-<arch>
 tools:
@@ -48,7 +48,7 @@ tools:
 # 基座结构自检：lock 结构 + shell 语法 + go 静态检查
 check: tools
     @echo "── lock 结构 ──"
-    @{{_cnb_bin}} --file {{_script}}/../assets.lock.toml materials validate
+    @{{_cnb_bin}} --file {{_script}}/../project/assets.toml materials validate
     @echo "── 模板合法性（渲染内嵌模板后校验）──"
     @tmp=$(mktemp -d); \
       {{_cnb_bin}} init tmpl-check --config "$tmp/pipeline.toml" --assets "$tmp/assets.toml" >/dev/null && \
@@ -119,11 +119,11 @@ fetch *ids:
 
 # 校验哈希与解压产物
 verify *ids:
-    @{{_cnb_bin}} --platform {{platform}} materials verify {{ids}}
+    @{{_cnb_bin}} --platform {{platform}} --file {{_script}}/../project/assets.toml materials verify {{ids}}
 
 # 由本地归档反推 sha256（打印片段，人工回填 lock）
 pin *ids:
-    @{{_cnb_bin}} --platform {{platform}} materials pin {{ids}}
+    @{{_cnb_bin}} --platform {{platform}} --file {{_script}}/../project/assets.toml materials pin {{ids}}
 
 # 镜像归档格式转换：oci-layout ↔ docker-archive
 convert src dst *args:

@@ -10,7 +10,7 @@
 ## 二、分层
 
 ```
-internal/spec/manifest    物料清单（assets.toml / assets.lock.toml）
+internal/spec/manifest    物料清单（project/assets.toml / project/assets.lock.toml）
 internal/spec/profile     流水线配置（project/<name>/pipeline.toml）
 internal/spec/lifecycle   CNB 协议：buildpack.toml、order.toml
 internal/spec/platform    平台契约：环境变量 → 结构化 Env
@@ -58,7 +58,7 @@ internal/spec/checksrules lint 规则覆盖（TOML）
 
 ## 五、协议样例
 
-### 5.1 物料清单 `assets.toml`
+### 5.1 物料清单 `project/assets.toml`
 
 ```toml
 schema = 1
@@ -86,7 +86,10 @@ default = true
   url = "https://…/lifecycle-v{version}+linux.x86-64.tgz"
 ```
 
-- 锁文件 `assets.lock.toml` 由 `cnb materials lock` 生成：`[locked]` 段记录 `url/size/sha256`
+- 路径基准：**以清单文件所在目录为根**（类似 `package.json`）。
+  `[bundle].path` 与本地来源的 `source` 都相对它解析；本项目
+  `project/assets.toml` + `root = "../bundle"` → 仓库根的 `bundle/`
+- 锁文件 `project/assets.lock.toml` 由 `cnb materials lock` 生成：`[locked]` 段记录 `url/size/sha256`
 - `unpack.kind`：`tgz` / `tar.gz` / `zip` / `bin`
 - `unpack.dir` 支持 `{version}`；`expect` 是解包后必须存在的相对路径
 - 多架构共用归档时用 `multi_arch = true`，且 `expect` 必须含 `{arch}`
@@ -101,8 +104,9 @@ kind       = "Pipeline"
 name = "demo"
 
 [spec.project]
-directory = "project/demo"
-platform  = "linux-amd64"
+# 物料清单位置（相对本文件）；默认 "assets.toml"
+assets   = "../assets.toml"
+platform = "linux-amd64"
 
   [spec.project.base]
   linux-amd64 = "debian:trixie-slim"
@@ -113,7 +117,7 @@ version = "0.21.29"
 [[spec.stages]]
 name        = "base"
 description = "build the base image"
-workdir     = "project/demo"
+workdir     = "."
 run = [
   "podman", "build", "-f", "docker/base.dockerfile",
   "-t", "demo-base:${derived.architecture}",
@@ -124,6 +128,12 @@ run = [
 [[spec.checks.dockerfiles]]
 path = "docker/base.dockerfile"
 ```
+
+路径基准：
+
+- `workdir`、`spec.checks.path` 相对 **`pipeline.toml` 所在目录**（项目根）
+- 物料相关路径经 `assets` 关联后，相对 **`assets.toml` 所在目录**（物料根）解析
+- 共享资源用 `${runtime.repo}` / `${runtime.bundle}` 等绝对占位符
 
 规则：
 
@@ -173,3 +183,84 @@ path = "docker/base.dockerfile"
 | `.sha256` 与 `.sync.json` 双标记 | 保留 `.sha256`（旧标记）+ `.sync.json`（新），读取时兼容 |
 | profile 的 `[images.*]` / `[commands.*]` | 删除；统一为 `[[spec.stages]]` |
 | `internal/cnbconst` | 合并进 `spec/manifest` 常量 |
+
+## 七、命名约束
+
+配置文件名与字段名就是用户接口。命名失真会导致"读配置的人要猜"，
+下面的规则对 `assets.toml` 与 `pipeline.toml` 同时适用。
+
+### 7.1 表回答"是什么"，键回答"哪个属性"
+
+```toml
+# ✅ 表名是名词，键名是该名词的属性
+[bundle]
+path   = "../bundle"
+layout = "arch-first"
+
+# ❌ 两个词都太泛，读者仍需猜
+[storage]
+root = "../bundle"
+```
+
+### 7.2 禁止通用词做键
+
+| 避免 | 原因 | 改用 |
+|---|---|---|
+| `root` | 谁的根？ | `path` / `directory`（并让表名限定语境） |
+| `info` | 什么信息？ | `name` / `homepage` / `license` 等具体词 |
+| `data` / `value` | 无信息量 | 用其真实含义 |
+| `file` | 哪个文件？ | `assets` / `manifest` / `config` |
+
+### 7.3 列表用复数，单值用单数
+
+```toml
+platforms = ["linux-amd64", "linux-arm64"]   # 列表
+platform  = "linux-amd64"                     # 单值
+[[asset]]                                     # 数组表
+[[spec.stages]]                               # 数组表
+```
+
+### 7.4 布尔字段表达"开启什么"，不用双重否定
+
+```toml
+continueOnError = true    # ✅ 开启"出错继续"
+# 不要 noFailStop = false 这类双重否定
+```
+
+### 7.5 时间/大小的单位写在值里或后缀里
+
+```toml
+timeout = "10m"      # 字符串带单位
+size    = 12345678   # 字节，字段注释说明
+```
+
+### 7.6 字段名 = Go 字段 = 占位符路径
+
+```toml
+[spec.project]
+platform = "linux-amd64"     # Go: Project.Platform   占位符: ${spec.project.platform}
+assets   = "../assets.toml"  # Go: Project.Assets
+```
+
+改字段名时三处必须同时改，否则会出现"配置里叫 A、代码里叫 B、占位符叫 C"。
+`just check` 与 `cnb pipeline variables` 可用于核对。
+
+### 7.7 命名变更的完整清单
+
+改一个字段名，至少同步：
+
+1. `internal/spec/*` 的结构体与 toml tag
+2. `Validate()` 的错误信息（会出现在用户眼前）
+3. 示例配置：`project/assets.toml`、`project/*/pipeline.toml`
+4. 占位符表（`internal/plan/vars.go`）与 `pipeline variables` 输出
+5. 文档：`pipeline.md`、`base.md`、本文件、`scaffold.md` 等
+6. 测试夹具（`plan_test.go` 里的 TOML 片段）
+
+### 7.8 已应用的改名记录
+
+| 旧 | 新 | 理由 |
+|---|---|---|
+| `[storage] root` | `[bundle] path` | 表与键都过泛 |
+| `spec.project.directory` | `spec.project.assets` + 位置即事实 | 同一字段曾同时表达"项目在哪"和"相对谁" |
+| `${arch}` / `${oci_platform}` | `${derived.architecture}` / `${derived.container_platform}` | 短名看不出出处 |
+| `checks` 规则的 `kind` 字符串 | 代码内显式函数 | 逻辑枚举不应进配置 |

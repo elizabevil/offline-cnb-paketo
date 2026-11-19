@@ -64,7 +64,7 @@ builder 的关键约定：
 
 ## 五、物料
 
-由仓库根 `assets.toml` 声明、`assets.lock.toml` 固定哈希，`cnb materials sync` 落到
+由 `project/assets.toml` 声明、`project/assets.lock.toml` 固定哈希（路径以清单所在目录为根），`cnb materials sync` 落到
 `bundle/<platform>/binaries/<id>/<version>/`。
 
 本项目用到的物料（版本以 `assets.toml` 为准）：

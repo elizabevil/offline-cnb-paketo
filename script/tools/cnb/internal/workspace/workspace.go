@@ -11,7 +11,6 @@ import (
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/spec/manifest"
-	"learn-cnb-paketo/tools/cnb/internal/strutil"
 )
 
 // 环境变量与默认值。
@@ -67,25 +66,7 @@ func Open(o Options) (Context, error) {
 		}
 		root = filepath.Dir(abs)
 	}
-	lockPath := o.LockPath
-	if lockPath == "" {
-		// Prefer a manifest in the current directory: the tool may run outside
-		// the repository against an arbitrary project tree.
-		cwdManifest := ""
-		if wd, err := os.Getwd(); err == nil {
-			if cand := filepath.Join(wd, DefaultManifestName); fsutil.Exists(cand) {
-				cwdManifest = cand
-			}
-		}
-		lockPath = strutil.FirstNonEmpty(os.Getenv(EnvLockFile), cwdManifest, filepath.Join(root, DefaultManifestName))
-		// 兼容旧布局：只有 assets.lock.toml 时仍按清单读取
-		if _, err := os.Stat(lockPath); os.IsNotExist(err) {
-			legacy := filepath.Join(root, DefaultLockName)
-			if _, legacyErr := os.Stat(legacy); legacyErr == nil {
-				lockPath = legacy
-			}
-		}
-	}
+	lockPath := resolveManifest(o.LockPath, root)
 	l, err := lock.Load(lockPath)
 	if err != nil {
 		return Context{}, err
@@ -118,7 +99,23 @@ func Open(o Options) (Context, error) {
 // directory holding a manifest, then marker-file discovery.
 func Resolve(explicit string) (string, error) { return resolveRepo(explicit) }
 
-// resolveRepo 解析仓库根：显式参数 > 环境变量 > 标记文件定位。
+// resolveManifest returns the manifest path: flag > env > ./assets.toml.
+func resolveManifest(explicit, root string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if env := os.Getenv(EnvLockFile); env != "" {
+		return env
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if cand := filepath.Join(wd, DefaultManifestName); fsutil.Exists(cand) {
+			return cand
+		}
+	}
+	return filepath.Join(root, DefaultManifestName)
+}
+
+// resolveRepo 解析仓库根：显式参数 > 环境变量 > 标记文件定位。// resolveRepo 解析仓库根：显式参数 > 环境变量 > 标记文件定位。
 func resolveRepo(explicit string) (string, error) {
 	if explicit != "" {
 		return filepath.Abs(explicit)
@@ -173,9 +170,9 @@ func UserProfilePath(root, configDir, name string) string {
 	return ProfilePath(root, configDir, name)
 }
 
-// resolveBundle 按 lock 的 [storage].root 解析物料目录（相对 lock 所在目录）。
+// resolveBundle resolves [bundle].path against the manifest directory.
 func resolveBundle(lockDir string, l *lock.File) string {
-	root := l.Storage.Root
+	root := l.Bundle.Path
 	if root == "" {
 		root = DefaultBundle
 	}

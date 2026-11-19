@@ -41,11 +41,12 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 	}
 	entries := []Placeholder{
 		{"spec.project.platform", string(platform), "spec.project.platform"},
-		{"spec.project.directory", f.Spec.Project.Directory, "spec.project.directory"},
+		{"runtime.project", opts.Project, "pipeline config directory"},
 		{"spec.project.base", f.Spec.Project.Base[string(platform)], "spec.project.base[platform]"},
 		{"derived.architecture", manifest.ArchOf(platform), "derived from spec.project.platform"},
 		{"derived.container_platform", strings.Replace(string(platform), "-", "/", 1), `derived from spec.project.platform, "/" instead of "-" (for --platform)`},
-		{"runtime.repo", opts.Repo, "repository root (--repo / CNB_REPO_ROOT / executable path)"},
+		{"runtime.repo", opts.Repo, "workspace root (--repo / CNB_REPO_ROOT / executable path)"},
+		{"runtime.materials", opts.Materials, "material manifest directory"},
 		{"runtime.bundle", opts.Bundle, "bundle directory (--bundle or the lock directory)"},
 	}
 	for _, id := range slices.Sorted(maps.Keys(f.Spec.Assets)) {

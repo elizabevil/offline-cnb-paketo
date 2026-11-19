@@ -8,8 +8,8 @@ type (
 	File = manifest.File
 	// Meta 是清单元信息。
 	Meta = manifest.Meta
-	// Storage 声明物料落盘位置。
-	Storage = manifest.Storage
+	// Bundle declares where unpacked materials are stored.
+	Bundle = manifest.Bundle
 	// Asset 是单个物料。
 	Asset = manifest.Asset
 	// Info 是物料说明。

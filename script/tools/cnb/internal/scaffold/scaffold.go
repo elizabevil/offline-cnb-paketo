@@ -38,6 +38,9 @@ type File struct {
 }
 
 // Render copies the reference project and rewrites name/directory references.
+//
+// Every candidate file — including the optional assets.toml — goes through the
+// same only/skip filter, so filtering has one rule instead of special cases.
 func Render(o Options) ([]File, error) {
 	ref, err := filepath.Abs(o.From)
 	if err != nil {
@@ -49,8 +52,38 @@ func Render(o Options) ([]File, error) {
 	oldName := filepath.Base(ref)
 	oldDir := projectRelDir(ref)
 
+	candidates, err := collect(ref, o.Skip)
+	if err != nil {
+		return nil, err
+	}
+	if o.Assets != "" && fsutil.Exists(o.Assets) {
+		candidates = append(candidates, candidate{rel: "assets.toml", path: o.Assets})
+	}
+
 	var files []File
-	err = filepath.WalkDir(ref, func(path string, d os.DirEntry, walkErr error) error {
+	for _, c := range candidates {
+		if !selected(c.rel, o.Only, o.Skip) {
+			continue
+		}
+		content, err := os.ReadFile(c.path)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, File{Path: c.rel, Content: rewrite(content, oldName, o.Name, oldDir, o.Dir)})
+	}
+	return files, nil
+}
+
+// candidate is one file considered for copying.
+type candidate struct {
+	rel  string
+	path string
+}
+
+// collect walks the reference project, pruning skipped directories early.
+func collect(ref string, skip []string) ([]candidate, error) {
+	var out []candidate
+	err := filepath.WalkDir(ref, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -59,32 +92,15 @@ func Render(o Options) ([]File, error) {
 			return err
 		}
 		if d.IsDir() {
-			if skipped(rel, o.Skip) {
+			if skipped(rel, skip) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !selected(rel, o.Only, o.Skip) {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		files = append(files, File{Path: rel, Content: rewrite(content, oldName, o.Name, oldDir, o.Dir)})
+		out = append(out, candidate{rel: rel, path: path})
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	if o.Assets != "" && fsutil.Exists(o.Assets) && !skipped("assets.toml", o.Skip) && !matchPrefix("assets", o.Skip) {
-		content, err := os.ReadFile(o.Assets)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, File{Path: "assets.toml", Content: rewrite(content, oldName, o.Name, oldDir, o.Dir)})
-	}
-	return files, nil
+	return out, err
 }
 
 // rewrite replaces project name and directory references in text files.
@@ -97,6 +113,10 @@ func rewrite(content []byte, oldName, newName, oldDir, newDir string) []byte {
 		s = strings.ReplaceAll(s, oldDir, newDir)
 	}
 	s = strings.ReplaceAll(s, oldName, newName)
+	// The new project owns its manifest (copied next to the config), so every
+	// shared-material reference becomes local.
+	s = strings.ReplaceAll(s, `"../assets.toml"`, `"assets.toml"`)
+	s = strings.ReplaceAll(s, `_dir / ".." / "assets.toml"`, `_dir / "assets.toml"`)
 	return []byte(s)
 }
 
@@ -120,20 +140,30 @@ func projectRelDir(abs string) string {
 	return filepath.Join(parent, name)
 }
 
+// selected applies the only/skip filters with one rule:
+// a pattern matches when it equals the path, is a parent directory, or is a
+// glob (filepath.Match) against the path.
 func selected(rel string, only, skip []string) bool {
-	if len(only) > 0 && !matchPrefix(rel, only) {
+	if len(only) > 0 && !matches(rel, only) {
 		return false
 	}
-	return !matchPrefix(rel, skip)
+	return !matches(rel, skip)
 }
 
-func skipped(rel string, skip []string) bool { return matchPrefix(rel, skip) }
-
-func matchPrefix(rel string, prefixes []string) bool {
-	for _, p := range prefixes {
-		if p != "" && (rel == p || strings.HasPrefix(rel, p+string(filepath.Separator))) {
+// matches reports whether any pattern selects rel.
+func matches(rel string, patterns []string) bool {
+	for _, p := range patterns {
+		if p == "" {
+			continue
+		}
+		if rel == p || strings.HasPrefix(rel, p+string(filepath.Separator)) {
+			return true
+		}
+		if ok, _ := filepath.Match(p, rel); ok {
 			return true
 		}
 	}
 	return false
 }
+
+func skipped(rel string, skip []string) bool { return matches(rel, skip) }

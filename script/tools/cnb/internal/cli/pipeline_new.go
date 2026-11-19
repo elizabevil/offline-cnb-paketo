@@ -7,12 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"learn-cnb-paketo/tools/cnb/internal/exec"
-	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 	"learn-cnb-paketo/tools/cnb/internal/plan"
 	"learn-cnb-paketo/tools/cnb/internal/render"
@@ -39,61 +37,47 @@ func loadPipeline(path string) (*specprofile.File, *plan.Plan, error) {
 		}
 		return nil, nil, &exitError{code: ExitFailure}
 	}
-	root := rootForProfile(f, path)
+	projectRoot, manifest := projectRoots(f, path)
 	ctx, err := workspace.Open(workspace.Options{
-		Repo:     root,
-		LockPath: lockForProfile(f, root, path),
+		Repo:     opts.repo,
+		LockPath: manifest,
 		Platform: lock.Platform(opts.platform),
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	p, _, err := plan.Build(f, ctx.Lock, plan.Options{Repo: ctx.Root, Bundle: ctx.Bundle})
+	p, _, err := plan.Build(f, ctx.Lock, plan.Options{
+		Project:   projectRoot,
+		Materials: filepath.Dir(manifest),
+		Repo:      ctx.Root,
+		Bundle:    ctx.Bundle,
+	})
 	if err != nil {
 		return nil, nil, failExecution(err)
 	}
 	return f, p, nil
 }
 
-// rootForProfile derives the project root from the profile location.
+// projectRoots derives the two roots a pipeline needs.
 //
-// The profile lives inside the project (e.g. project/demo/pipeline.toml), so the
-// root is the parent of spec.project.directory. An explicit --repo wins.
-func rootForProfile(f *specprofile.File, profilePath string) string {
-	if opts.repo != "" {
-		return opts.repo
+//   - project root: the directory holding the config file; every stage path and
+//     workdir resolves against it, so a project directory can be moved as-is.
+//   - material manifest: spec.project.assets (relative to the project root),
+//     defaulting to <project>/assets.toml.
+func projectRoots(f *specprofile.File, profilePath string) (projectRoot, manifest string) {
+	absProfile := mustAbs(profilePath)
+	projectRoot = filepath.Dir(absProfile)
+	manifest = f.Spec.Project.Assets
+	if manifest == "" {
+		manifest = "assets.toml"
 	}
-	absProfile, err := filepath.Abs(profilePath)
-	if err != nil {
-		return ""
+	if !filepath.IsAbs(manifest) {
+		manifest = filepath.Join(projectRoot, manifest)
 	}
-	dir := filepath.Dir(absProfile)
-	projDir := filepath.Clean(f.Spec.Project.Directory)
-	suffix := string(filepath.Separator) + projDir
-	if root, ok := strings.CutSuffix(dir, suffix); ok {
-		return root
-	}
-	return ""
-}
-
-// lockForProfile finds the manifest next to the project or the profile.
-//
-// A scaffolded project keeps assets.toml inside the project directory, so the
-// repo-root default does not apply.
-func lockForProfile(f *specprofile.File, root, profilePath string) string {
 	if opts.lockPath != "" {
-		return opts.lockPath
+		manifest = opts.lockPath
 	}
-	candidates := []string{
-		filepath.Join(root, f.Spec.Project.Directory, "assets.toml"),
-		filepath.Join(filepath.Dir(mustAbs(profilePath)), "assets.toml"),
-	}
-	for _, c := range candidates {
-		if fsutil.Exists(c) {
-			return c
-		}
-	}
-	return ""
+	return projectRoot, manifest
 }
 
 // mustAbs makes a path absolute, returning it unchanged on error.

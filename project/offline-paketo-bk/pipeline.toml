@@ -15,8 +15,8 @@ name = "offline-paketo-bk"
 #
 #   ${spec.project.platform}       目标平台，如 linux-amd64
 #                                  ← [spec.project] platform
-#   ${spec.project.directory}      项目目录，如 project/offline-paketo
-#                                  ← [spec.project] dir
+#   ${runtime.project}             项目目录（本文件所在目录）
+#   ${runtime.materials}           物料清单目录（assets.toml 所在目录）
 #   ${spec.project.base}           当前平台的基础镜像
 #                                  ← [spec.project.base] 里 platform 对应的值
 #   ${derived.architecture}        架构，如 amd64
@@ -33,7 +33,7 @@ name = "offline-paketo-bk"
 #   自省：cnb pipeline variables project/<name>/pipeline.toml
 
 [spec.project]
-directory = "project/offline-paketo-bk"
+assets   = "../assets.toml"
 platform = "linux-amd64"
 
   [spec.project.base]
@@ -67,7 +67,7 @@ version = "5.15.9"
 [[spec.stages]]
 name        = "base"
 description = "构建 base 镜像（证书、locale、工作目录）"
-workdir     = "project/offline-paketo-bk"
+workdir     = "."
 run = [
   "podman", "build", "-f", "docker/builder-base.dockerfile",
   "-t", "offline-builder-base-bk:${derived.architecture}", "--platform", "${derived.container_platform}",
@@ -77,7 +77,7 @@ run = [
 [[spec.stages]]
 name        = "builder"
 description = "构建 builder 镜像（lifecycle + buildpacks）"
-workdir     = "project/offline-paketo-bk"
+workdir     = "."
 run = [
   "podman", "build", "-f", "docker/builder-build.dockerfile",
   "-t", "offline-builder-build-bk:${derived.architecture}", "--platform", "${derived.container_platform}",

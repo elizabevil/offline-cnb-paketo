@@ -1,7 +1,7 @@
 schema = 1
 
 [manifest]
-sha256 = '0a7a9632e9c21a5e1e115f3d156c755e169af4baba94732e08876a715745a814'
+sha256 = 'cd741cb6393cec301284716e976630d5d0373a51d47fa9155c04f4286eccf62d'
 
 [[locked]]
 id = 'lifecycle'
@@ -129,7 +129,7 @@ version = '3.0.0'
 
 [locked.platform]
 [locked.platform.linux-amd64]
-sha256 = 'b5e1d051d64dc68994dbd8b00beb29ee73ac833d86d8413455187882af4c4be4'
+sha256 = '36780a66973a493ce8abbd6c0dd561308daa00009c54de8504bd016c620342d0'
 
 [locked.platform.linux-arm64]
 sha256 = '86674200b6102208277efdc8798eb620f96c580c69488f3ee1ac92f9af01550a'

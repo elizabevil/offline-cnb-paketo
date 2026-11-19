@@ -1,4 +1,4 @@
-# 如何维护物料清单（assets.toml / assets.lock.toml）
+# 如何维护物料清单（project/assets.toml / project/assets.lock.toml）
 
 面向“要加一个新工具 / 升一个版本”的人。先看结论，再看细节。
 
@@ -6,29 +6,29 @@
 
 | 文件 | 谁写 | 内容 |
 |---|---|---|
-| `assets.toml` | 人 | id / version / url / unpack / platform / multi_arch，可保留注释 |
-| `assets.lock.toml` | 工具 | 解析后的 url、size、sha256、manifest 指纹 |
+| `project/assets.toml` | 人 | id / version / url / unpack / platform / multi_arch，可保留注释 |
+| `project/assets.lock.toml` | 工具 | 解析后的 url、size、sha256、manifest 指纹 |
 
 常用命令：
 
 ```bash
 cnb materials lock [id]        # 生成/刷新 lock（下载或采用已有归档）
-cnb materials update <id> <v>  # 只改 assets.toml 的 version 行，并重建 lock
+cnb materials update <id> <v>  # 只改 project/assets.toml 的 version 行，并重建 lock
 cnb materials sync             # 依据 lock 下载/校验/解包；lock 缺失时补
 cnb materials verify           # 校验 lock 与 bundle；清单改动未刷新会报错
 ```
 
-## 一·0、物料存放位置由 lock 声明
+## 一·0、物料存放位置由清单声明
 
 ```toml
-[storage]
-root   = "bundle"      # 相对 lock 文件所在目录；也可写绝对路径
-layout = "arch-first"  # arch-first | kind-first
+[bundle]
+path   = "bundle"      # 相对清单所在目录；也可写绝对路径
+layout = "arch-first"  # 目前仅支持 arch-first
 ```
 
-- `cnb` 一律按 `[storage].root` 解析物料目录，不再"猜"
-- 项目配置里的 `[docker].bundle_dir` 若填写，必须与之相同（validate 会报错）
+- `cnb` 一律按 `[bundle].path` 解析物料目录，不再"猜"
 - 改存放位置只改这一处，所有命令（sync/verify/publish/plan）自动跟随
+- `layout` 目前只支持 `arch-first`；写 `kind-first` 会被 validate 拒绝（未实现）
 
 ## 一、字段归属（谁写）
 
@@ -45,14 +45,14 @@ layout = "arch-first"  # arch-first | kind-first
 | `[asset.platform.*] mirrors` | 人（可选） | 回退源，仅传输/HTTP 错误时尝试 |
 | `[asset.platform.*] source` | 人（local） | 本地构建物的仓库相对路径 |
 | `[asset.platform.*] recipe` | 人（可选） | 本地构建物的复现命令 |
-| `assets.lock.toml` 的 sha256/size | **自动** | `materials lock` / `sync` / `publish` 回填 |
+| `project/assets.lock.toml` 的 sha256/size | **自动** | `materials lock` / `sync` / `publish` 回填 |
 | `bundle/` 下的文件、`.meta/*.sync.json` | **自动** | 不要手动改 |
 
 原则：**地址与规则人写，哈希与落盘状态机器写。**
 
 ## 二、加一个新工具
 
-1. 在 `assets.lock.toml` 末尾追加：
+1. 在 `project/assets.lock.toml` 末尾追加：
 
 ```toml
 [[asset]]
@@ -167,3 +167,18 @@ cnb materials pin [ids...]              # 反推 sha256（只打印）
 cnb materials publish <id>              # 发布本地构建物
 cnb materials lock set-sha <id> <platform> <sha>
 ```
+
+## 一·一、`cnb` 自身也是物料
+
+`cnb` 二进制由 `just tools` 构建并以 `materials publish` 回填哈希，
+builder 镜像从 `bundle/<platform>/binaries/cnb/<version>/` COPY。
+
+因此**改动 Go 代码后必须重新构建并提交 lock**：
+
+```bash
+just tools                              # 构建 + 回填 assets.lock.toml
+git diff project/assets.lock.toml       # 只应看到 cnb 的 sha256 变化
+cnb --file project/assets.toml materials verify cnb
+```
+
+不提交会导致 `verify` 报"哈希已变化"，也会让 builder 镜像与 lock 不一致。
