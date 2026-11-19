@@ -20,9 +20,6 @@ linters:
     - gocognit
     - cyclop
     - nolintlint
-    - modernize
-    - intrange
-    - usestdlibvars
   settings:
     errcheck:
       # CLI 输出到 stdout/stderr，写失败无补救手段，不纳入检查

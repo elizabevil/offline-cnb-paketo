@@ -64,7 +64,7 @@ func copySources(dockerfile string) []copySource {
 		return nil
 	}
 	var out []copySource
-	for line := range strings.SplitSeq(string(data), "\n") {
+	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(strings.TrimSpace(line))
 		if len(fields) < 3 {
 			continue

@@ -2,9 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
+	"strings"
 )
 
 func newPlatformsCmd() *cobra.Command {

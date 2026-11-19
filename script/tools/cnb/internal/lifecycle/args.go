@@ -1,77 +1,71 @@
 package lifecycle
 
-// args collects lifecycle flags in order. Methods make the "may be empty"
-// distinction explicit instead of hiding it in a shared helper.
+// args 以链式方式拼装命令行参数，避免散落的字符串拼接。
 type args []string
 
-// optional appends "-name=value" and skips empty values (truly optional flags).
-func (a *args) optional(name, value string) {
-	if value != "" {
-		a.always(name, value)
+// flag 添加 "-name=value"；value 为空时跳过（可选项）。
+func (a *args) flag(name, value string) {
+	if value == "" {
+		return
 	}
-}
-
-// always appends "-name=value" even when empty: a missing required value then
-// fails in the lifecycle instead of being silently dropped.
-func (a *args) always(name, value string) {
 	*a = append(*a, "-"+name+"="+value)
 }
 
-// toggle appends a boolean flag.
-func (a *args) toggle(name string) {
-	*a = append(*a, "-"+name)
+// boolFlag 仅在启用时添加 "-name"。
+func (a *args) boolFlag(name string, on bool) {
+	if on {
+		*a = append(*a, "-"+name)
+	}
 }
 
-// positional appends a positional argument (for example the output image).
+// positional 追加位置参数（如镜像名）。
 func (a *args) positional(value string) {
 	if value != "" {
 		*a = append(*a, value)
 	}
 }
 
-// common is shared by detect and build.
+// common 是 detect/build 共用的目录参数。
 func (c Config) common() args {
 	var a args
-	a.optional("layers", c.Paths.Layers)
-	a.optional("app", c.Paths.App)
-	a.optional("platform", c.Paths.Platform)
+	a.flag("layers", c.Paths.Layers)
+	a.flag("app", c.Paths.App)
+	a.flag("platform", c.Paths.Platform)
 	return a
 }
 
-// detectArgs builds detector flags.
+// detectArgs 生成 detector 参数。
 func (c Config) detectArgs() []string {
 	a := c.common()
 	order := c.Build.Order
 	if c.Build.Required != "" {
 		order = c.Paths.Layers + "/" + OrderFileName
 	}
-	a.optional("order", order)
+	a.flag("order", order)
 	return a
 }
 
-// buildArgs builds builder flags.
+// buildArgs 生成 builder 参数。
 func (c Config) buildArgs() []string { return c.common() }
 
-// analyzeArgs builds analyzer flags.
-//
-// The analyzer always talks to the daemon: it records run image metadata in
-// analyzed.toml, while layout mode would look for the image inside a layout
-// directory that has not been populated yet.
+// analyzeArgs 生成 analyzer 参数。
+// analyzer 始终走 daemon：它要把 run image 的元数据写进 analyzed.toml，
+// 而 layout 模式下 analyzer 只会在 layout 目录里找镜像（尚未导入时必然失败）。
 func (c Config) analyzeArgs() []string {
 	var a args
-	a.optional("layers", c.Paths.Layers)
-	a.optional("run-image", c.Export.RunImage)
-	if c.usesLayout() {
-		a.toggle("layout")
-		a.optional("layout-dir", c.layoutDir())
+	a.flag("layers", c.Paths.Layers)
+	a.flag("run-image", c.Export.RunImage)
+	if c.Export.Mode == ExportLayout || c.Export.Mode == "" {
+		a.boolFlag("layout", true)
+		a.flag("layout-dir", c.layoutDir())
 	} else {
-		a.toggle("daemon")
+		a.boolFlag("daemon", true)
 	}
 	a.positional(c.Export.OutputImage)
 	return a
 }
 
-// layoutDir returns the OCI layout output directory.
+// layoutDir 返回 OCI layout 输出目录。
 func (c Config) layoutDir() string {
 	if c.Export.LayoutDir != "" {
 		return c.Export.LayoutDir
@@ -79,29 +73,23 @@ func (c Config) layoutDir() string {
 	return defaultLayoutDir
 }
 
-// usesLayout reports whether the export mode writes an OCI layout.
-func (c Config) usesLayout() bool {
-	return c.Export.Mode == ExportLayout || c.Export.Mode == ""
-}
-
-// exportArgs builds exporter flags.
+// exportArgs 生成 exporter 参数。
 func (c Config) exportArgs() []string {
 	var a args
-	a.optional("layers", c.Paths.Layers)
-	a.optional("app", c.Paths.App)
-	switch {
-	case c.usesLayout():
-		a.toggle("layout")
-		a.optional("layout-dir", c.layoutDir())
-	case c.Export.Mode == ExportDaemon:
-		a.toggle("daemon")
-		// Layout mode takes run image data from analyzed.toml, so only daemon
-		// mode passes -run-image.
-		a.optional("run-image", c.Export.RunImage)
-	case c.Export.Mode == ExportNone:
-		// Nothing to export; the caller must not run the exporter.
+	a.flag("layers", c.Paths.Layers)
+	a.flag("app", c.Paths.App)
+	switch c.Export.Mode {
+	case ExportLayout, "":
+		a.boolFlag("layout", true)
+		a.flag("layout-dir", c.layoutDir())
+	case ExportDaemon:
+		a.boolFlag("daemon", true)
+		a.flag("run-image", c.Export.RunImage)
+	case ExportNone:
+		// 不导出：调用方不应执行 exporter
 	}
-	a.optional("cache-image", c.Export.CacheImage)
+	// layout 模式不接受 -run-image：run 镜像信息来自 analyzed.toml
+	a.flag("cache-image", c.Export.CacheImage)
 	a.positional(c.Export.OutputImage)
 	return a
 }
