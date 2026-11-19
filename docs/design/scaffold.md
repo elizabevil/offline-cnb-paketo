@@ -10,9 +10,8 @@ cnb init demo                                  # 参考 project/offline-paketo
 cnb init demo --from project/offline-paketo    # 显式指定参考项目
 cnb init demo --dir project/x                  # 输出目录
 cnb init demo --only docker                   # 只复制 docker/ 下文件
-cnb init demo --only docker --only assets.toml # 多个 --only 累积
 cnb init demo --skip fixtures --skip docs      # 跳过指定子路径
-cnb init demo --skip assets.toml               # 排除 assets.toml
+cnb init demo --only docker --skip assets      # 连 assets.toml 一起排除
 cnb init demo --force                          # 覆盖已存在文件
 ```
 
@@ -21,11 +20,8 @@ cnb init demo --force                          # 覆盖已存在文件
 1. 遍历参考项目目录，逐个文件复制
 2. 文本文件里把 `offline-paketo` 替换为新名字，`project/offline-paketo` 替换为新目录
 3. 二进制文件（含 NUL 字节）原样复制
-4. 仓库根的 `assets.toml` 作为普通候选文件参与过滤，默认复制到 `<dir>/assets.toml`
-
-过滤规则只有一条：pattern 等于路径、是父目录，或匹配 glob（`filepath.Match`）。
-`--only` 与 `--skip` 对参考项目文件与 `assets.toml` 一视同仁——
-因此 `--only docker` 不会带 assets，需要时显式再加一个 `--only assets.toml`。
+4. 仓库根的 `assets.toml` 一并复制到 `<dir>/assets.toml`
+   （`--skip assets` 可排除；`--only` 不影响它）
 
 ## 3. 项目目录是自包含的
 
