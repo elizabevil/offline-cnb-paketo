@@ -15,10 +15,18 @@ type DockerfileSourceFinding struct {
 	Stage    string
 	Source   string
 	Resolved string
+	// Reason replaces the default "COPY source not found" message when set.
+	Reason string
 }
 
 // Describe renders a finding for CLI output.
 func (f DockerfileSourceFinding) Describe() string {
+	if f.Reason != "" {
+		return f.Reason
+	}
+	if f.Resolved == "" {
+		return fmt.Sprintf("COPY source not found: %s", f.Source)
+	}
 	return fmt.Sprintf("COPY source not found: %s (resolved: %s)", f.Source, f.Resolved)
 }
 
@@ -32,8 +40,15 @@ func CheckDockerfiles(targets []DockerfileTarget, bundleDir, buildpacksDir strin
 	var out []DockerfileSourceFinding
 	for _, t := range targets {
 		vars := dockerfileVars(t.Dockerfile, t.Args)
+		stages := stageNames(t.Dockerfile)
 		for _, src := range copySources(t.Dockerfile) {
 			src.path = expandVars(src.path, vars)
+			if src.from != "" {
+				if reason := unknownFrom(src.from, stages, t.Contexts); reason != "" {
+					out = append(out, DockerfileSourceFinding{Stage: t.Name, Reason: reason})
+					continue
+				}
+			}
 			resolved, ok := resolveSource(src, t.Context, t.Contexts, bundleDir, buildpacksDir)
 			if !ok {
 				continue
@@ -83,6 +98,41 @@ func dockerfileVars(dockerfile string, args map[string]string) map[string]string
 	return vars
 }
 
+// unknownFrom reports a --from value that is neither a named context, a stage
+// in this Dockerfile, nor an image reference.
+//
+// A bare identifier that matches no stage is almost always a typo: Docker would
+// silently treat it as an image name and fail at build time.
+func unknownFrom(from string, stages []string, contexts map[string]string) string {
+	if _, ok := contexts[from]; ok {
+		return ""
+	}
+	for _, name := range stages {
+		if strings.EqualFold(name, from) {
+			return ""
+		}
+	}
+	if from == "bundle" || from == "buildpacks" {
+		return ""
+	}
+	if strings.ContainsAny(from, "/:@.") || isNumeric(from) {
+		return "" // image reference or stage index
+	}
+	return fmt.Sprintf("COPY --from=%s matches no stage in this Dockerfile", from)
+}
+
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // expandVars substitutes ${NAME} and $NAME using known values. Unknown
 // variables are left untouched so resolveSource can skip the source.
 func expandVars(s string, vars map[string]string) string {
@@ -91,6 +141,30 @@ func expandVars(s string, vars map[string]string) string {
 		s = strings.ReplaceAll(s, "$"+name, value)
 	}
 	return s
+}
+
+// stageNames returns the named build stages in declaration order.
+// FROM lines may carry --platform=... before the image.
+func stageNames(dockerfile string) []string {
+	data, err := os.ReadFile(dockerfile)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 4 || !strings.EqualFold(fields[0], "FROM") {
+			continue
+		}
+		// FROM [--platform=x] image [AS name]
+		for i := 2; i < len(fields)-1; i++ {
+			if strings.EqualFold(fields[i], "AS") {
+				names = append(names, fields[i+1])
+				break
+			}
+		}
+	}
+	return names
 }
 
 // copySource is one COPY/ADD source with its optional --from value.

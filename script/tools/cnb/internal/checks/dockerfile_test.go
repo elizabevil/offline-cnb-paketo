@@ -3,6 +3,8 @@ package checks
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +88,34 @@ func TestExpandVarsLeavesUnknown(t *testing.T) {
 	got := expandVars("/${KNOWN}/${UNKNOWN}/x", map[string]string{"KNOWN": "k"})
 	if want := "/k/${UNKNOWN}/x"; got != want {
 		t.Errorf("expandVars = %q, want %q", got, want)
+	}
+}
+
+func TestUnknownFromStageReported(t *testing.T) {
+	dir := t.TempDir()
+	df := filepath.Join(dir, "Dockerfile")
+	content := "FROM debian AS builder\nFROM debian AS final\nCOPY --from=builer /out/app /app\nCOPY --from=builder /out/lib /lib\nCOPY --from=alpine:3.19 /bin/sh /sh\n"
+	if err := os.WriteFile(df, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := CheckDockerfiles([]DockerfileTarget{{Name: "img", Dockerfile: df, Context: dir}}, "", "")
+	if len(got) != 1 {
+		t.Fatalf("want 1 finding, got %d: %+v", len(got), got)
+	}
+	if !strings.Contains(got[0].Reason, "builer") {
+		t.Errorf("unexpected finding: %+v", got[0])
+	}
+}
+
+func TestStageNamesParsed(t *testing.T) {
+	dir := t.TempDir()
+	df := filepath.Join(dir, "Dockerfile")
+	content := "FROM --platform=linux/amd64 debian AS Base\nFROM Base AS final\nFROM scratch\n"
+	if err := os.WriteFile(df, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := stageNames(df)
+	if want := []string{"Base", "final"}; !slices.Equal(got, want) {
+		t.Errorf("stageNames = %v, want %v", got, want)
 	}
 }
