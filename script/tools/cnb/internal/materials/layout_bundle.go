@@ -48,7 +48,7 @@ func markerMatches(bundleDir string, platform lock.Platform, a *lock.Asset) bool
 
 // expectOK 检查声明的产物是否齐全。
 func expectOK(bundleDir string, platform lock.Platform, a *lock.Asset) bool {
-	return pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths())
+	return pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths(platform))
 }
 
 // pathsExist 判断 base 下的相对路径是否全部存在。

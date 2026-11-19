@@ -77,3 +77,6 @@ echo "===== 4) 日志里的错误（如果有）====="
 grep -iE "singleton|error|failed" "$T/daemon.log" | tail -15
 echo
 echo "日志: $T/layout.log  $T/daemon.log"
+
+podman pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.15
+podman pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/paketobuildpacks/procfile:5.15-linuxarm64

@@ -19,5 +19,5 @@
 [[order]]
   [[order.group]]
     id = "paketo-buildpacks/procfile"
-    version = "5.13.4"
+    version = "5.15.9"
     optional = false

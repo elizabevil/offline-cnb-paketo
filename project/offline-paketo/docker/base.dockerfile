@@ -14,7 +14,7 @@
 
 ARG BASE_IMAGE
 
-FROM ${BASE_IMAGE:-swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim}
+FROM ${BASE_IMAGE}
 
 # ── 替换 APT 镜像源（国内加速） ─────────────────────────────────
 # docker/apt-sources/sources.list 在构建上下文中，

@@ -30,14 +30,18 @@ func (a Asset) Dir() string {
 // ExpectedPaths 返回解包后必须存在的完整相对路径。
 
 // ExpectedPaths 返回解包后必须存在的完整相对路径。
-func (a Asset) ExpectedPaths() []string {
+// 支持 {version} 与 {arch} 占位符（{arch} 按平台渲染）。
+func (a Asset) ExpectedPaths(platform Platform) []string {
 	dir := a.Dir()
+	arch := ArchOf(platform)
 	out := make([]string, 0, len(a.Unpack.Expect))
 	for _, e := range a.Unpack.Expect {
+		rel := strings.ReplaceAll(e, "{version}", a.Version)
+		rel = strings.ReplaceAll(rel, "{arch}", arch)
 		if dir == "." {
-			out = append(out, e)
+			out = append(out, rel)
 		} else {
-			out = append(out, dir+"/"+e)
+			out = append(out, dir+"/"+rel)
 		}
 	}
 	return out

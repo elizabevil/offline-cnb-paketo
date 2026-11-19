@@ -21,7 +21,7 @@
 ARG BASE_IMAGE_TAG
 
 # ── 基于 base 镜像构建最终 builder ──────────────────────────────────────
-FROM ${BASE_IMAGE_TAG:-swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim} AS final
+FROM ${BASE_IMAGE_TAG} AS final
 
 # pack 要求：构建容器使用的非 root 用户/组
 ENV CNB_USER_ID=1000
@@ -62,9 +62,12 @@ COPY --from=buildpacks /cpython/ /cnb/buildpacks/paketo-buildpacks_cpython/1.18.
 COPY --from=buildpacks /pip-install/ /cnb/buildpacks/paketo-buildpacks_pip-install/0.7.51/
 COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 
-# procfile 组件来自仓库自建 buildpacks（无外部镜像依赖）
-COPY --from=buildpacks /procfile/ /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
-RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/bin/*
+# procfile 来自物料（官方多架构 release 包）
+ARG PROCFILE_VERSION
+ARG BUILDPACK_ARCH
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
+RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/bin/*
 
 # ── 全局 order（决定 detect 顺序） ───────────────────────────────────────
 COPY docker/order.toml /cnb/order.toml

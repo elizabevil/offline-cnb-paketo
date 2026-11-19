@@ -10,7 +10,7 @@
   # 同一组内后执行：Procfile 有 web 时覆盖 go-build 的默认进程
   [[order.group]]
     id = "paketo-buildpacks/procfile"
-    version = "5.13.4"
+    version = "5.15.9"
     optional = false
 
 [[order]]
@@ -21,7 +21,7 @@
 
   [[order.group]]
     id = "paketo-buildpacks/procfile"
-    version = "5.13.4"
+    version = "5.15.9"
     optional = false
 
 [[order]]
@@ -32,12 +32,12 @@
 
   [[order.group]]
     id = "paketo-buildpacks/procfile"
-    version = "5.13.4"
+    version = "5.15.9"
     optional = false
 
 # 纯 Procfile 应用（无语言特征文件）
 [[order]]
   [[order.group]]
     id = "paketo-buildpacks/procfile"
-    version = "5.13.4"
+    version = "5.15.9"
     optional = false

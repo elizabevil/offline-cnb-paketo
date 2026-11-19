@@ -8,12 +8,11 @@
 
 ARG BASE_IMAGE_TAG
 
-FROM ${BASE_IMAGE_TAG:-offline-builder-base-bk:latest}
+FROM ${BASE_IMAGE_TAG}
 
 # pack 要求：构建容器使用的非 root 用户/组
 ENV CNB_USER_ID=1000
 ENV CNB_GROUP_ID=1000
-ARG DOCKER_VERSION
 ARG FNM_VERSION
 ARG JQ_VERSION
 ARG LIFECYCLE_VERSION
@@ -56,9 +55,12 @@ COPY --from=buildpacks /pip-install/ /cnb/buildpacks/paketo-buildpacks_pip-insta
 COPY --from=buildpacks /python/ /cnb/buildpacks/paketo-buildpacks_python/2.68.0/
 RUN chmod +x /cnb/buildpacks/*/*/bin/* 2>/dev/null || true
 
-# procfile 组件来自仓库自建 buildpacks（无外部镜像依赖）
-COPY --from=buildpacks /procfile/ /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/
-RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/5.13.4/bin/*
+# procfile 来自物料（官方多架构 release 包）
+ARG PROCFILE_VERSION
+ARG BUILDPACK_ARCH
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/buildpack.toml /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/buildpack.toml
+COPY --from=bundle /${BUNDLE_ARCH}/binaries/procfile/${PROCFILE_VERSION}/linux/${BUILDPACK_ARCH}/ /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/
+RUN chmod +x /cnb/buildpacks/paketo-buildpacks_procfile/${PROCFILE_VERSION}/bin/*
 
 # ═══════════════════════════════════════════════════════════
 # 全局 order（决定 detect 顺序）
@@ -77,8 +79,6 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/jq/${JQ_VERSION}/jq   /usr/local/bin
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/yq/${YQ_VERSION}/yq   /usr/local/bin/yq
 
 # ── Docker CLI（bksmartpacker 镜像层推送用） ─────────────────
-COPY --from=bundle /${BUNDLE_ARCH}/binaries/docker/${DOCKER_VERSION}/docker/docker /usr/local/bin/docker
-RUN chmod +x /usr/local/bin/docker
 
 # ── pack CLI（调试用，bksmartpacker 场景不需要） ────────────
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/pack/${PACK_VERSION}/pack  /usr/local/bin/pack

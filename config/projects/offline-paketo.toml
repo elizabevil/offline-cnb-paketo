@@ -8,8 +8,15 @@ name = "offline-paketo"
 dir      = "project/offline-paketo"
 platform = "linux-amd64"
 
+  [spec.project.base]
+  linux-amd64 = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim"
+  linux-arm64 = "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim-linuxarm64"
+
 [spec.assets.cnb]
 version = "3.0.0"
+
+[spec.assets.procfile]
+version = "5.15.9"
 
 [spec.assets.lifecycle]
 version = "0.21.29"
@@ -27,18 +34,7 @@ run = [
   "podman", "build",
   "-f", "docker/base.dockerfile",
   "-t", "offline-builder-base:latest",
-  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
-  ".",
-]
-
-[[spec.stages]]
-name    = "run"
-workdir = "project/offline-paketo"
-run = [
-  "podman", "build",
-  "-f", "docker/run.dockerfile",
-  "-t", "offline-run:latest",
-  "--build-arg", "BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim",
+  "--build-arg", "BASE_IMAGE=${base_image}",
   ".",
 ]
 
@@ -57,5 +53,7 @@ run = [
   "--build-arg", "FNM_VERSION=${asset.fnm.version}",
   "--build-arg", "UV_VERSION=${asset.uv.version}",
   "--build-arg", "CNB_VERSION=${asset.cnb.version}",
+  "--build-arg", "PROCFILE_VERSION=${asset.procfile.version}",
+  "--build-arg", "BUILDPACK_ARCH=${arch}",
   ".",
 ]

@@ -73,7 +73,7 @@ func TestDirExpandsVersion(t *testing.T) {
 	if got := a.Dir(); got != "lifecycle/0.21.13" {
 		t.Fatalf("dir 展开错误: %s", got)
 	}
-	if got := a.ExpectedPaths(); len(got) != 1 || got[0] != "lifecycle/0.21.13/x" {
+	if got := a.ExpectedPaths(PlatformAMD64); len(got) != 1 || got[0] != "lifecycle/0.21.13/x" {
 		t.Fatalf("expect 展开错误: %v", got)
 	}
 }

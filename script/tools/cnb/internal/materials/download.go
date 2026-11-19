@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
 
@@ -52,6 +53,10 @@ func ensureArchive(ctx context.Context, a *lock.Asset, dest string, opts Options
 	}
 
 	if ok, err := verifyArchive(dest, want, a.Size(opts.Platform)); err == nil && ok {
+		return "", 0, nil
+	}
+	// 多架构共用同一归档：优先从其它平台的归档复制，避免重复下载
+	if a.MultiArch && reuseMultiArch(dest, a, want, opts) {
 		return "", 0, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -124,4 +129,30 @@ func verifyArchive(path, want string, wantSize int64) (bool, error) {
 		return false, err
 	}
 	return hex.EncodeToString(h.Sum(nil)) == want, nil
+}
+
+// reuseMultiArch 从其它平台目录复制同一归档（multi_arch 物料）。
+func reuseMultiArch(dest string, a *lock.Asset, want string, opts Options) bool {
+	urls := sources(a, opts.Platform)
+	if len(urls) == 0 {
+		return false
+	}
+	pattern := filepath.Join(opts.BundleDir, "*", "archives", a.ID, a.Version, filepath.Base(urls[0]))
+	matches, _ := filepath.Glob(pattern)
+	for _, src := range matches {
+		if src == dest {
+			continue
+		}
+		if ok, _ := verifyArchive(src, want, a.Size(opts.Platform)); !ok {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return false
+		}
+		if err := fsutil.CopyFile(src, dest); err != nil {
+			return false
+		}
+		return true
+	}
+	return false
 }

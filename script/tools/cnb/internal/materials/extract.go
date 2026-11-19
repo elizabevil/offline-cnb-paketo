@@ -11,7 +11,7 @@ import (
 )
 
 // extractAsset 按 kind 解包，返回解出的文件列表。
-func extractAsset(a *lock.Asset, src, binDir string) ([]string, error) {
+func extractAsset(a *lock.Asset, src, binDir string, platform lock.Platform) ([]string, error) {
 	dest := filepath.Join(binDir, a.Dir())
 	if err := os.MkdirAll(dest, fsutil.DirMode); err != nil {
 		return nil, err
@@ -20,7 +20,7 @@ func extractAsset(a *lock.Asset, src, binDir string) ([]string, error) {
 	switch a.Unpack.Kind {
 	case lock.KindBin:
 		// expect 是相对 binaries/ 的完整路径（含 dir 前缀）
-		rel := a.ExpectedPaths()[0]
+		rel := a.ExpectedPaths(platform)[0]
 		target := filepath.Join(binDir, rel)
 		if err := os.MkdirAll(filepath.Dir(target), fsutil.DirMode); err != nil {
 			return nil, err

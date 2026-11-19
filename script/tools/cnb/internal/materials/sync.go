@@ -165,12 +165,12 @@ func syncOne(a *lock.Asset, opts Options) Result {
 	}
 
 	// 重新解包前先清掉旧目录，避免新旧文件混合
-	if err := cleanTarget(a, binDir); err != nil {
+	if err := cleanTarget(a, binDir, opts.Platform); err != nil {
 		res.Err = err
 		res.Action = ActionFailed
 		return res
 	}
-	files, err := extractAsset(a, archive, binDir)
+	files, err := extractAsset(a, archive, binDir, opts.Platform)
 	if err != nil {
 		res.Err = err
 		res.Action = ActionFailed
@@ -202,9 +202,9 @@ func unpackID(a *lock.Asset) string {
 }
 
 // cleanTarget 删除该物料的解包目标。
-func cleanTarget(a *lock.Asset, binDir string) error {
+func cleanTarget(a *lock.Asset, binDir string, platform lock.Platform) error {
 	if a.Unpack.Kind == lock.KindBin {
-		rel := a.ExpectedPaths()[0]
+		rel := a.ExpectedPaths(platform)[0]
 		return os.Remove(filepath.Join(binDir, rel))
 	}
 	return os.RemoveAll(filepath.Join(binDir, a.Dir()))

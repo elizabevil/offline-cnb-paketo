@@ -45,7 +45,7 @@ func WriteShell(w io.Writer, f *File, ref Ref, platform Platform) error {
 		{"ASSET_SHA256", asset.SHA256(platform)},
 		{"ASSET_EXTRACT_TO", dir},
 		{"ASSET_STRIP", fmt.Sprintf("%d", asset.Unpack.Strip)},
-		{"ASSET_EXPECT", strings.Join(asset.ExpectedPaths(), " ")},
+		{"ASSET_EXPECT", strings.Join(asset.ExpectedPaths(platform), " ")},
 	}
 	for _, p := range pairs {
 		fmt.Fprintf(w, "%s=%s\n", p.key, strutil.QuoteShell(p.value))

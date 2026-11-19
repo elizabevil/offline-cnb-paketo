@@ -41,6 +41,8 @@ type Asset struct {
 	ID      string `toml:"id"`
 	Version string `toml:"version"`
 	Default bool   `toml:"default"`
+	// MultiArch 表示所有平台共用同一个归档（如官方多架构 release 包）。
+	MultiArch bool `toml:"multi_arch,omitempty"`
 
 	Info     Info              `toml:"info"`
 	Unpack   Unpack            `toml:"unpack"`

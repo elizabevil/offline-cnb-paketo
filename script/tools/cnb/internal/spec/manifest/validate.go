@@ -62,6 +62,17 @@ func (f *File) Validate() int {
 				errs = append(errs, fmt.Sprintf("%s: 缺少 meta.platforms 声明的平台 %s", a.ID, want))
 			}
 		}
+		if a.MultiArch {
+			hasArch := false
+			for _, e := range a.Unpack.Expect {
+				if strings.Contains(e, "{arch}") {
+					hasArch = true
+				}
+			}
+			if !hasArch {
+				errs = append(errs, a.ID+": multi_arch 物料必须在 unpack.expect 中声明 {arch} 产物")
+			}
+		}
 		for name, src := range a.Platform {
 			switch src.Kind {
 			case "", "http":
