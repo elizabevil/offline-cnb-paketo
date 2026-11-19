@@ -2,6 +2,7 @@ package materials
 
 import (
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
 )
@@ -20,7 +21,7 @@ func Suggestions(l *lock.File, bundleDir string, platform lock.Platform, ids []s
 	for i := range assets {
 		a := &assets[i]
 		archive := archivePath(bundleDir, platform, a)
-		sum, err := fileSHA256(archive)
+		sum, err := fsutil.SHA256(archive)
 		if err != nil {
 			continue // 归档缺失时跳过，由调用方统一提示
 		}

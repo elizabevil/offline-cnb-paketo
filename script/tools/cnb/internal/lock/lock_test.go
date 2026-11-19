@@ -19,8 +19,8 @@ func TestValidate(t *testing.T) {
 		Meta:   Meta{Platforms: []string{"linux-amd64"}},
 		Assets: []Asset{asset("lifecycle", "0.21.13", true)},
 	}
-	if n := ok.Validate(); n != 0 {
-		t.Fatalf("合法 lock 被判为非法，错误数=%d", n)
+	if problems := ok.Validate(); len(problems) != 0 {
+		t.Fatalf("valid lock rejected: %v", problems)
 	}
 
 	bad := &File{
@@ -32,7 +32,7 @@ func TestValidate(t *testing.T) {
 				Platform: map[string]Source{"linux-arm64": {URL: "not-a-url"}}},
 		},
 	}
-	if n := bad.Validate(); n == 0 {
+	if problems := bad.Validate(); len(problems) == 0 {
 		t.Fatal("非法 lock 未被识别")
 	}
 }
