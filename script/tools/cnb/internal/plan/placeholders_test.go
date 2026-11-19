@@ -27,16 +27,20 @@ func TestPlaceholdersDocumented(t *testing.T) {
 		}
 	}
 	want := map[string]string{
-		"platform": "linux-arm64", "arch": "arm64", "oci_platform": "linux/arm64",
-		"base_image": "debian:slim", "bundle": "/repo/bundle", "repo": "/repo",
-		"asset.cnb.version": "3.0.0",
+		"spec.project.platform":      "linux-arm64",
+		"derived.architecture":       "arm64",
+		"derived.container_platform": "linux/arm64",
+		"spec.project.base":          "debian:slim",
+		"runtime.bundle":             "/repo/bundle",
+		"runtime.repo":               "/repo",
+		"spec.assets.cnb.version":    "3.0.0",
 	}
 	for name, value := range want {
 		if values[name] != value {
 			t.Errorf("${%s} = %q, want %q", name, values[name], value)
 		}
 	}
-	for _, name := range []string{"platform", "arch", "oci_platform"} {
+	for _, name := range []string{"spec.project.platform", "derived.architecture"} {
 		if strings.Contains(name, "$") {
 			t.Fatalf("unexpected name format: %s", name)
 		}

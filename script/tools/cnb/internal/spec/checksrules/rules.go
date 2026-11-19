@@ -1,6 +1,8 @@
 // Package checksrules parses lint rule overrides (TOML protocol boundary).
 package checksrules
 
+import "slices"
+
 import "github.com/pelletier/go-toml/v2"
 
 // Level values understood by the lint engine.
@@ -27,12 +29,7 @@ type Ruleset struct {
 
 // IsProvider reports whether a component must declare external dependencies.
 func (r *Ruleset) IsProvider(name string) bool {
-	for _, p := range r.Providers {
-		if p == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Providers, name)
 }
 
 // Lookup returns the override for a rule id, if any.

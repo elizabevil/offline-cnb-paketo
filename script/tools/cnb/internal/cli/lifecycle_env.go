@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"learn-cnb-paketo/tools/cnb/internal/lifecycle"
 	"learn-cnb-paketo/tools/cnb/internal/spec/platform"
@@ -57,14 +58,14 @@ func configFromEnv() (lifecycle.Config, error) {
 
 // joinRequired restores split required entries to the raw lifecycle string.
 func joinRequired(items []string) string {
-	out := ""
+	var out strings.Builder
 	for i, it := range items {
 		if i > 0 {
-			out += ";"
+			out.WriteString(";")
 		}
-		out += it
+		out.WriteString(it)
 	}
-	return out
+	return out.String()
 }
 
 // envUser returns the user running detect/build (default cnb).

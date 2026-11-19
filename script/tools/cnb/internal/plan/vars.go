@@ -40,12 +40,13 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 		return vars{}, err
 	}
 	entries := []Placeholder{
-		{"platform", string(platform), "spec.project.platform"},
-		{"arch", manifest.ArchOf(platform), "derived from platform"},
-		{"oci_platform", strings.Replace(string(platform), "-", "/", 1), `platform with "-" replaced by "/" (docker --platform)`},
-		{"base_image", f.Spec.Project.Base[string(platform)], "spec.project.base[platform]"},
-		{"bundle", opts.Bundle, "bundle directory (--bundle or the lock directory)"},
-		{"repo", opts.Repo, "repository root"},
+		{"spec.project.platform", string(platform), "spec.project.platform"},
+		{"spec.project.directory", f.Spec.Project.Directory, "spec.project.directory"},
+		{"spec.project.base", f.Spec.Project.Base[string(platform)], "spec.project.base[platform]"},
+		{"derived.architecture", manifest.ArchOf(platform), "derived from spec.project.platform"},
+		{"derived.container_platform", strings.Replace(string(platform), "-", "/", 1), `derived from spec.project.platform, "/" instead of "-" (for --platform)`},
+		{"runtime.repo", opts.Repo, "repository root (--repo / CNB_REPO_ROOT / executable path)"},
+		{"runtime.bundle", opts.Bundle, "bundle directory (--bundle or the lock directory)"},
 	}
 	for _, id := range slices.Sorted(maps.Keys(f.Spec.Assets)) {
 		version := f.Spec.Assets[id].Version
@@ -56,7 +57,7 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 			}
 			version = a.Version
 		}
-		entries = append(entries, Placeholder{"asset." + id + ".version", version, "spec.assets." + id + ".version or lock default"})
+		entries = append(entries, Placeholder{"spec.assets." + id + ".version", version, "spec.assets." + id + ".version or lock default"})
 	}
 	pairs := make([]string, 0, len(entries)*2)
 	for _, e := range entries {
@@ -69,7 +70,7 @@ func newVars(f *profile.File, lock *manifest.File, opts Options) (vars, error) {
 func (v vars) expand(s string) (string, error) {
 	out := v.replacer.Replace(s)
 	if i := strings.Index(out, PlaceholderPrefix); i >= 0 {
-		return "", &errs.Invalid{Field: "placeholder", Value: placeholderAt(out, i), Reason: "unknown placeholder"}
+		return "", &errs.Invalid{Field: "placeholder", Value: placeholderAt(out, i), Reason: "unknown placeholder (see `cnb pipeline variables <profile>`)"}
 	}
 	return out, nil
 }

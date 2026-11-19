@@ -30,12 +30,12 @@ version = "1.39.0"
 [[spec.stages]]
 name    = "base"
 workdir = "."
-run     = ["podman", "build", "--build-context", "bundle=${bundle}/${platform}", "-t", "x-${arch}", "."]
+run     = ["podman", "build", "--build-context", "bundle=${runtime.bundle}/${spec.project.platform}", "-t", "x-${derived.architecture}", "."]
 
 [[spec.stages]]
 name    = "builder"
 workdir = "project/demo"
-run     = ["podman", "build", "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}", "."]
+run     = ["podman", "build", "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}", "."]
 env     = { MODE = "release", ZED = "1" }
 timeout = "5m"
 

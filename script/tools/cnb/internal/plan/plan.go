@@ -2,6 +2,7 @@
 package plan
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -26,12 +27,23 @@ type Stage struct {
 	ContinueOnError bool
 }
 
-// Plan 是一次执行的完整计划。
+// Plan is a full execution plan.
 type Plan struct {
 	Project  string
 	Platform string
 	Bundle   string
 	Stages   []Stage
+	// Dockerfiles are resolved spec.checks targets (absolute paths).
+	Dockerfiles []DockerfileTarget
+}
+
+// DockerfileTarget is one Dockerfile plus the contexts its COPY uses.
+type DockerfileTarget struct {
+	Name       string
+	Dockerfile string
+	Context    string
+	Contexts   map[string]string
+	Args       map[string]string
 }
 
 // Options 是构建计划所需的运行环境。
@@ -66,6 +78,11 @@ func Build(f *profile.File, lock *manifest.File, opts Options) (*Plan, []warn.Wa
 		}
 		p.Stages = append(p.Stages, expanded)
 	}
+	targets, err := expandChecks(f, vars, opts.Repo)
+	if err != nil {
+		return nil, nil, err
+	}
+	p.Dockerfiles = targets
 	return p, allWarns, nil
 }
 
@@ -97,6 +114,63 @@ func expandStage(st profile.Stage, vars vars, repo string) (Stage, error) {
 		Name: st.Name, Argv: argv, Workdir: workdir, Env: env,
 		Timeout: timeout, ContinueOnError: st.ContinueOnError,
 	}, nil
+}
+
+// expandChecks resolves spec.checks.dockerfiles with the same placeholder table
+// as stages, so ${repo} / ${bundle} mean exactly what they mean in run.
+//
+// path and context are relative to spec.project.directory; contexts are relative to
+// the repo root (bundle and buildpacks live there).
+func expandChecks(f *profile.File, v vars, repo string) ([]DockerfileTarget, error) {
+	if len(f.Spec.Checks.Dockerfiles) == 0 {
+		return nil, nil
+	}
+	projectDir := filepath.Join(repo, f.Spec.Project.Directory)
+	out := make([]DockerfileTarget, 0, len(f.Spec.Checks.Dockerfiles))
+	for i, dc := range f.Spec.Checks.Dockerfiles {
+		field := fmt.Sprintf("spec.checks.dockerfiles[%d]", i)
+		pathValue, err := v.expand(dc.Path)
+		if err != nil {
+			return nil, &errs.Invalid{Field: field + ".path", Value: dc.Path, Reason: err.Error()}
+		}
+		dockerfile := joinAbs(projectDir, pathValue)
+
+		contextDir := projectDir
+		if dc.Context != "" {
+			contextValue, err := v.expand(dc.Context)
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".context", Value: dc.Context, Reason: err.Error()}
+			}
+			contextDir = joinAbs(projectDir, contextValue)
+		}
+
+		contexts := make(map[string]string, len(dc.Contexts))
+		for _, name := range slices.Sorted(maps.Keys(dc.Contexts)) {
+			value, err := v.expand(dc.Contexts[name])
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".contexts." + name, Value: dc.Contexts[name], Reason: err.Error()}
+			}
+			contexts[name] = joinAbs(repo, value)
+		}
+		args := make(map[string]string, len(dc.Args))
+		for _, name := range slices.Sorted(maps.Keys(dc.Args)) {
+			value, err := v.expand(dc.Args[name])
+			if err != nil {
+				return nil, &errs.Invalid{Field: field + ".args." + name, Value: dc.Args[name], Reason: err.Error()}
+			}
+			args[name] = value
+		}
+		out = append(out, DockerfileTarget{Name: dc.Path, Dockerfile: dockerfile, Context: contextDir, Contexts: contexts, Args: args})
+	}
+	return out, nil
+}
+
+// joinAbs resolves p against base unless p is already absolute.
+func joinAbs(base, p string) string {
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	return filepath.Join(base, p)
 }
 
 // absPath 把相对路径按仓库根绝对化。

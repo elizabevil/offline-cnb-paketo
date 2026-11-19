@@ -21,8 +21,8 @@ func (f *File) Validate() []error {
 	if f.Metadata.Name == "" {
 		errsOut = append(errsOut, &errs.Missing{What: FieldMetadata})
 	}
-	if f.Spec.Project.Dir == "" {
-		errsOut = append(errsOut, &errs.Missing{What: FieldProject + ".dir"})
+	if f.Spec.Project.Directory == "" {
+		errsOut = append(errsOut, &errs.Missing{What: FieldProject + ".directory"})
 	}
 	if f.Spec.Project.Platform == "" {
 		errsOut = append(errsOut, &errs.Missing{What: FieldProject + ".platform"})

@@ -2,6 +2,7 @@ package materials
 
 import (
 	"fmt"
+	"learn-cnb-paketo/tools/cnb/internal/fsutil"
 	"os"
 
 	"learn-cnb-paketo/tools/cnb/internal/lock"
@@ -31,7 +32,7 @@ func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset, lockFile 
 	opts := Options{LockFile: lockFile, Platform: platform}
 	locked, _ := lockSource(a, platform, opts)
 	if a.IsLocal(platform) {
-		if pathsExist(binariesDir(bundleDir, platform), a.ExpectedPaths(platform)) {
+		if expectOK(bundleDir, platform, a) {
 			return CheckResult{Ref: a.Ref(), Status: StatusOK}
 		}
 		return CheckResult{Ref: a.Ref(), Status: StatusBroken,
@@ -44,7 +45,7 @@ func checkOne(bundleDir string, platform lock.Platform, a *lock.Asset, lockFile 
 		problems = append(problems, "archive missing")
 	} else if locked.SHA256 == "" {
 		problems = append(problems, "sha256 not pinned")
-	} else if got, err := fileSHA256(archive); err != nil {
+	} else if got, err := fsutil.SHA256(archive); err != nil {
 		problems = append(problems, "hash error: "+err.Error())
 	} else if got != locked.SHA256 {
 		problems = append(problems, "hash mismatch")

@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"learn-cnb-paketo/tools/cnb/internal/checks"
 	"learn-cnb-paketo/tools/cnb/internal/fsutil"
-	specprofile "learn-cnb-paketo/tools/cnb/internal/spec/profile"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -37,11 +35,15 @@ func newPipelineLintCmd() *cobra.Command {
 			}
 			root, err := resolveRepo()
 			if err == nil {
-				prof, _, perr := loadProfileFile(args[0])
-				if perr == nil {
-					for _, f := range checks.CheckDockerfiles(dockerfileTargets(prof, root, p.Bundle), p.Bundle, filepath.Join(root, "buildpacks")) {
-						findings = append(findings, lintFinding{Stage: f.Stage, Message: f.Describe(), IsError: true})
-					}
+				targets := make([]checks.DockerfileTarget, 0, len(p.Dockerfiles))
+				for _, t := range p.Dockerfiles {
+					targets = append(targets, checks.DockerfileTarget{
+						Name: t.Name, Dockerfile: t.Dockerfile, Context: t.Context,
+						Contexts: t.Contexts, Args: t.Args,
+					})
+				}
+				for _, f := range checks.CheckDockerfiles(targets, p.Bundle, filepath.Join(root, "buildpacks")) {
+					findings = append(findings, lintFinding{Stage: f.Stage, Message: f.Describe(), IsError: true})
 				}
 			}
 			errsN := 0
@@ -62,39 +64,6 @@ func newPipelineLintCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-// dockerfileTargets resolves spec.checks.dockerfiles against the repo root.
-func dockerfileTargets(f *specprofile.File, repo, bundle string) []checks.DockerfileTarget {
-	projectDir := filepath.Join(repo, f.Spec.Project.Dir)
-	expand := func(p string) string {
-		p = strings.ReplaceAll(p, "${repo}", repo)
-		return strings.ReplaceAll(p, "${bundle}", bundle)
-	}
-	resolve := func(base, p string) string {
-		if filepath.IsAbs(p) {
-			return p
-		}
-		return filepath.Join(base, p)
-	}
-	out := make([]checks.DockerfileTarget, 0, len(f.Spec.Checks.Dockerfiles))
-	for _, dc := range f.Spec.Checks.Dockerfiles {
-		contextDir := resolve(projectDir, expand(dc.Context))
-		if dc.Context == "" {
-			contextDir = projectDir
-		}
-		contexts := make(map[string]string, len(dc.Contexts))
-		for name, value := range dc.Contexts {
-			contexts[name] = resolve(repo, expand(value))
-		}
-		out = append(out, checks.DockerfileTarget{
-			Name:       dc.Path,
-			Dockerfile: filepath.Join(projectDir, dc.Path),
-			Context:    contextDir,
-			Contexts:   contexts,
-		})
-	}
-	return out
 }
 
 // lintStage checks one stage.

@@ -10,18 +10,30 @@ kind       = "Pipeline"
 [metadata]
 name = "offline-paketo"
 
-# ── 可用占位符（run 与 spec.checks 通用；未知占位符在 plan 阶段报错）──────
-#   ${platform}            目标平台，如 linux-amd64        ← spec.project.platform
-#   ${arch}                架构，如 amd64                  ← 由 platform 派生
-#   ${oci_platform}        linux/amd64（docker --platform）← platform 首个 "-" 换成 "/"
-#   ${base_image}          基础镜像                        ← spec.project.base[platform]
-#   ${bundle}              物料目录绝对路径                ← --bundle 或 lock 同级 bundle/
-#   ${repo}                仓库根绝对路径                  ← --repo / CNB_REPO_ROOT
-#   ${asset.<id>.version}  物料版本                        ← spec.assets.<id>.version（缺省取 lock）
+# ── 占位符（run 与 spec.checks 通用；未知占位符在 plan 阶段报错）──────────
+#   一律使用配置里的完整路径，不用短名，避免歧义。
+#
+#   ${spec.project.platform}       目标平台，如 linux-amd64
+#                                  ← [spec.project] platform
+#   ${spec.project.directory}      项目目录，如 project/offline-paketo
+#                                  ← [spec.project] dir
+#   ${spec.project.base}           当前平台的基础镜像
+#                                  ← [spec.project.base] 里 platform 对应的值
+#   ${derived.architecture}        架构，如 amd64
+#                                  ← 由 spec.project.platform 派生
+#   ${derived.container_platform}  linux/amd64，供 docker build --platform
+#                                  ← 由 spec.project.platform 把首个 "-" 换成 "/"
+#   ${runtime.repo}                仓库根绝对路径
+#                                  ← --repo / CNB_REPO_ROOT / 可执行文件位置
+#   ${runtime.bundle}              物料目录绝对路径
+#                                  ← --bundle 或 lock 同级 bundle/
+#   ${spec.assets.<id>.version}    物料版本
+#                                  ← [spec.assets.<id>] version（缺省取 lock）
+#
 #   自省：cnb pipeline variables config/projects/<name>.toml
 
 [spec.project]
-dir      = "project/offline-paketo"
+directory = "project/offline-paketo"
 platform = "linux-amd64"
 
   [spec.project.base]
@@ -48,8 +60,8 @@ name    = "base"
 workdir = "project/offline-paketo"
 run = [
   "podman", "build", "-f", "docker/base.dockerfile",
-  "-t", "offline-builder-base:${arch}", "--platform", "${oci_platform}",
-  "--build-arg", "BASE_IMAGE=${base_image}", ".",
+  "-t", "offline-builder-base:${derived.architecture}", "--platform", "${derived.container_platform}",
+  "--build-arg", "BASE_IMAGE=${spec.project.base}", ".",
 ]
 
 [[spec.stages]]
@@ -57,12 +69,12 @@ name    = "builder"
 workdir = "project/offline-paketo"
 run = [
   "podman", "build", "-f", "docker/builder.dockerfile",
-  "-t", "offline-builder:${arch}", "--platform", "${oci_platform}",
-  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:${arch}", "--build-arg", "BUNDLE_ARCH=${platform}",
-  "--build-arg", "LIFECYCLE_VERSION=${asset.lifecycle.version}", "--build-arg", "FNM_VERSION=${asset.fnm.version}",
-  "--build-arg", "UV_VERSION=${asset.uv.version}", "--build-arg", "CNB_VERSION=${asset.cnb.version}",
-  "--build-arg", "PROCFILE_VERSION=${asset.procfile.version}", "--build-arg", "BUILDPACK_ARCH=${arch}",
-  "--build-context", "bundle=${bundle}", "--build-context", "buildpacks=${repo}/buildpacks/paketo",
+  "-t", "offline-builder:${derived.architecture}", "--platform", "${derived.container_platform}",
+  "--build-arg", "BASE_IMAGE_TAG=offline-builder-base:${derived.architecture}", "--build-arg", "BUNDLE_ARCH=${spec.project.platform}",
+  "--build-arg", "LIFECYCLE_VERSION=${spec.assets.lifecycle.version}", "--build-arg", "FNM_VERSION=${spec.assets.fnm.version}",
+  "--build-arg", "UV_VERSION=${spec.assets.uv.version}", "--build-arg", "CNB_VERSION=${spec.assets.cnb.version}",
+  "--build-arg", "PROCFILE_VERSION=${spec.assets.procfile.version}", "--build-arg", "BUILDPACK_ARCH=${derived.architecture}",
+  "--build-context", "bundle=${runtime.bundle}", "--build-context", "buildpacks=${runtime.repo}/buildpacks/paketo",
   ".",
 ]
 
@@ -73,4 +85,5 @@ path = "docker/base.dockerfile"
 
 [[spec.checks.dockerfiles]]
 path = "docker/builder.dockerfile"
-contexts = { bundle = "${bundle}", buildpacks = "${repo}/buildpacks/paketo" }
+args = { BUNDLE_ARCH = "${spec.project.platform}", LIFECYCLE_VERSION = "${spec.assets.lifecycle.version}", FNM_VERSION = "${spec.assets.fnm.version}", UV_VERSION = "${spec.assets.uv.version}", CNB_VERSION = "${spec.assets.cnb.version}" }
+contexts = { bundle = "${runtime.bundle}", buildpacks = "${runtime.repo}/buildpacks/paketo" }
