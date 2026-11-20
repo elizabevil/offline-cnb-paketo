@@ -10,44 +10,51 @@ CNB（Cloud Native Buildpacks）/ Paketo 离线构建的实验与沉淀仓库。
 
 ```
 Learn-cnb-paketo/
-├── justfile              # 仓库根入口（just 任意位置可用）
-├── cnb.toml             # 工作区布局：清单 / 锁 / bundle 的位置
-├── project/assets.toml      # 物料声明（路径以本文件所在目录为根，类似 package.json）
-├── project/assets.lock.toml # 物料锁定：解析后的 url / size / sha256（工具生成）
-├── script/               # 公共脚本基座
-│   ├── justfile          #   编排（被根 justfile import）
-│   ├── ci.sh             #   门禁：结构 / 配置 / 物料
-│   ├── lib/common.sh     #   纯能力库（日志/平台/代理/下载/解压）
-│   ├── tools/cnb/        #   小工具源码（Go：lock / verify / pin / repack）
-│   └── bin/cnb-linux-amd64  #   编译产物（不入库，`just tools` 生成）
-├── bundle/               # 公共物料（不入库，可由 lock 重建）
-│   └── <platform>/            # 架构先行：linux-amd64 / linux-arm64
-│       ├── archives/          #   原始归档
-│       ├── binaries/          #   解压产物
-│       └── sdk/               #   预置 SDK（规划中，见 docs/design/base.md）
-├── docs/                 # 设计文档
-├── project/              # 子项目（每个目录自包含：配置 + Dockerfile + justfile）
-│   ├── offline-paketo/       # Paketo 离线 builder
-│   │   ├── pipeline.toml     #   流水线配置
-│   │   ├── justfile          #   项目任务入口
-│   │   └── docker/           #   Dockerfile 与构建上下文
-│   └── offline-paketo-bk/    # Paketo × 蓝鲸 SmartPackage
+├── AGENTS.md                 # AI 代理入口（必读清单与约束）
+├── justfile                  # 仓库根入口（任意目录可用）
+├── project/                  # 子项目与共享物料
+│   ├── assets.toml           #   物料声明（路径以本文件目录为根）
+│   ├── assets.lock.toml      #   物料锁定：url / size / sha256
+│   ├── offline-paketo/       #   纯 CNB 离线 builder
+│   │   ├── pipeline.toml     #     流水线（项目根的锚点）
+│   │   ├── justfile          #     项目任务入口
+│   │   ├── docker/           #     Dockerfile 与构建上下文
+│   │   └── fixtures/         #     测试夹具
+│   └── offline-paketo-bk/    #   Paketo × 蓝鲸 SmartPackage
+├── buildpacks/               # 仓库级 buildpack 资产（按格式分组）
+│   └── paketo/               #   自研组件（node/python/go/procfile）
+├── bundle/                   # 物料落盘（不入库，可由 lock 重建）
+│   └── <platform>/           #   linux-amd64 / linux-arm64
+│       ├── archives/         #     原始归档
+│       └── binaries/         #     解包产物（含 .meta 标记）
+├── script/                   # 基座：编排与工具
+│   ├── justfile              #   配方实现（根 justfile 转发）
+│   ├── ci.sh                 #   CI 门禁
+│   ├── check-updates.sh      #   对照上游版本
+│   ├── lib/go.sh             #   Go 工具链定位
+│   ├── tools/cnb/            #   cnb 源码（Go）
+│   ├── tools/bksmartpacker_v3/  # bksmartpacker 源码（本地，不入库）
+│   └── bin/                  #   编译产物（just tools 生成）
+├── test/                     # 测试：contract / e2e / fixtures / lib
+├── docs/                     # 文档（design / guides / ai / proposals / archive）
+└── .github/workflows/ci.yml  # CI
 ```
-
----
 
 ## 快速开始
 
+> AI 代理请先读 [AGENTS.md](AGENTS.md)。
+
 ```bash
-just                 # 列出全部命令
-just doctor          # 物料自检：落盘状态、哈希、解压产物
-just list            # 物料清单（TSV：id / version / 解包方式 / 平台）
-just fetch           # 下载 + 校验 + 解包（三态幂等，断了可重跑）
-just verify          # 校验哈希与产物（CI 门禁用）
-just check           # 结构自检（lock / shell 语法 / gofmt / vet / 单测）
-just test            # 单测 + 契约测试
+just                 # 列出全部配方
 just tools           # 编译 cnb / bksmartpacker 到 script/bin/
+just check           # 门禁：lint + 单测 + 结构自检（提交前必跑）
+just test            # 单测 + 契约测试
+just list            # 物料清单（TSV）
+just fetch           # 下载 + 校验 + 解包（三态幂等）
+just verify          # 校验哈希与解压产物
+just doctor          # 物料自检：落盘状态
 just convert <src> <dst>   # 镜像归档格式转换（oci-layout ↔ docker-archive）
+bash script/ci.sh    # 完整 CI（含物料与配置校验）
 ```
 
 切换架构：
