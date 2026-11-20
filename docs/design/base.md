@@ -33,7 +33,8 @@
 bundle/
 ├── linux-amd64/
 │   ├── archives/     原始归档
-│   └── binaries/     解压产物（含 .meta/ 标记）
+│   ├── binaries/     解压产物（含 .meta/ 解压标记）
+│   └── sdk/          预置 SDK
 └── linux-arm64/
     └── ...
 ```

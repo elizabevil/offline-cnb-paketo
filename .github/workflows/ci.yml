@@ -1,42 +1,19 @@
 name: ci
-
 on:
   push:
   pull_request:
-  workflow_dispatch:
-    inputs:
-      fetch:
-        description: "同时拉取物料（需要网络与制品源）"
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: extractions/setup-just@v2
-
       - uses: actions/setup-go@v5
         with:
-          go-version-file: script/tools/cnb/go.mod
-          cache: true
-          cache-dependency-path: |
-            script/tools/cnb/go.sum
-            script/tools/bksmartpacker_v3/go.sum
-
-      - name: 结构 + 配置 + Go 校验
+          go-version: '1.24'
+      - name: 结构 + 配置校验
         run: script/ci.sh
-
       - name: 物料校验（需要网络）
-        if: inputs.fetch
+        if: false   # 离线仓库默认跳过；有制品库时改为 script/ci.sh --fetch
         run: script/ci.sh --fetch
