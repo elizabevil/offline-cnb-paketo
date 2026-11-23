@@ -54,7 +54,8 @@ just fetch           # 下载 + 校验 + 解包（三态幂等）
 just verify          # 校验哈希与解压产物
 just doctor          # 物料自检：落盘状态
 just convert <src> <dst>   # 镜像归档格式转换（oci-layout ↔ docker-archive）
-bash script/ci.sh    # 完整 CI（含物料与配置校验）
+script/ci.sh          # 快速 CI（结构/配置/物料标记，秒级）
+script/ci.sh --full   # 完整 CI（含 arm64 交叉编译与全量哈希）
 ```
 
 切换架构：

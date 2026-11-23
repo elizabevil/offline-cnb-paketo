@@ -45,8 +45,15 @@ doctor:
 tools:
     @just --justfile {{_tools_just}} build
 
+# 工具缺失或 Go 源码比二进制新时才重建，避免每次 check 都编译
+_ensure_tools:
+    @if [ ! -x {{_cnb_bin}} ] || [ -n "$(find {{_script}}/tools/cnb {{_script}}/tools/bksmartpacker_v3 -name '*.go' -newer {{_cnb_bin}} -print -quit 2>/dev/null)" ]; then \
+      echo "── 工具缺失或源码更新，重新构建 ──"; \
+      just --justfile {{_script}}/justfile tools; \
+    fi
+
 # 基座结构自检：lock 结构 + shell 语法 + go 静态检查
-check: tools
+check: _ensure_tools
     @echo "── lock 结构 ──"
     @{{_cnb_bin}} --file {{_script}}/../project/assets.toml materials validate
     @echo "── 模板合法性（渲染内嵌模板后校验）──"

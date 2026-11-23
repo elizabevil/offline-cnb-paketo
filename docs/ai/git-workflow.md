@@ -21,7 +21,7 @@
 
    ```bash
    just check        # 结构 + lint + 测试
-   bash script/ci.sh # 完整 CI（含物料校验）
+   script/ci.sh --full # 完整 CI（含 arm64 与双平台物料校验）
    ```
 
 5. **提交信息格式**
@@ -57,7 +57,7 @@ git rebase -i origin/master
 
 # 3. 合并后必须验证
 git diff <整理前的 sha> HEAD    # 树必须完全一致
-just check && bash script/ci.sh
+just check && script/ci.sh --full
 ```
 
 **整理前先建备份**：

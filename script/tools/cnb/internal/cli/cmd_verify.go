@@ -9,7 +9,8 @@ import (
 )
 
 func newVerifyCmd() *cobra.Command {
-	return &cobra.Command{
+	var quick bool
+	cmd := &cobra.Command{
 		Use: "verify [ids...]", Short: "verify archive hashes, unpack markers, and expected files",
 		RunE: func(_ *cobra.Command, ids []string) error {
 			ctx, err := workspace.Open(workspace.Options{
@@ -21,7 +22,7 @@ func newVerifyCmd() *cobra.Command {
 			if ctx.LockFile != nil && ctx.LockFile.Manifest.SHA256 != "" && ctx.LockFile.Manifest.SHA256 != ctx.ManifestHash {
 				return &exitError{code: ExitFailure, msg: "assets.toml changed; run cnb materials lock first"}
 			}
-			rep, err := materials.Check(ctx.Lock, ctx.Bundle, ctx.Platform, ids, ctx.LockFile)
+			rep, err := materials.Check(ctx.Lock, ctx.Bundle, ctx.Platform, ids, ctx.LockFile, quick)
 			if err != nil {
 				return &exitError{code: 1, msg: err.Error()}
 			}
@@ -31,4 +32,6 @@ func newVerifyCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&quick, "quick", false, "skip archive hashing; check size and unpack markers only")
+	return cmd
 }

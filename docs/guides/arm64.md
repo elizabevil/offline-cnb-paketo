@@ -25,7 +25,7 @@ script/bin/cnb-linux-arm64 materials list --platform linux-arm64
 
 ## 三、CI 覆盖范围
 
-`script/ci.sh` 已包含：
+`script/ci.sh --full` 才包含 arm64 部分，快速模式只校验宿主平台：
 
 ```bash
 TARGET=linux-arm64 just --justfile script/tools/cnb/justfile build
