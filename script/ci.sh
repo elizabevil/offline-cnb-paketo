@@ -10,15 +10,30 @@ if [ "${1:-}" = "--fetch" ]; then
   just fetch
 fi
 
-echo "── Go 静态检查 ──"
-just lint
+# 仓库不提交二进制；CI 先构建工具
+if [ ! -x script/bin/cnb-linux-amd64 ]; then
+  echo "── 构建工具 ──"
+  just tools
+fi
+
+if [ "${CNB_SKIP_LINT:-0}" = "1" ]; then
+  echo "── Go 静态检查跳过（CNB_SKIP_LINT=1，由工作流单独执行） ──"
+else
+  echo "── Go 静态检查 ──"
+  just lint
+fi
 
 echo "── 结构自检 ──"
 just check
 
 echo "── lock 校验 ──"
 script/bin/cnb-linux-amd64 --file project/assets.toml materials validate
-tmp=$(mktemp -d); script/bin/cnb-linux-amd64 init ci-template --config "$tmp/pipeline.toml" --assets "$tmp/assets.toml" >/dev/null && script/bin/cnb-linux-amd64 --file "$tmp/assets.toml" materials validate; rm -rf "$tmp"
+echo "── 脚手架自检 ──"
+tmp=$(mktemp -d)
+script/bin/cnb-linux-amd64 init ci-template --dir "$tmp/ci-template" >/dev/null
+script/bin/cnb-linux-amd64 --file "$tmp/ci-template/assets.toml" materials validate
+script/bin/cnb-linux-amd64 pipeline profile validate "$tmp/ci-template/pipeline.toml"
+rm -rf "$tmp"
 
 echo "── 流程校验 ──"
 for f in project/*/pipeline.toml; do
