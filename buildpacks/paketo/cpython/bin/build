@@ -15,6 +15,10 @@ resolve_app_dir() {
 set -euo pipefail
 layers_dir="${1:?missing layers dir}"
 app_dir="$(resolve_app_dir)"
+# 版本优先级：BP_PYTHON_VERSION > runtime.txt（python-X.Y.Z）> 默认
+if [ -z "${BP_PYTHON_VERSION:-}" ] && [ -f "${app_dir}/runtime.txt" ]; then
+  BP_PYTHON_VERSION="$(sed -n 's/^python-//p' "${app_dir}/runtime.txt" | head -1 | tr -d '[:space:]')"
+fi
 version="${BP_PYTHON_VERSION:-3.12}"
 root="$(dirname "${layers_dir}")"
 layer="${layers_dir}/python"
@@ -41,6 +45,10 @@ if [ -z "${py}" ]; then
   export UV_PYTHON_INSTALL_DIR="${install_root}"
   export UV_PYTHON_INSTALL_MIRROR="${UV_PYTHON_INSTALL_MIRROR:-https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download}"
   echo "  ⬇️  uv python install ${version} (install-dir=${install_root})" >&2
+  echo "  mirror: ${UV_PYTHON_INSTALL_MIRROR}" >&2
+  if [ -n "${UV_PYTHON_DOWNLOADS_JSON_URL:-}" ]; then
+    echo "  metadata: ${UV_PYTHON_DOWNLOADS_JSON_URL}" >&2
+  fi
   uv python install "${version}" >&2 || true
   py="$(ls -d "${install_root}"/*/bin/python3 2>/dev/null | head -1 || true)"
 fi

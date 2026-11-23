@@ -24,18 +24,34 @@ py_bin="$(ls -d "${root}"/*/python/bin 2>/dev/null | head -1)"
 [ -n "${py_bin}" ] || { echo "  ✗ 未找到 python 层" >&2; exit 1; }
 export PATH="${py_bin}:${PATH}"
 export UV_CACHE_DIR="${cache}/uv"
-# 源可配置：默认清华 PyPI，可用 UV_INDEX_URL 覆盖
-export UV_INDEX_URL="${UV_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-echo "  index: ${UV_INDEX_URL}" >&2
+# 源与本地 wheels 都可配置：
+#   UV_INDEX_URL / PIP_INDEX_URL      主索引
+#   UV_EXTRA_INDEX_URL                额外索引
+#   PIP_FIND_LINKS / 自动探测 pkgs/   本地 wheel 目录
+#   UV_NO_INDEX=1                     只从 find-links 安装
+index="${UV_INDEX_URL:-${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}}"
+find_links="${PIP_FIND_LINKS:-}"
+if [ -z "${find_links}" ] && [ -d "${app_dir}/pkgs" ]; then
+  find_links="${app_dir}/pkgs"
+fi
+echo "  index: ${index}" >&2
+[ -n "${find_links}" ] && echo "  find-links: ${find_links}" >&2
+[ "${UV_NO_INDEX:-0}" = "1" ] && echo "  no-index: true" >&2
+[ -n "${UV_EXTRA_INDEX_URL:-}" ] && echo "  extra-index: ${UV_EXTRA_INDEX_URL}" >&2
 
 venv="${layer}/venv"
 [ -x "${venv}/bin/python" ] || uv venv --relocatable --python "${py_bin}/python3" "${venv}" >&2
 
 cd "${app_dir}"
+set -- --python "${venv}/bin/python" --index-url "${index}"
+[ -n "${UV_EXTRA_INDEX_URL:-}" ] && set -- "$@" --extra-index-url "${UV_EXTRA_INDEX_URL}"
+[ -n "${find_links}" ] && set -- "$@" --find-links "${find_links}"
+[ "${UV_NO_INDEX:-0}" = "1" ] && set -- "$@" --no-index
+
 if [ -f requirements.txt ]; then
-  uv pip install --index-url "${UV_INDEX_URL}" --python "${venv}/bin/python" -r requirements.txt >&2
+  uv pip install "$@" -r requirements.txt >&2
 elif [ -f pyproject.toml ]; then
-  uv pip install --index-url "${UV_INDEX_URL}" --python "${venv}/bin/python" . >&2
+  uv pip install "$@" . >&2
 fi
 
 [ -d .venv ] || true
