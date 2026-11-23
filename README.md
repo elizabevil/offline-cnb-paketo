@@ -56,6 +56,7 @@ just doctor          # 物料自检：落盘状态
 just convert <src> <dst>   # 镜像归档格式转换（oci-layout ↔ docker-archive）
 script/ci.sh          # 快速 CI（结构/配置/物料标记，秒级）
 script/ci.sh --full   # 完整 CI（含 arm64 交叉编译与全量哈希）
+script/ci.sh --offline # 离线 CI：不联网，物料缺失时只做结构与配置校验
 ```
 
 切换架构：

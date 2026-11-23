@@ -22,6 +22,7 @@
    ```bash
    just check        # 结构 + lint + 测试
    script/ci.sh --full # 完整 CI（含 arm64 与双平台物料校验）
+script/ci.sh --offline # 离线环境：跳过物料下载与依赖 bundle 的检查
    ```
 
 5. **提交信息格式**
