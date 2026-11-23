@@ -1,7 +1,7 @@
 # 基座：待拍板决策与演进路线
 
 > 状态：**提案**。部分决策已被后续实现取代，保留作为取舍记录。
-> 当前约定见 [`docs/design/base.md`](../design/base.md)。
+> 当前约定见 [`docs/design/constraints.md`](../design/constraints.md)。
 
 ## 一、待拍板决策
 

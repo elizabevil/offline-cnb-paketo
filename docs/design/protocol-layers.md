@@ -253,7 +253,7 @@ assets   = "../assets.toml"  # Go: Project.Assets
 2. `Validate()` 的错误信息（会出现在用户眼前）
 3. 示例配置：`project/assets.toml`、`project/*/pipeline.toml`
 4. 占位符表（`internal/plan/vars.go`）与 `pipeline variables` 输出
-5. 文档：`pipeline.md`、`base.md`、本文件、`scaffold.md` 等
+5. 文档：`pipeline.md`、`constraints.md`、本文件、`scaffold.md` 等
 6. 测试夹具（`plan_test.go` 里的 TOML 片段）
 
 ### 7.8 已应用的改名记录

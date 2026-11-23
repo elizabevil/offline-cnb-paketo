@@ -1,5 +1,7 @@
 # 部署后排查手册（BK / Kubernetes）
 
+> 构建期/历史故障见 [pitfalls.md](pitfalls.md)。
+
 面向「包部署成功，但 Pod 不 Ready」的情况。按顺序执行，**不要从探针报错猜**。
 
 ## 一、先看三层状态

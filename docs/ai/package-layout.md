@@ -1,5 +1,7 @@
 # 包分层与合并原则
 
+> TOML 字段命名约束见 [protocol-layers.md](../design/protocol-layers.md#七命名约束)。
+
 适用于 `script/tools/cnb/internal`。目的是避免包越拆越碎、职责模糊。
 
 ## 一、三层结构

@@ -12,7 +12,7 @@
 
 ## 索引
 
-### requirements（需求）
+### 项目文档（需求 / 架构）
 
 | 文档 | 说明 |
 |---|---|
@@ -27,7 +27,7 @@
 | 文档 | 说明 |
 |---|---|
 | [architecture.md](design/architecture.md) | **当前架构与两条案例流程**（含 mermaid 图） |
-| [base.md](design/base.md) | 配置化改造的设计取舍与早期踩坑 |
+| [constraints.md](design/constraints.md) | 基座约定：路径、平台命名、信任边界 |
 | [pipeline.md](design/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
 | [buildpack-components.md](design/buildpack-components.md) | buildpack 组件契约与规则 |
 | [protocol-layers.md](design/protocol-layers.md) | 协议分层、包 API、删除清单、**命名约束** |
@@ -43,10 +43,7 @@
 
 ### proposals（未来）
 
-| 文档 | 说明 |
-|---|---|
-| [base-roadmap.md](proposals/base-roadmap.md) | 基座待拍板决策与演进路线 |
-| [bk-export-plan.md](proposals/bk-export-plan.md) | BK 导出改造的提交计划 |
+当前没有待实现的提案；已完成的移入 `archive/`。
 
 ### archive（历史）
 
@@ -56,6 +53,10 @@
 | [bk-build-logic.md](archive/bk-build-logic.md) | pack 时代的 BK 构建逻辑 |
 | [bk-export-layout.md](archive/bk-export-layout.md) | layout 导出实验 |
 | [paketo-vs-heroku.md](archive/paketo-vs-heroku.md) | Paketo 与 Heroku 对比 |
+| [base-roadmap.md](archive/base-roadmap.md) | 基座待拍板决策与演进路线 |
+| [bk-export-plan.md](archive/bk-export-plan.md) | BK 导出改造的提交计划 |
+| [offline-paketo-history.md](archive/offline-paketo-history.md) | offline-paketo 旧实现 |
+| [offline-paketo-bk-history.md](archive/offline-paketo-bk-history.md) | offline-paketo-bk 旧实现 |
 
 ### guides（对外）
 

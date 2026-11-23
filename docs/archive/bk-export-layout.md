@@ -1,5 +1,7 @@
+# BK 导出：layout 预置方案（归档）
+
 > **归档**：layout 导出实验记录。当前 BK 流程走 daemon 导出（bksmartpacker 需要 image save）。
-> 相关计划见 [`docs/proposals/bk-export-plan.md`](../proposals/bk-export-plan.md)。
+> 相关计划见 [`docs/archive/bk-export-plan.md`](../archive/bk-export-plan.md)。
 
 # BK 导出：layout 预置方案
 

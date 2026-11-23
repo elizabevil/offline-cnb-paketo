@@ -6,7 +6,7 @@
 > [`pipeline.md` §1](pipeline.md#1-路径链条project--assets--bundle)。
 
 > 本文只描述**现在的**职责边界、布局与校验规则。
-> 待拍板决策与演进路线见 [`docs/proposals/base-roadmap.md`](../proposals/base-roadmap.md)。
+> 待拍板决策与演进路线见 [`docs/archive/base-roadmap.md`](../archive/base-roadmap.md)。
 > 早期踩坑见 [`docs/guides/pitfalls.md`](../guides/pitfalls.md)。
 
 > 目标：让两个子项目（offline-paketo / offline-paketo-bk）
@@ -104,6 +104,8 @@ default = true                    # 省略版本时的选择
 ---
 
 ## 五、平台命名：请接受"三套命名"，不要试图统一
+
+> 协议字段命名规则见 [protocol-layers.md](protocol-layers.md#七命名约束)。
 
 | 语境 | amd64 | arm64 | 例子 |
 |---|---|---|---|

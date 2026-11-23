@@ -1,6 +1,6 @@
 # 架构与执行流程
 
-本文是**当前实现**的架构说明，不描述历史方案。所有命令与路径均可在仓库中找到。
+本文是**当前实现**的架构总览与两条案例，不描述历史方案。执行细节见 [pipeline.md](pipeline.md)，数据流与失败归属见 [build-chain.md](build-chain.md)。
 
 ## 1. 分层
 
@@ -89,20 +89,9 @@ flowchart TD
 | 应用侧契约 | CNB 标准 | `app_desc.yaml` + `REQUIRED_BUILDPACKS` |
 | 校验 | `cnb lint` + e2e 四阶段 | `bksmartpacker --inspect` + sha256 |
 
-## 5. 命令 → 工具功能 → 效果
+## 5. 命令与效果
 
-| 命令 | 功能 | 效果 |
-|---|---|---|
-| `cnb init <name>` | 复制参考项目并改写名称 | 新项目目录 |
-| `cnb pipeline plan` | 占位符展开 + 路径绝对化 | 最终 argv（text/json） |
-| `cnb pipeline run` | 按 stages 顺序执行 | 镜像/产物 |
-| `cnb pipeline profile validate` | 校验配置结构 | 错误列表 |
-| `cnb pipeline variables` | 列出占位符解析值 | 排错用 |
-| `cnb materials lock` | 下载并固定哈希 | `project/assets.lock.toml` |
-| `cnb materials sync` | 下载、解包、写 marker | `bundle/` |
-| `cnb materials verify` | 校验归档与产物 | 通过/失败 |
-| `cnb lint` | 构建参数、脚本、Dockerfile COPY 源 | 静态问题列表 |
-| `cnb buildpack lint` | buildpack 布局与 API | 组件问题列表 |
+完整命令列表与执行语义见 [pipeline.md](pipeline.md#5-常用命令)，本文不再重复。
 
 ## 6. 边界
 
