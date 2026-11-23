@@ -43,7 +43,10 @@
 
 ### proposals（未来）
 
-当前没有待实现的提案；已完成的移入 `archive/`。
+| 文档 | 说明 |
+|---|---|
+| [python-runtime-source.md](proposals/python-runtime-source.md) | Python 运行时来源与内置默认（待办） |
+| [platform-env-injection.md](proposals/platform-env-injection.md) | 构建变量注入：platform env 目录方案 |
 
 ### archive（历史）
 
