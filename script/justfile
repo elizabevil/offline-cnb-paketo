@@ -96,11 +96,11 @@ check: _ensure_tools
       done; \
       echo "  ✓ 配置必须自带占位符说明"
     @cd {{_script}}/tools/cnb && \
-      bad=$(grep -rnE 'errs\.(New|Wrap|Invalid|NotFound|Missing).*"[^"]*[一-龥]' --include='*.go' internal cmd || true); \
+      bad=$(grep -rnP 'errs\.(New|Wrap|Invalid|NotFound|Missing).*"[^"]*[\x{4E00}-\x{9FFF}]' --include='*.go' internal cmd || true); \
       if [ -n "$bad" ]; then echo "  ✗ 错误信息必须为英文:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ 错误信息为英文"
     @cd {{_script}}/tools/cnb && \
-      bad=$(grep -rn '[\u4e00-\u9fa5]' --include='*.go' internal/cli internal/checks || true); \
+      bad=$(grep -rnP '[\x{4E00}-\x{9FFF}]' --include='*.go' internal/cli internal/checks || true); \
       if [ -n "$bad" ]; then echo "  ✗ CLI/检查层不得出现中文:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ CLI/检查层无中文"
     @cd {{_script}}/tools/cnb && \
