@@ -17,12 +17,13 @@ var opts options
 // Version metadata comes from internal/version buildinfo.
 
 type options struct {
-	lockPath string
-	bundle   string
-	platform string
-	strict   bool
-	quiet    bool
-	repo     string
+	lockPath  string
+	bundle    string
+	platform  string
+	strict    bool
+	quiet     bool
+	repo      string
+	configDir string
 }
 
 // exitError carries an exit code; an empty msg means the caller already printed it.

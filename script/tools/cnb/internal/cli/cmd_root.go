@@ -32,12 +32,13 @@ func newRootCmd() *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&logLevel, "log-level", "info", "log level: debug|info|warn|error")
-	pf.StringVar(&opts.lockPath, "file", "", "manifest path (default ./assets.toml, then LOCK_FILE)")
+	pf.StringVar(&opts.lockPath, "file", "", "lock file path (default <exe>/../../assets.lock.toml or LOCK_FILE)")
 	pf.StringVar(&opts.bundle, "bundle", "", "material directory (default <lock dir>/bundle)")
 	pf.StringVar(&opts.platform, "platform", "", "target platform: linux-amd64 | linux-arm64")
 	pf.BoolVar(&opts.strict, "strict", false, "treat unpinned sha256 as an error during verify")
 	pf.BoolVar(&opts.quiet, "quiet", false, "verify prints failures only")
 	pf.StringVar(&opts.repo, "repo", "", "repo root (default $CNB_REPO_ROOT or derived from the executable path)")
+	pf.StringVar(&opts.configDir, "config-dir", "config", "config directory (relative to the repo root)")
 
 	root.AddCommand(
 		newInitCmd(),         // scaffold a project
