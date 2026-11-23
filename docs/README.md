@@ -31,7 +31,7 @@
 | [pipeline.md](design/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
 | [buildpack-components.md](design/buildpack-components.md) | buildpack 组件契约与规则 |
 | [protocol-layers.md](design/protocol-layers.md) | 协议分层、包 API、删除清单、**命名约束** |
-| [build-chain.md](build-chain.md) | 从源码到 s-mart 的完整数据流 |
+| [build-chain.md](design/build-chain.md) | 从源码到 s-mart 的完整数据流 |
 | [scaffold.md](design/scaffold.md) | 脚手架：从参考项目生成新项目 |
 | [protocol/protocol-spec.md](design/protocol/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
 | [protocol/lifecycle-contract.md](design/protocol/lifecycle-contract.md) | lifecycle 契约与导出语义 |
