@@ -4,7 +4,7 @@ Go 开发规范
 适用范围：团队所有 Go 项目
 强制工具：gofmt、go vet、golangci-lint
 
-相关规范：协议解析见 [protocol-spec.md](protocol-spec.md)，包分层见 [package-layout.md](package-layout.md)。
+相关规范：协议解析见 [../pipeline/protocol-spec.md](../pipeline/protocol-spec.md)，包分层见 [package-layout.md](package-layout.md)。
 
 一、常量与字面量
 1.1 禁止魔法字面量

@@ -14,7 +14,7 @@
 
 依赖方向只能自上而下：入口 → 执行 → 领域 → 基础设施 → 协议。
 **协议包不得依赖任何业务包**；业务包只能消费协议包的结构体，禁止二次解析。
-协议包开发规范见 [protocol-spec.md](protocol-spec.md)。
+协议包开发规范见 [../pipeline/protocol-spec.md](../pipeline/protocol-spec.md)。
 
 ## 二、什么时候该新建包
 
@@ -56,14 +56,14 @@
 
 ## 六、协议常量归属
 
-协议的解析器归属见 [协议分层](../design/protocol-layers.md)：每个协议只有一个解析器，统一放在 `internal/spec/*`。
+协议的解析器归属见 [协议分层](../../design/protocol-layers.md)：每个协议只有一个解析器，统一放在 `internal/spec/*`。
 
 - 清单相关（平台、解包方式、段落名、默认文件名）→ `lock`
 - 计划相关（阶段类型）→ `profile`
 - 同步动作 → `materials`
 - Dockerfile/元数据检查 → `checks`
 
-同一概念只允许一处定义；外部格式（OCI、docker-archive、builder metadata）的 JSON 键名例外，见 `docs/ai/lifecycle-contract.md` 与 `internal/repack` 注释。
+同一概念只允许一处定义；外部格式（OCI、docker-archive、builder metadata）的 JSON 键名例外，见 `docs/ai/pipeline/lifecycle-contract.md` 与 `internal/repack` 注释。
 
 ## 七、提交前自检
 

@@ -4,7 +4,6 @@
 
 | 目录 | 读者 | 内容 |
 |---|---|---|
-| [`requirements/`](requirements/) | 产品 / 需求方 | 做什么、验收标准；**不含实现细节** |
 | [`design/`](design/) | 开发 | 架构、流程、取舍、为什么这样做 |
 | [`guides/`](guides/) | 使用者 / 运维 | 怎么跑、怎么验证、故障怎么查 |
 | [`ai/`](ai/) | AI 代理 / 协作者 | 约定、踩坑、不可违反的规则 |
@@ -63,13 +62,13 @@
 | 文档 | 说明 |
 |---|---|
 | [agents.md](ai/agents.md) | AI 入口：必读清单、命令、约束、自查 |
-| [bksmartpacker-fork.md](ai/bksmartpacker-fork.md) | 与官方 bksmartpacker_v3 的差异、兼容性与升级方式 |
-| [pitfalls.md](ai/pitfalls.md) | 18 条真实故障：现象 → 原因 → 修法 |
+| [bksmartpacker-fork.md](ai/components/bksmartpacker/fork.md) | 与官方 bksmartpacker_v3 的差异、兼容性与升级方式 |
+| [pitfalls.md](ai/common/pitfalls.md) | 18 条真实故障：现象 → 原因 → 修法 |
 | [troubleshooting.md](guides/troubleshooting.md) | 部署后 Pod 不 Ready 的排查路径（进程/连接/goroutine 栈） |
-| [protocol-spec.md](ai/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
-| [package-layout.md](ai/package-layout.md) | 包与目录约定 |
-| [go-build.md](ai/go-build.md) | Go 构建、检查与自动化映射 |
-| [git-workflow.md](ai/git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、历史合并后验证 |
+| [protocol-spec.md](ai/pipeline/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
+| [package-layout.md](ai/common/package-layout.md) | 包与目录约定 |
+| [go-build.md](ai/common/go-build.md) | Go 构建、检查与自动化映射 |
+| [git-workflow.md](ai/common/git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、历史合并后验证 |
 
 ## 约定
 

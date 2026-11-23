@@ -5,7 +5,7 @@
 - 我们和官方差在哪
 - 能不能直接互换
 
-维护方式与升级步骤见 [bksmartpacker-fork.md](bksmartpacker-fork.md)。
+维护方式与升级步骤见 [fork.md](fork.md)。
 
 ## 一、基线
 
