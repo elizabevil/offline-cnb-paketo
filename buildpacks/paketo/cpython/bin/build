@@ -15,11 +15,16 @@ resolve_app_dir() {
 set -euo pipefail
 layers_dir="${1:?missing layers dir}"
 app_dir="$(resolve_app_dir)"
-# 版本优先级：BP_PYTHON_VERSION > runtime.txt（python-X.Y.Z）> 默认
-if [ -z "${BP_PYTHON_VERSION:-}" ] && [ -f "${app_dir}/runtime.txt" ]; then
-  BP_PYTHON_VERSION="$(sed -n 's/^python-//p' "${app_dir}/runtime.txt" | head -1 | tr -d '[:space:]')"
+# 版本优先级：BP_CPYTHON_VERSION > runtime.txt（python-X.Y.Z）> 默认
+# 兼容旧名 BP_PYTHON_VERSION
+if [ -n "${BP_PYTHON_VERSION:-}" ] && [ -z "${BP_CPYTHON_VERSION:-}" ]; then
+  echo "  ⚠ BP_PYTHON_VERSION 已弃用，请改用 BP_CPYTHON_VERSION" >&2
+  BP_CPYTHON_VERSION="${BP_PYTHON_VERSION}"
 fi
-version="${BP_PYTHON_VERSION:-3.12}"
+if [ -z "${BP_CPYTHON_VERSION:-}" ] && [ -f "${app_dir}/runtime.txt" ]; then
+  BP_CPYTHON_VERSION="$(sed -n 's/^python-//p' "${app_dir}/runtime.txt" | head -1 | tr -d '[:space:]')"
+fi
+version="${BP_CPYTHON_VERSION:-3.12}"
 root="$(dirname "${layers_dir}")"
 layer="${layers_dir}/python"
 cache="${CNB_CACHE_DIR:-/layers/cache}/python"

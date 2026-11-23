@@ -1,0 +1,78 @@
+# buildpack 输入变量登记表（单一来源）
+# CI 会校验 buildpacks/paketo/*/bin/* 中引用的 BP_* 必须在此登记。
+
+schema = 1
+
+[[variable]]
+name = "BP_CPYTHON_VERSION"
+buildpack = "paketo-buildpacks/cpython"
+default = "3.12"
+aliases = ["BP_PYTHON_VERSION"]
+defined_in = "cpython/bin/build"
+description = "Python 解释器版本；未设置时读取应用 runtime.txt，最后回退默认"
+
+[[variable]]
+name = "BP_GO_VERSION"
+buildpack = "paketo-buildpacks/go-dist"
+default = "1.27.4"
+defined_in = "go-dist/bin/build"
+description = "Go SDK 版本；未设置时读 /cnb/go-version、go.mod 的 go 指令"
+
+[[variable]]
+name = "BP_GO_MIRROR"
+buildpack = "paketo-buildpacks/go-dist"
+default = "https://mirrors.aliyun.com/golang/"
+defined_in = "go-dist/bin/build"
+description = "Go SDK 下载前缀；失败时回退官方 go.dev"
+
+[[variable]]
+name = "BP_NODE_VERSION"
+buildpack = "paketo-buildpacks/node-engine"
+default = "20"
+defined_in = "node-engine/bin/build"
+description = "Node.js 版本"
+
+[[variable]]
+name = "UV_PYTHON_INSTALL_MIRROR"
+buildpack = "paketo-buildpacks/cpython"
+defined_in = "cpython/bin/build"
+description = "Python 运行时下载前缀；支持 file:// 本地镜像"
+
+[[variable]]
+name = "UV_PYTHON_DOWNLOADS_JSON_URL"
+buildpack = "paketo-buildpacks/cpython"
+defined_in = "cpython/bin/build"
+description = "Python 运行时下载元数据地址，配合镜像使用"
+
+[[variable]]
+name = "UV_HTTP_TIMEOUT"
+buildpack = "paketo-buildpacks/cpython"
+defined_in = "cpython/bin/build"
+description = "uv 下载超时（秒）"
+
+[[variable]]
+name = "UV_INDEX_URL"
+buildpack = "paketo-buildpacks/pip-install"
+aliases = ["PIP_INDEX_URL"]
+default = "https://pypi.tuna.tsinghua.edu.cn/simple"
+defined_in = "pip-install/bin/build"
+description = "PyPI 主索引"
+
+[[variable]]
+name = "UV_EXTRA_INDEX_URL"
+buildpack = "paketo-buildpacks/pip-install"
+defined_in = "pip-install/bin/build"
+description = "PyPI 额外索引"
+
+[[variable]]
+name = "PIP_FIND_LINKS"
+buildpack = "paketo-buildpacks/pip-install"
+defined_in = "pip-install/bin/build"
+description = "本地 wheel 目录；未设置时自动探测应用根目录的 pkgs/"
+
+[[variable]]
+name = "UV_NO_INDEX"
+buildpack = "paketo-buildpacks/pip-install"
+default = "0"
+defined_in = "pip-install/bin/build"
+description = "为 1 时只从 find-links 安装，完全离线"

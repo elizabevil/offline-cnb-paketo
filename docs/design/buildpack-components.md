@@ -123,44 +123,17 @@ requires = [{ name = "node" }]
 
 ## Python 组件可配置项
 
-Python 相关 buildpack 不修改 uv 本身，所有差异通过环境变量注入。
+变量的单一来源是 [`buildpacks/paketo/variables.toml`](../../buildpacks/paketo/variables.toml)，
+新增或修改变量时只改那里，CI 会校验脚本引用与登记表一致。
 
-### 解释器版本
-
-优先级：
-
-1. `BP_PYTHON_VERSION`
-2. 应用目录的 `runtime.txt`（`python-3.11.10`）
-3. 默认 `3.12`
-
-### 运行时下载
-
-| 变量 | 作用 |
-|---|---|
-| `UV_PYTHON_INSTALL_MIRROR` | Python 运行时下载前缀（支持 `file://` 本地镜像） |
-| `UV_PYTHON_DOWNLOADS_JSON_URL` | 下载元数据地址（配合镜像使用） |
-| `UV_HTTP_TIMEOUT` | 下载超时 |
-| `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` | 代理；uv 原生支持 |
-
-### 依赖安装
-
-| 变量 | 作用 |
-|---|---|
-| `UV_INDEX_URL` / `PIP_INDEX_URL` | 主索引 |
-| `UV_EXTRA_INDEX_URL` | 额外索引 |
-| `PIP_FIND_LINKS` | 本地 wheel 目录；未设置时自动使用应用根目录的 `pkgs/` |
-| `UV_NO_INDEX=1` | 只从 find-links 安装，完全离线 |
-
-示例（应用描述文件里声明）：
+常用示例（应用描述文件里声明）：
 
 ```yaml
 env:
-  - name: BP_PYTHON_VERSION
+  - name: BP_CPYTHON_VERSION
     value: "3.11"
   - name: UV_PYTHON_INSTALL_MIRROR
     value: "https://your-mirror/python-build-standalone/releases/download"
-  - name: UV_PYTHON_DOWNLOADS_JSON_URL
-    value: "https://your-mirror/metadata/python-downloads.json"
   - name: PIP_FIND_LINKS
     value: "/workspace/pkgs"
   - name: UV_NO_INDEX

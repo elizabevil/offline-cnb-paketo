@@ -108,6 +108,14 @@ check: _ensure_tools
       if [ -n "$bad" ]; then echo "  ✗ 禁止已移除的 GODEBUG:"; echo "$bad"; exit 1; fi; \
       echo "  ✓ 无已移除的 GODEBUG"
 
+    @echo "── buildpack 变量登记 ──"
+    @cd {{_script}}/.. && \
+      used=$(grep -rhoE 'BP_[A-Z0-9_]+' buildpacks/paketo/*/bin/* | sort -u); \
+      declared=$(grep -oE 'BP_[A-Z0-9_]+' buildpacks/paketo/variables.toml | sort -u); \
+      missing=$(comm -23 <(echo "$used") <(echo "$declared")); \
+      if [ -n "$missing" ]; then echo "  ✗ 未登记的 buildpack 变量:"; echo "$missing"; exit 1; fi; \
+      echo "  ✓ buildpack 变量均已登记"
+
     @echo "── go 单测 ──"
     @cd {{_script}}/tools/cnb && \
       GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} test ./...
