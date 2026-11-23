@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
@@ -41,9 +42,22 @@ var (
 		"只检查已有 s-mart 包的结构(不构建), 输出 path/size/version/层包摘要",
 	)
 	inspectFormat = flag.String("inspect-format", "text", "检查输出格式: text | json")
+	buildEnvs     stringList
+	buildModules  stringList
 )
 
+// stringList 支持重复出现的字符串参数。
+type stringList []string
+
+func (s *stringList) String() string { return strings.Join(*s, ",") }
+
+func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
+
+func (s *stringList) Type() string { return "stringArray" }
+
 func init() {
+	flag.Var(&buildEnvs, "env", "注入构建容器的环境变量 KEY=VALUE，可重复")
+	flag.Var(&buildModules, "module", "只构建指定模块，可重复")
 	flag.Lookup("builder-image").DefValue = executors.DefaultCNBBuilderImage
 }
 
@@ -60,6 +74,8 @@ func loadBuildParams() *types.Params {
 	paramData.BuilderImage = *builderImage
 	paramData.CacheRegistry = *cacheRegistry
 	paramData.RegistryAuth = *registryAuth
+	paramData.Envs = []string(buildEnvs)
+	paramData.Modules = []string(buildModules)
 
 	if *disableCollectStatic {
 		paramData.DisableCollectStatic = "true"

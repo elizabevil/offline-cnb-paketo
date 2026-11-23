@@ -16,4 +16,8 @@ type Params struct {
 	CacheRegistry string `json:"cacheRegistry"`
 	// RegistryAuth 镜像仓库凭证信息
 	RegistryAuth string `json:"registryAuth"`
+	// Envs 注入构建容器的额外环境变量（KEY=VALUE），覆盖 app_desc 同名项
+	Envs []string `json:"envs,omitempty"`
+	// Modules 只构建指定模块（为空表示全部）
+	Modules []string `json:"modules,omitempty"`
 }

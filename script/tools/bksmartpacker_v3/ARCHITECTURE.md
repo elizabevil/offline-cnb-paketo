@@ -44,6 +44,7 @@ main
    - 工具与描述文件声明的变量
    - 本 fork 扩展：`CNB_BUILDPACK_ALIASES`、`CNB_EXPORT_MODE`、
      `CNB_LAYER_ARCHIVE`、`CNB_RUN_IMAGE_ARCHIVE`
+   - 项目注入：`--env KEY=VALUE`，在 app_desc 之后覆盖同名变量
 3. 挂载：
    - 源码 tar（只读）
    - 容器运行时 socket

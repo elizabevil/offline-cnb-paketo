@@ -54,6 +54,8 @@ bksmartpacker \
 | `--cache-registry` | 构建缓存镜像仓库 |
 | `--registry-auth` | 仓库凭证（JSON） |
 | `--disable-collect-static` | Python 静态文件收集开关，默认 `true` |
+| `--env KEY=VALUE` | 注入构建容器环境变量，可重复；覆盖 app_desc 同名项 |
+| `--module <name>` | 只构建指定模块，可重复；空表示全部 |
 | `--inspect <pkg>` | 只检查已有包，不构建 |
 | `--inspect-format` | `text` 或 `json`，默认 `text` |
 

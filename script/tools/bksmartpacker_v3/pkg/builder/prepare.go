@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -23,6 +24,21 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 
 	if err := appDesc.Validate(); err != nil {
 		return nil, err
+	}
+
+	if len(params.Modules) > 0 {
+		want := lo.SliceToMap(params.Modules, func(name string) (string, bool) { return name, true })
+		filtered := make([]types.ModuleDescription, 0, len(params.Modules))
+		for _, m := range appDesc.Modules {
+			if want[m.Name] {
+				filtered = append(filtered, m)
+				delete(want, m.Name)
+			}
+		}
+		if len(want) > 0 {
+			return nil, fmt.Errorf("module not found: %v", lo.Keys(want))
+		}
+		appDesc.Modules = filtered
 	}
 
 	logoFileName := utils.DetectLogoFile(params.Src)
@@ -57,9 +73,7 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 				DisableCollectStatic: params.DisableCollectStatic == "true",
 			},
 			Buildpacks: generateModuleBuildpacks(params.Src, &moduleDesc),
-			Envs: lo.Associate(moduleDesc.Spec.Configuration.Env, func(item types.AppEnvVar) (string, string) {
-				return item.Name, item.Value
-			}),
+			Envs:       mergeEnvs(moduleDesc.Spec.Configuration.Env, params.Envs),
 
 			CacheRegistry: params.CacheRegistry,
 			RegistryAuth:  params.RegistryAuth,
@@ -176,4 +190,19 @@ func aptfileExists(modulePath string) bool {
 		return false
 	}
 	return true
+}
+
+// mergeEnvs 合并 app_desc 环境变量与命令行注入项，后者覆盖前者。
+func mergeEnvs(declared []types.AppEnvVar, extra []string) map[string]string {
+	out := lo.Associate(declared, func(item types.AppEnvVar) (string, string) {
+		return item.Name, item.Value
+	})
+	for _, kv := range extra {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
