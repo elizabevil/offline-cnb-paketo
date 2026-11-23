@@ -55,7 +55,7 @@ func newInitCmd() *cobra.Command {
 				}
 			}
 			if !hasPipeline {
-				fmt.Fprintf(cmd.OutOrStdout(), "  ! pipeline.toml 未被选中：加 --only pipeline.toml 或去掉 --only\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "  ! pipeline.toml not selected: add --only pipeline.toml or remove --only\n")
 			}
 			for _, f := range files {
 				dest := filepath.Join(dir, f.Path)
