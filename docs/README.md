@@ -6,7 +6,7 @@
 |---|---|---|
 | [`design/`](design/) | 开发 | 架构、流程、取舍、为什么这样做 |
 | [`guides/`](guides/) | 使用者 / 运维 | 怎么跑、怎么验证、故障怎么查 |
-| [`ai/`](ai/) | AI 代理 / 协作者 | 约定、踩坑、不可违反的规则 |
+| [`ai/`](ai/) | AI 代理 / 协作者 | 代码约束、提交与合并规则、入口与自查 |
 | [`proposals/`](proposals/) | 设计者 | **未来**：待拍板决策、演进路线、未实现方案 |
 | [`archive/`](archive/) | 考古 | **历史**：已完成/废弃方案，只读 |
 
@@ -33,6 +33,13 @@
 | [protocol-layers.md](design/protocol-layers.md) | 协议分层、包 API、删除清单、**命名约束** |
 | [build-chain.md](build-chain.md) | 从源码到 s-mart 的完整数据流 |
 | [scaffold.md](design/scaffold.md) | 脚手架：从参考项目生成新项目 |
+| [protocol/protocol-spec.md](design/protocol/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
+| [protocol/lifecycle-contract.md](design/protocol/lifecycle-contract.md) | lifecycle 契约与导出语义 |
+| [protocol/subproject-contract.md](design/protocol/subproject-contract.md) | 子项目 justfile 与目录契约 |
+| [materials/adding-materials.md](design/materials/adding-materials.md) | 物料声明、lock 与新增流程 |
+| [materials/materials-sync.md](design/materials/materials-sync.md) | 物料同步、校验与离线策略 |
+| [components/bksmartpacker/fork.md](design/components/bksmartpacker/fork.md) | bksmartpacker fork 的维护与升级 |
+| [components/bksmartpacker/vs-upstream.md](design/components/bksmartpacker/vs-upstream.md) | bksmartpacker 与上游功能对比 |
 
 ### proposals（未来）
 
@@ -56,19 +63,17 @@
 |---|---|
 | [verify.md](guides/verify.md) | L1–L5 验证手册（含 libc 一致性检查） |
 | [arm64.md](guides/arm64.md) | arm64 验证：架构边界、物料固定、断言步骤 |
+| [troubleshooting.md](guides/troubleshooting.md) | 部署后 Pod 不 Ready 的排查路径 |
+| [pitfalls.md](guides/pitfalls.md) | 真实故障：现象 → 原因 → 修法 |
 
 ### ai（AI 开发）
 
 | 文档 | 说明 |
 |---|---|
 | [agents.md](ai/agents.md) | AI 入口：必读清单、命令、约束、自查 |
-| [bksmartpacker-fork.md](ai/components/bksmartpacker/fork.md) | 与官方 bksmartpacker_v3 的差异、兼容性与升级方式 |
-| [pitfalls.md](ai/common/pitfalls.md) | 18 条真实故障：现象 → 原因 → 修法 |
-| [troubleshooting.md](guides/troubleshooting.md) | 部署后 Pod 不 Ready 的排查路径（进程/连接/goroutine 栈） |
-| [protocol-spec.md](ai/pipeline/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
-| [package-layout.md](ai/common/package-layout.md) | 包与目录约定 |
-| [go-build.md](ai/common/go-build.md) | Go 构建、检查与自动化映射 |
-| [git-workflow.md](ai/common/git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、历史合并后验证 |
+| [package-layout.md](ai/package-layout.md) | 包与目录约定 |
+| [go-build.md](ai/go-build.md) | Go 构建、检查与自动化映射 |
+| [git-workflow.md](ai/git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、历史合并后验证 |
 
 ## 约定
 

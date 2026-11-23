@@ -6,8 +6,8 @@
 
 - 上游来源与基线见 [NOTICE](NOTICE)
 - 架构与执行链路见 [ARCHITECTURE.md](ARCHITECTURE.md)
-- 与官方的功能差异见 [对比文档](../../../docs/ai/components/bksmartpacker/vs-upstream.md)
-- 维护与升级方式见 [fork 说明](../../../docs/ai/components/bksmartpacker/fork.md)
+- 与官方的功能差异见 [对比文档](../../../docs/design/components/bksmartpacker/vs-upstream.md)
+- 维护与升级方式见 [fork 说明](../../../docs/design/components/bksmartpacker/fork.md)
 
 ## 一、能力概览
 

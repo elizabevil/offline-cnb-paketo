@@ -1,7 +1,7 @@
 # 协议包开发规范（spec/*）
 
 适用：`script/tools/cnb/internal/spec/**`。
-配套：[协议分层设计](../../design/protocol-layers.md)、[包分层](../common/package-layout.md)、[Go 规范](../common/go-build.md)。
+配套：[协议分层设计](../../design/protocol-layers.md)、[包分层](../../ai/package-layout.md)、[Go 规范](../../ai/go-build.md)。
 
 ## 一、职责边界
 

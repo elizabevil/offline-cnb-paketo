@@ -7,12 +7,12 @@
 
 | 文档 | 用途 |
 |---|---|
-| [git-workflow.md](common/git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、改历史后验证树未变 |
-| [go-build.md](common/go-build.md) | Go 规范与实战反模式、提交前自查 |
-| [package-layout.md](common/package-layout.md) | 包与目录分层 |
-| [pitfalls.md](common/pitfalls.md) | 19 条真实故障：现象 → 原因 → 修法 |
-| [subproject-contract.md](pipeline/subproject-contract.md) | 子项目 justfile 契约 |
-| [protocol-spec.md](pipeline/protocol-spec.md) | spec/* 的 API 形状与测试要求 |
+| [git-workflow.md](git-workflow.md) | 提交规范：一提交一事、禁止修补堆积、改历史后验证树未变 |
+| [go-build.md](go-build.md) | Go 规范与实战反模式、提交前自查 |
+| [package-layout.md](package-layout.md) | 包与目录分层 |
+| [pitfalls.md](../guides/pitfalls.md) | 19 条真实故障：现象 → 原因 → 修法 |
+| [subproject-contract.md](../design/protocol/subproject-contract.md) | 子项目 justfile 契约 |
+| [protocol-spec.md](../design/protocol/protocol-spec.md) | spec/* 的 API 形状与测试要求 |
 | [../design/architecture.md](../design/architecture.md) | 当前架构与两条案例流程 |
 | [../design/pipeline.md](../design/pipeline.md) | 路径链条与执行语义 |
 | [../design/protocol-layers.md](../design/protocol-layers.md) | 协议分层与命名约束 |

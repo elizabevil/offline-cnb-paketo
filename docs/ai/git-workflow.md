@@ -105,7 +105,7 @@ git branch backup/pre-rewrite
 
 - `bksmartpacker_v3` 入库提交：说明上游基线、fork 工作区与入库时差异，并附 `NOTICE`
 - `README.md` + `ARCHITECTURE.md`：一个文档提交，位于 OCI 导出之后
-- `docs/ai/components/bksmartpacker/fork.md`、`docs/ai/components/bksmartpacker/vs-upstream.md`：各自独立
+- `docs/design/components/bksmartpacker/fork.md`、`docs/design/components/bksmartpacker/vs-upstream.md`：各自独立
 - daemon 模式限制说明：归入 lifecycle singleton 验证提交
 - 根目录 `AGENTS.md` 指针：删除，入口统一为 `docs/README.md` → `docs/ai/agents.md`
 - 默认输出：`./s-mart.tar.gz`，不做上游对齐

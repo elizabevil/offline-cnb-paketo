@@ -90,4 +90,4 @@ cp .env.example .env    # 写入 PROXY_URL
 - [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
 - [docs/design/scaffold.md](docs/design/scaffold.md) — **脚手架**：从参考项目生成新项目
-- [docs/ai/common/pitfalls.md](docs/ai/common/pitfalls.md) — 18 条真实故障：现象 → 原因 → 修法
+- [docs/guides/pitfalls.md](docs/guides/pitfalls.md) — 18 条真实故障：现象 → 原因 → 修法
