@@ -41,6 +41,9 @@ echo "  index: ${index}" >&2
 
 venv="${layer}/venv"
 [ -x "${venv}/bin/python" ] || uv venv --relocatable --python "${py_bin}/python3" "${venv}" >&2
+# uv venv 默认不装 pip；部分应用运行期会 import pip。
+# ensurepip 使用解释器自带的 wheel，完全离线。
+"${venv}/bin/python" -m ensurepip --upgrade >&2 || true
 
 cd "${app_dir}"
 set -- --python "${venv}/bin/python" --index-url "${index}"
@@ -55,7 +58,15 @@ elif [ -f pyproject.toml ]; then
 fi
 
 [ -d .venv ] || true
-echo "${layer}/venv/bin" > "${layer}/env/PATH.prepend"
+printf '%s' "${layer}/venv/bin:${py_bin}" > "${layer}/env/PATH.prepend"
+printf '%s' ":" > "${layer}/env/PATH.delim"
+# 运行时入口可能直接 source /app/.profile.d 或 layer profile.d
+mkdir -p "${layer}/profile.d"
+cat > "${layer}/profile.d/000_pip_path.sh" <<PROFILE
+export PATH="${layer}/venv/bin:${py_bin}:\${PATH}"
+PROFILE
+mkdir -p "${app_dir}/.profile.d"
+printf 'export PATH="%s/venv/bin:%s:$PATH"\n' "${layer}" "${py_bin}" > "${app_dir}/.profile.d/000_pip_path.sh"
 cat > "${layer}.toml" <<TOML
 [types]
 launch = true

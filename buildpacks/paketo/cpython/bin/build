@@ -73,7 +73,16 @@ if [ "$(readlink -f "${py}")" != "$(readlink -f "${layer}/bin/python3" 2>/dev/nu
   ln -sf "$(readlink -f "${py}")" "${layer}/bin/python3"
 fi
 ln -sf python3 "${layer}/bin/python"
-echo "${layer}/bin" > "${layer}/env/PATH.prepend"
+printf '%s' "${layer}/bin" > "${layer}/env/PATH.prepend"
+printf '%s' ":" > "${layer}/env/PATH.delim"
+# launcher 会 source profile.d；作为 layer env 之外的双保险
+mkdir -p "${layer}/profile.d"
+cat > "${layer}/profile.d/000_python_path.sh" <<PROFILE
+export PATH="${layer}/bin:\${PATH}"
+PROFILE
+# 部分运行时直接 source $HOME/.profile.d
+mkdir -p "${app_dir}/.profile.d"
+printf 'export PATH="%s/bin:$PATH"\n' "${layer}" > "${app_dir}/.profile.d/000_python_path.sh"
 cat > "${layer}.toml" <<TOML
 [types]
 launch = true
