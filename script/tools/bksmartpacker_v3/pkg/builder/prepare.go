@@ -68,10 +68,6 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 			Version:    appDesc.AppVersion,
 			Src:        filepath.Join(params.Src, moduleDesc.SourceDir),
 			Procfile:   procfile,
-			FeatureFlags: FeatureFlags{
-				EnableProxy:          params.EnableProxy == "true",
-				DisableCollectStatic: params.DisableCollectStatic == "true",
-			},
 			Buildpacks: generateModuleBuildpacks(params.Src, &moduleDesc),
 			Envs:       mergeEnvs(moduleDesc.Spec.Configuration.Env, params.Envs),
 
@@ -176,20 +172,7 @@ func generateModuleBuildpacks(srcPath string, moduleDesc *types.ModuleDescriptio
 	if bp, ok := defaultBuildpacks[moduleDesc.Language]; ok {
 		buildpacks = append(buildpacks, bp)
 	}
-	// 探测是否依赖 Apt
-	if aptfileExists(filepath.Join(srcPath, moduleDesc.SourceDir)) {
-		buildpacks = append(buildpacks, defaultBuildpacks["Apt"])
-	}
 	return buildpacks
-}
-
-// aptfileExists 检测 Aptfile 是否存在
-func aptfileExists(modulePath string) bool {
-	if _, err := os.Stat(filepath.Join(modulePath, "Aptfile")); err != nil {
-		// 没有检测到有效的 Aptfile
-		return false
-	}
-	return true
 }
 
 // mergeEnvs 合并 app_desc 环境变量与命令行注入项，后者覆盖前者。

@@ -9,79 +9,34 @@ import (
 	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-
-	"bksmartpacker/pkg/config"
 )
-
-type FeatureFlags struct {
-	// EnableProxy 是否开启网络代理
-	EnableProxy bool `json:"enableProxy"`
-	// DisableCollectStatic 是否禁用静态文件收集
-	DisableCollectStatic bool `json:"disableCollectStatic"`
-}
 
 type ModuleBuildStep struct {
 	AppCode    string `json:"appCode"`
 	ModuleName string `json:"module_name"`
 	Version    string `json:"version"`
 	// Src 源码目录或源码压缩包的绝对路径
-	Src          string            `json:"src"`
-	Procfile     string            `json:"procfile"`
-	FeatureFlags FeatureFlags      `json:"featureFlags"`
-	Buildpacks   []Buildpack       `json:"buildpacks"`
-	Envs         map[string]string `json:"envs"`
+	Src        string            `json:"src"`
+	Procfile   string            `json:"procfile"`
+	Buildpacks []Buildpack       `json:"buildpacks"`
+	Envs       map[string]string `json:"envs"`
 
 	CacheRegistry string `json:"cacheRegistry"`
 	RegistryAuth  string `json:"registryAuth"`
 }
 
-// RequiredBuildpacks ...
+// RequiredBuildpacks 生成 lifecycle 的 REQUIRED_BUILDPACKS。
+// 字段格式保留 "type name"，本地 lifecycle 只按 name/别名匹配。
 func (step ModuleBuildStep) RequiredBuildpacks() string {
 	var parts []string
 	for _, bp := range step.Buildpacks {
-		version := bp.Version
 		bpType := bp.Type
-		// 未设置有效版本时，使用默认版本
-		if version == "" {
-			version = GetDefaultVersionByBPName(bp.Name)
-		}
 		if bpType == "" {
-			bpType = GetDefaultTypeByBPName(bp.Name)
+			bpType = "oci-embedded"
 		}
-
-		parts = append(parts, strings.Join([]string{bpType, bp.Name, "...", version}, " "))
+		parts = append(parts, bpType+" "+bp.Name)
 	}
 	return strings.Join(parts, ";")
-}
-
-// BuildpacksEnvs ...
-func (step ModuleBuildStep) BuildpacksEnvs() []string {
-	var envs []string
-	for _, bp := range step.Buildpacks {
-		switch bp.Name {
-		case "bk-buildpack-python":
-			envs = append(envs,
-				"DISABLE_COLLECTSTATIC=1",
-				fmt.Sprintf("PIP_VERSION=%s", config.G.Bp.Python.PipVersion),
-				fmt.Sprintf("BUILDPACK_S3_BASE_URL=%s", config.G.Bp.Python.S3BaseURL),
-				fmt.Sprintf("PIP_INDEX_URL=%s", config.G.Bp.Python.PipIndexURL),
-				fmt.Sprintf("PIP_EXTRA_INDEX_URL=%s", config.G.Bp.Python.PipExtraIndexURL),
-			)
-			break
-		case "bk-buildpack-nodejs":
-			envs = append(
-				envs,
-				fmt.Sprintf("STDLIB_FILE_URL=%s", config.G.Bp.NodeJS.StdLibFileURL),
-				fmt.Sprintf("S3_DOMAIN=%s", config.G.Bp.NodeJS.S3Domain),
-				fmt.Sprintf("NPM_REGISTRY=%s", config.G.Bp.NodeJS.NpmRegistry),
-			)
-			break
-		case "bk-buildpack-go":
-			envs = append(envs, fmt.Sprintf("GO_BUCKET_URL=%s", config.G.Bp.Go.GoBucketURL))
-			break
-		}
-	}
-	return envs
 }
 
 // BuildEnvs ...

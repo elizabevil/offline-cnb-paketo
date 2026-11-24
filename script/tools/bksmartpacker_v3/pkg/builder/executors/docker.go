@@ -167,10 +167,6 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		}
 	}
 
-	// 构建工具所需的环境变量
-	lo.ForEach(step.BuildpacksEnvs(), func(env string, index int) {
-		args = append(args, "-e", env)
-	})
 	// 描述文件声明的环境变量
 	lo.ForEach(step.BuildEnvs(), func(env string, index int) {
 		args = append(args, "-e", env)

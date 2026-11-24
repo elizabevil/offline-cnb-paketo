@@ -13,7 +13,6 @@ import (
 
 	"bksmartpacker/pkg/builder/executors"
 	"bksmartpacker/pkg/cmd"
-	"bksmartpacker/pkg/config"
 	"bksmartpacker/pkg/log"
 	"bksmartpacker/pkg/smartpkg"
 	"bksmartpacker/pkg/types"
@@ -26,17 +25,15 @@ var (
 		"./s-mart.tar.gz",
 		"s-mart 包的输出路径, 支持相对路径(相对于工作目录)或绝对路径; \n (s-mart 包是 gzip 压缩的 tarball, 建议以 .tar.gz 或 .tgz 作为命名后缀)",
 	)
-	disableCollectStatic = flag.Bool("disable-collect-static", true, "(Python)禁用静态文件收集")
-	help                 = flag.BoolP("help", "h", false, "Show help")
-	builderImage         = flag.String("builder-image", "", "cnb builder 镜像")
-	cacheRegistry        = flag.String("cache-registry", "", "缓存镜像仓库. 格式如: mirrors.tencent.com/bkapps")
-	registryAuth         = flag.String(
+	help          = flag.BoolP("help", "h", false, "Show help")
+	builderImage  = flag.String("builder-image", "", "cnb builder 镜像")
+	cacheRegistry = flag.String("cache-registry", "", "缓存镜像仓库. 格式如: mirrors.tencent.com/bkapps")
+	registryAuth  = flag.String(
 		"registry-auth",
 		"",
 		"镜像仓库凭证信息. 格式如: '{\"mirrors.tencent.com\": \"Basic xxx\"}'",
 	)
-	buildpackCfg = flag.String("buildpack-cfg", "", "buildpack 配置文件路径, 格式如: conf/buildpack.yaml")
-	inspectPkg   = flag.String(
+	inspectPkg = flag.String(
 		"inspect",
 		"",
 		"只检查已有 s-mart 包的结构(不构建), 输出 path/size/version/层包摘要",
@@ -70,18 +67,12 @@ func loadBuildParams() *types.Params {
 	paramData := new(types.Params)
 	paramData.Src = *src
 	paramData.Dest = dest
-	paramData.EnableProxy = "false"
 	paramData.BuilderImage = *builderImage
 	paramData.CacheRegistry = *cacheRegistry
 	paramData.RegistryAuth = *registryAuth
 	paramData.Envs = []string(buildEnvs)
 	paramData.Modules = []string(buildModules)
 
-	if *disableCollectStatic {
-		paramData.DisableCollectStatic = "true"
-	} else {
-		paramData.DisableCollectStatic = "false"
-	}
 	return paramData
 }
 
@@ -107,11 +98,6 @@ func main() {
 	if *src == "" {
 		log.Error(errors.New("src 不能为空"))
 		flag.PrintDefaults()
-		os.Exit(1)
-	}
-
-	if err := config.Init(*buildpackCfg); err != nil {
-		log.Error(errors.Wrap(err, "init config"))
 		os.Exit(1)
 	}
 

@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"bksmartpacker/pkg/config"
 	"bksmartpacker/pkg/types"
 )
 
@@ -60,7 +59,6 @@ var _ = Describe("Test prepare", func() {
 		var tmpAppPath string
 
 		BeforeEach(func() {
-			Expect(config.Init("")).To(BeNil())
 			tmpAppPath, _ = os.MkdirTemp("", "test-smart-app")
 		})
 		AfterEach(func() {
@@ -83,16 +81,13 @@ var _ = Describe("Test prepare", func() {
 
 				Expect(
 					generateModuleBuildpacks(tmpAppPath, &appDesc.Modules[0]),
-				).To(Equal([]Buildpack{
-					{Name: "bk-buildpack-python", Version: "v213", Type: "oci-embedded"},
-					{Name: "bk-buildpack-apt", Version: "v2", Type: "oci-embedded"},
-				}))
+				).To(Equal([]Buildpack{{Name: "paketo-buildpacks/python"}}))
 			})
 
 			It("Aptfile does not exists", func() {
 				Expect(
 					generateModuleBuildpacks(tmpAppPath, &appDesc.Modules[0]),
-				).To(Equal([]Buildpack{{Name: "bk-buildpack-python", Version: "v213", Type: "oci-embedded"}}))
+				).To(Equal([]Buildpack{{Name: "paketo-buildpacks/python"}}))
 			})
 		})
 

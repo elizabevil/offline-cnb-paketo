@@ -39,7 +39,6 @@ TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 bksmartpacker \
   --src /path/to/app \
   --dest ./s-mart.tar.gz \
-  --buildpack-cfg conf/buildpack.yaml
 ```
 
 `--src` 必须是包含 `app_desc.yaml` 的目录。多模块应用会逐个模块构建。
@@ -50,10 +49,8 @@ bksmartpacker \
 |---|---|
 | `--src` | 应用源码目录（必填） |
 | `--dest` | S-Mart 输出路径，默认 `./s-mart.tar.gz` |
-| `--buildpack-cfg` | buildpack 配置，默认 `conf/buildpack.yaml` |
 | `--cache-registry` | 构建缓存镜像仓库 |
 | `--registry-auth` | 仓库凭证（JSON） |
-| `--disable-collect-static` | Python 静态文件收集开关，默认 `true` |
 | `--env KEY=VALUE` | 注入构建容器环境变量，可重复；覆盖 app_desc 同名项 |
 | `--module <name>` | 只构建指定模块，可重复；空表示全部 |
 | `--inspect <pkg>` | 只检查已有包，不构建 |

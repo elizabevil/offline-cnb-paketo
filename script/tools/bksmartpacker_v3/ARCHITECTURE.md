@@ -16,7 +16,6 @@ pkg/config             配置结构与默认值
 pkg/types              共享类型
 pkg/utils              文件、归档、环境变量工具
 pkg/smartpkg           S-Mart 包结构检查（inspect）
-conf/buildpack.yaml    buildpack 配置
 ```
 
 ## 二、一次构建的调用链

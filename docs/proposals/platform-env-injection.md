@@ -101,40 +101,30 @@ C 保留给已有 buildpack（Go），不强制迁移。
 运行时 --env
   > 项目 build.env
   > app_desc configuration.env
-  > bksmartpacker buildpack.yaml（如保留）
   > builder 内置默认（文件/ENV）
   > buildpack 代码默认
 ```
 
-## 六、bksmartpacker 配置收敛
+## 六、bksmartpacker 配置收敛（已决定删除）
 
-现状：`--buildpack-cfg`（`conf/buildpack.yaml`）同时承担两件事：
+结论：不再兼容官方 BK builder，直接删除 BK 专用配置层。
 
-1. 选择 BK buildpack 及版本（`bk-buildpack-python v213` 等）
-2. 生成业务环境变量（`PIP_INDEX_URL`、`PIP_EXTRA_INDEX_URL`、`GO_BUCKET_URL` 等）
+删除项：
 
-第 2 项目前通过 `-e` 传入，同样被 lifecycle 丢弃；而且默认值指向腾讯源，会与项目配置冲突。
-
-建议：
-
-| 配置 | 处理 |
+| 项 | 原因 |
 |---|---|
-| buildpack 选择（name/version/type） | 保留，仅在使用官方 BK builder 时有意义 |
-| 业务环境变量（PIP_*、GO_BUCKET_URL、NPM_REGISTRY…） | 从 buildpack.yaml 移除，统一由 `build.env` 提供 |
-| 本地 Paketo builder 路径 | 忽略 BK buildpack 版本字段，别名只做 id 映射 |
+| `--buildpack-cfg` | 只服务 BK buildpack 选择，本地 order 不依赖 |
+| `pkg/config` | 字段为 BK 专用；业务变量由 build.env 提供 |
+| `conf/buildpack.yaml` | 同上 |
+| `BuildpacksEnvs()` | 生成的 `-e` 业务变量被 lifecycle 丢弃 |
+| BK buildpack 版本/类型字段 | 本地 order 只按 name 匹配 |
+| `--disable-collect-static` | BK Heroku 时代遗留 |
 
-目标：
+保留：
 
-- 业务变量只有一个入口：项目 `build.env`
-- `buildpack.yaml` 只描述“用哪些 BK buildpack”，不描述镜像源
-- 运行时覆盖只走 `--env`
-
-迁移：
-
-1. 删除 `conf/buildpack.yaml` 中的镜像/索引字段
-2. 项目 `build.env` 补上需要的值
-3. `BuildpacksEnvs()` 不再生成业务变量
-4. 文档标注 `buildpack.yaml` 仅用于官方 BK builder
+- `REQUIRED_BUILDPACKS` 仍生成，但名称固定为本地 order 的 id：
+  `paketo-buildpacks/{go,nodejs,python}`
+- 语言到 buildpack 的映射改为常量，不再读配置
 
 ## 七、影响面
 
