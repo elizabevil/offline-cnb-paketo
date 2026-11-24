@@ -14,6 +14,8 @@ type Params struct {
 	RegistryAuth string `json:"registryAuth"`
 	// Envs 注入构建容器的额外环境变量（KEY=VALUE），覆盖 app_desc 同名项
 	Envs []string `json:"envs,omitempty"`
+	// EnvFiles dotenv 配置文件，按顺序覆盖 app_desc 的环境变量
+	EnvFiles []string `json:"envFiles,omitempty"`
 	// Modules 只构建指定模块（为空表示全部）
 	Modules []string `json:"modules,omitempty"`
 }

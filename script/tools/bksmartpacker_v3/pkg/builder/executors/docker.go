@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
 	"bksmartpacker/pkg/builder"
 	"bksmartpacker/pkg/log"
@@ -147,6 +146,19 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		tarballPath = fh.Name()
 	}
 
+	platformDir, err := os.MkdirTemp("", "platform")
+	if err != nil {
+		return errors.Wrap(err, "failed to create platform dir")
+	}
+	defer os.RemoveAll(platformDir)
+	// 容器内 buildpack 以非 root 用户运行，平台目录必须可读可进入
+	if err := os.Chmod(platformDir, 0o755); err != nil {
+		return errors.Wrap(err, "failed to chmod platform dir")
+	}
+	if err := writePlatformEnv(platformDir, step.Envs); err != nil {
+		return errors.Wrap(err, "failed to write platform env")
+	}
+
 	args := []string{
 		"run", "--rm",
 		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", step.RequiredBuildpacks()),
@@ -167,11 +179,6 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		}
 	}
 
-	// 描述文件声明的环境变量
-	lo.ForEach(step.BuildEnvs(), func(env string, index int) {
-		args = append(args, "-e", env)
-	})
-
 	// 目标平台（qemu 交叉构建时显式指定）
 	if pf := targetPlatform(); pf != "" {
 		args = append(args, "--platform", pf)
@@ -185,6 +192,8 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", sock))
 	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
 
+	// 业务环境变量走平台目录，lifecycle 会注入 buildpack
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
 	// 挂载源码压缩包
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
 	// 导出方式：
@@ -227,13 +236,18 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 }
 
 func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
-	produced := filepath.Join(workspace, "layers", step.ModuleName+".tgz")
+	layerDir := filepath.Join(workspace, "layers")
+	if err := os.MkdirAll(layerDir, 0o755); err != nil {
+		return err
+	}
+	produced := filepath.Join(layerDir, step.ModuleName+".tgz")
 	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
 		fmt.Printf("using layer archive from cnb: %s\n", produced)
 		if err := utils.Copy(produced, filepath.Join(workspace, step.ModuleName+".tgz")); err != nil {
 			return err
 		}
-		return os.RemoveAll(filepath.Join(workspace, "layers"))
+		// 只删本模块的层包，保留目录供后续模块复用
+		return os.Remove(produced)
 	}
 	args := saveArgs(e.dockerExecPath, fmt.Sprintf("%s/%s.tgz", workspace, step.ModuleName), step.OutputImage())
 	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
@@ -243,8 +257,9 @@ func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string,
 }
 
 func (e *DockerExecutor) buildSMartPackage(ctx context.Context, workspace string) error {
-	// run-image.tar 只是构建期中间产物，不进 s-mart
+	// 构建期中间产物，不进 s-mart
 	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
+	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
 	appDescPath := filepath.Join(workspace, "app_desc.yaml")
 	if err := os.WriteFile(appDescPath, []byte(e.plan.AppDescContent), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write app_desc.yaml")
@@ -378,4 +393,42 @@ func fakeRunnerImage() string {
 		return cnbFakeRunnerImageBase + ":" + strings.ReplaceAll(pf, "/", "-")
 	}
 	return cnbFakeRunnerImageBase + ":latest"
+}
+
+// writePlatformEnv 把环境变量写成 <platform>/env/<KEY> 文件。
+func writePlatformEnv(platformDir string, envs map[string]string) error {
+	envDir := filepath.Join(platformDir, "env")
+	if err := os.MkdirAll(envDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.Chmod(envDir, 0o755); err != nil {
+		return err
+	}
+	for key, value := range envs {
+		if !validEnvKey(key) {
+			return fmt.Errorf("invalid env key %q", key)
+		}
+		if strings.ContainsAny(value, "\n\r") {
+			return fmt.Errorf("env %s contains newline", key)
+		}
+		if err := os.WriteFile(filepath.Join(envDir, key), []byte(value), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validEnvKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	for i, r := range key {
+		switch {
+		case r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z'):
+		case i > 0 && r >= '0' && r <= '9':
+		default:
+			return false
+		}
+	}
+	return true
 }

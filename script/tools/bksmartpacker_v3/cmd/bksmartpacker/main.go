@@ -41,6 +41,7 @@ var (
 	inspectFormat = flag.String("inspect-format", "text", "检查输出格式: text | json")
 	buildEnvs     stringList
 	buildModules  stringList
+	buildEnvFiles stringList
 )
 
 // stringList 支持重复出现的字符串参数。
@@ -55,6 +56,7 @@ func (s *stringList) Type() string { return "stringArray" }
 func init() {
 	flag.Var(&buildEnvs, "env", "注入构建容器的环境变量 KEY=VALUE，可重复")
 	flag.Var(&buildModules, "module", "只构建指定模块，可重复")
+	flag.Var(&buildEnvFiles, "env-file", "dotenv 配置文件，可重复；后加载覆盖先加载")
 	flag.Lookup("builder-image").DefValue = executors.DefaultCNBBuilderImage
 }
 
@@ -72,6 +74,7 @@ func loadBuildParams() *types.Params {
 	paramData.RegistryAuth = *registryAuth
 	paramData.Envs = []string(buildEnvs)
 	paramData.Modules = []string(buildModules)
+	paramData.EnvFiles = []string(buildEnvFiles)
 
 	return paramData
 }

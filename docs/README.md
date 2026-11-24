@@ -47,6 +47,7 @@
 |---|---|
 | [python-runtime-source.md](proposals/python-runtime-source.md) | Python 运行时来源与内置默认（待办） |
 | [platform-env-injection.md](proposals/platform-env-injection.md) | 构建变量注入：platform env 目录方案 |
+| [runtime-provider-abstraction.md](proposals/runtime-provider-abstraction.md) | uv/fnm 可替换：运行时提供者抽象 |
 
 ### archive（历史）
 

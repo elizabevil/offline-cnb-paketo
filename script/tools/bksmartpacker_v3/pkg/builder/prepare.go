@@ -62,6 +62,11 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 			return nil, err
 		}
 
+		envs, err := mergeModuleEnvs(moduleDesc.Spec.Configuration.Env, params.EnvFiles, params.Envs)
+		if err != nil {
+			return nil, err
+		}
+
 		step := ModuleBuildStep{
 			AppCode:    appDesc.AppInfo.Code,
 			ModuleName: moduleDesc.Name,
@@ -69,7 +74,7 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 			Src:        filepath.Join(params.Src, moduleDesc.SourceDir),
 			Procfile:   procfile,
 			Buildpacks: generateModuleBuildpacks(params.Src, &moduleDesc),
-			Envs:       mergeEnvs(moduleDesc.Spec.Configuration.Env, params.Envs),
+			Envs:       envs,
 
 			CacheRegistry: params.CacheRegistry,
 			RegistryAuth:  params.RegistryAuth,
@@ -188,4 +193,25 @@ func mergeEnvs(declared []types.AppEnvVar, extra []string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+// mergeModuleEnvs 合并 app_desc、env-file、CLI 三层，后者覆盖前者。
+func mergeModuleEnvs(declared []types.AppEnvVar, envFiles []string, extra []string) (map[string]string, error) {
+	out := mergeEnvs(declared, nil)
+	for _, path := range envFiles {
+		values, err := LoadEnvFile(path)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range values {
+			out[k] = v
+		}
+	}
+	for _, kv := range extra {
+		k, v, ok := strings.Cut(kv, "=")
+		if ok && k != "" {
+			out[k] = v
+		}
+	}
+	return out, nil
 }

@@ -37,14 +37,15 @@ main
 
 1. 源码目录打成 `source.tgz`（`step.Procfile` 也会被写入）
 2. 组装环境变量：
-   - 固定契约：`REQUIRED_BUILDPACKS`、`OUTPUT_IMAGE`、`CNB_RUN_IMAGE`、
-     `SOURCE_GET_URL`、`CNB_PLATFORM_API`
-   - 物料/配置：`CACHE_IMAGE`、`CNB_REGISTRY_AUTH`
-   - 工具与描述文件声明的变量
-   - 本 fork 扩展：`CNB_BUILDPACK_ALIASES`、`CNB_EXPORT_MODE`、
+   - 控制变量仍用 `-e`：`REQUIRED_BUILDPACKS`、`OUTPUT_IMAGE`、
+     `CNB_RUN_IMAGE`、`SOURCE_GET_URL`、`CNB_PLATFORM_API`、
+     `CACHE_IMAGE`、`CNB_REGISTRY_AUTH`、`CNB_EXPORT_MODE`、
      `CNB_LAYER_ARCHIVE`、`CNB_RUN_IMAGE_ARCHIVE`
-   - 项目注入：`--env KEY=VALUE`，在 app_desc 之后覆盖同名变量
+   - 业务变量：`app_desc` + `--env-file` + `--env` 合并后写入
+     `<tmp>/platform/env/<KEY>`，由 lifecycle 注入 buildpack
+   - 优先级：`--env` > `--env-file` > `app_desc`
 3. 挂载：
+   - 平台 env 目录到 `/platform`（只读）
    - 源码 tar（只读）
    - 容器运行时 socket
    - layout 模式下的层输出目录

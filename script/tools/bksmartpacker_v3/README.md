@@ -39,6 +39,7 @@ TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 bksmartpacker \
   --src /path/to/app \
   --dest ./s-mart.tar.gz \
+  --env-file project/offline-paketo-bk/build.env
 ```
 
 `--src` 必须是包含 `app_desc.yaml` 的目录。多模块应用会逐个模块构建。
@@ -51,7 +52,8 @@ bksmartpacker \
 | `--dest` | S-Mart 输出路径，默认 `./s-mart.tar.gz` |
 | `--cache-registry` | 构建缓存镜像仓库 |
 | `--registry-auth` | 仓库凭证（JSON） |
-| `--env KEY=VALUE` | 注入构建容器环境变量，可重复；覆盖 app_desc 同名项 |
+| `--env-file <path>` | dotenv 配置，可重复；按顺序覆盖 app_desc |
+| `--env KEY=VALUE` | 运行时覆盖，可重复；优先级最高 |
 | `--module <name>` | 只构建指定模块，可重复；空表示全部 |
 | `--inspect <pkg>` | 只检查已有包，不构建 |
 | `--inspect-format` | `text` 或 `json`，默认 `text` |

@@ -68,7 +68,9 @@ cache_mount := "--mount type=bind,source=" + cache_dir + ",target=/layers/cache"
 mounts := runtimes_mount + cache_mount
 # 注入构建容器的变量（与源码无关；BKS_BUILD_ENV 空格分隔 KEY=VALUE）
 # 默认给 Python 走 gh-proxy 的运行时镜像；需要时用环境变量覆盖
-bp_env := env_var_or_default("BKS_BUILD_ENV", "UV_PYTHON_INSTALL_MIRROR=https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download UV_HTTP_TIMEOUT=600")
+bp_env := env_var_or_default("BKS_BUILD_ENV", "")
+env_file := _dir / "build.env"
+env_file_flag := " --env-file " + env_file
 bp_modules := env_var_or_default("BKS_MODULES", "")
 env_flags := if bp_env != "" { " --env " + replace(bp_env, " ", " --env ") } else { "" }
 module_flags := if bp_modules != "" { " --module " + replace(bp_modules, " ", " --module ") } else { "" }
@@ -95,7 +97,7 @@ smart src="{{_fx}}": smart-builder smart-bps
     @rm -f {{_out}}/s-mart.tar.gz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
     @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
-        {{env_flags}} {{module_flags}} \
+        {{env_file_flag}} {{env_flags}} {{module_flags}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tar.gz
     @echo
@@ -113,7 +115,7 @@ pack-case src:
     @mkdir -p {{_out}} {{cache_dir}}
     @rm -f {{_out}}/s-mart.tar.gz
     @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
-        {{env_flags}} {{module_flags}} \
+        {{env_file_flag}} {{env_flags}} {{module_flags}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tar.gz
     @{{_bps}} --inspect {{_out}}/s-mart.tar.gz
