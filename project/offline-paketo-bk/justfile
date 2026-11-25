@@ -142,3 +142,9 @@ lock *ids:
 # 打印占位符解析值
 vars:
     @{{_cnb}} pipeline variables {{_profile}}
+
+# D1 压缩：把相同源码的模块合并为单镜像多 tag，并用硬链接去重
+#   just dedup            # 处理 dist/<platform>/s-mart.tar.gz
+#   just dedup <pkg>      # 处理指定包
+dedup pkg="{{_out}}/s-mart.tar.gz":
+    @python3 {{_root}}/script/tools/dedup_smart.py "{{pkg}}" --out "{{_out}}/s-mart-d1.tar.gz"

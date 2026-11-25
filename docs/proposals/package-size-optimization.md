@@ -1,6 +1,6 @@
 # 镜像包体积优化需求（专项）
 
-> 状态：**需求提案 + D1 本地与上传验证通过，待部署启动验证**。
+> 状态：**D1 已端到端验证通过（上传 + 部署 + Pod 运行）**；D1 去重工具已实现。
 > 目标是把 SOPS 测试应用的 s-mart 包压到 200 MB 以内；
 > 后续 Go/Node 等多模块应用复用同一方案。
 
@@ -178,6 +178,52 @@ BK 的“模块”比 Paketo 的 app 更细，因此同一份源码被拆成四�
 - 模块 tag 冲突/覆盖行为未知
 - 需要先做小包验证
 
+### D1 原理与限制（补充）
+
+#### 原理
+
+1. OCI 镜像由 `manifest + config + layers` 组成，layer 按 digest 内容寻址
+2. 多个 tag 可以指向同一个 manifest digest
+3. 一个 tgz 的 `manifest.json` 可以声明多个 `RepoTags`
+4. 外层 tar 支持硬链接：多个 `<module>.tgz` 指向同一 inode，只存一份内容
+5. 平台解包后四个模块共享一个 tgz，加载后四个 tag 指向同一镜像
+6. 模块进程命令来自 `app_desc.yaml`，因此镜像不需要按模块拆分
+
+#### 成立前提
+
+| 前提 | 说明 |
+|---|---|
+| 源码相同 | 同 `sourceDir`，同代码 |
+| 依赖相同 | 同语言、同 buildpacks、同构建期依赖 |
+| 进程在 app_desc | 模块差异只体现在启动命令 |
+| 平台保留硬链接 | 已在本平台验证 |
+| 平台接受多 tag tgz | 已在本平台验证 |
+| 按模块 tag 取镜像 | 已在本平台验证 |
+
+#### 限制
+
+| 限制 | 影响 |
+|---|---|
+| 只适合同源码/同依赖 | 不同依赖必须拆开构建 |
+| 分组不校验镜像内容 | 当前工具按元数据分组，可能误合并 |
+| 模块共享 digest | 无法独立升级/回滚/打补丁 |
+| 依赖硬链接 | 平台重新打包或复制会丢失去重 |
+| 依赖多 tag 加载 | 其他运行时可能只取第一个 tag |
+| 镜像内 Procfile 只有主模块 | 若运行时不用 app_desc 会缺进程 |
+| 仍是构建四次 | 当前工具只做打包后处理 |
+| 平台要求模块齐全 | 不能少模块 |
+| 多架构 | amd64/arm64 分别打包 |
+
+#### 适用/不适用
+
+| 场景 | 结论 |
+|---|---|
+| 同源码、不同进程 | 适用 |
+| 不同语言/依赖 | 不适用 |
+| 模块需独立版本 | 不适用 |
+| 平台不支持硬链接/多 tag | 不适用 |
+| 需要按模块不同基础镜像 | 不适用 |
+
 ### D2 构建一次 + Procfile 薄层
 
 **做法**
@@ -252,6 +298,161 @@ s-mart/
 - 破坏模块独立部署，不推荐
 - 只作为最后手段
 
+### D6 多镜像单 tgz（D1 的改进版）
+
+**做法**
+
+1. 组内只构建一次 base 镜像
+2. 为每个模块生成一个薄层，只替换 `/app/Procfile` 等模块差异
+3. 四个模块镜像**共享 base layer，但 digest 不同**
+4. 一个 OCI 归档中放入四个 image manifest，按 tag 区分
+5. 外层 tar 中四个 `<module>.tgz` 仍然硬链接到同一个多镜像归档
+6. 平台按 tag 加载四个镜像
+
+**包体积**
+
+```
+base ~135 MB + 四个薄层（几 MB）
+硬链接后外层仍 ~136 MB
+```
+
+**与 D1 的区别**
+
+| 项 | D1 | D6 |
+|---|---|---|
+| 镜像 digest | 四个模块相同 | 四个模块不同 |
+| 镜像内 Procfile | 主模块的 | 每个模块自己的 |
+| 独立升级 | 不可以 | 可以（各自薄层） |
+| 构建次数 | 1 | 1 |
+| 平台要求 | 多 tag | 多镜像归档 |
+
+**本地验证（2026-11-24）**
+
+- 构造 4 个不同 config、共享同一 layer 的 image manifest
+- 一个 tgz 内放 4 个 manifest，`podman load` 成功
+- 四个 tag 对应四个不同 image digest
+- 测试包：
+
+```
+dist/linux-amd64/bk-sops-d6-tiny-4modules.tar.gz   # 19 KB，结构验证
+dist/linux-amd64/bk-sops-d6-4modules.tar.gz        # 135.9 MB，真实镜像验证
+```
+
+生成脚本：
+
+```bash
+python3 script/tools/d6_test_package.py <s-mart.tar.gz>   --out bk-sops-d6-4modules.tar.gz
+```
+
+### D6 薄层修正（2026-11-25）
+
+此前 D6 测试包只改了 config，镜像内 `/app/Procfile` 和
+`/layers/config/metadata.toml` 仍是 default 模块的，导致 pipeline 的
+`cworker` 进程找不到，运行时报：
+
+```
+exec: "cworker": executable file not found in $PATH
+```
+
+正确 D6 需要每个模块一个薄层，覆盖：
+
+```
+/app/Procfile
+/layers/config/metadata.toml
+/cnb/process/<process-type> -> /cnb/lifecycle/launcher
+```
+
+生成脚本：
+
+```bash
+python3 script/tools/d6_thin_package.py <s-mart.tar.gz>   --out bk-sops-d6-thin-4modules.tar.gz
+```
+
+测试包：
+
+```
+dist/linux-amd64/bk-sops-d6-thin-4modules.tar.gz   # 135.9 MB
+```
+
+本地验证：
+
+- 四个模块 tag 加载成功
+- pipeline 镜像的 `metadata.toml` 包含 `cworker` 等全部进程
+- `/cnb/process/cworker` symlink 指向 launcher
+- `/app/Procfile` 是 pipeline 的进程列表
+
+注意：仍是测试构造，base 镜像复用 default；生产 D6 需要在构建时生成这些薄层。
+
+**风险**
+
+- 部署平台是否接受一个 tgz 内多个 image manifest（待上传验证）
+- 加载后是否四个 tag 都能独立部署
+- 薄层生成需要改写 OCI 镜像，复杂度高于 D1
+
+### D7 镜像瘦身（正交方案）
+
+**做法**
+
+- 去掉 pip/uv 缓存
+- 去掉 `.pyc`、测试、文档、编译工具
+- 使用更小的基础镜像 / 多阶段构建
+- 压缩层（gzip -9 / zstd）
+
+**效果**
+
+- 单镜像 135 MB 可能降到 80~100 MB
+- 但四个模块仍然四份，**单独使用不足以达到 200 MB**
+- 可与 D1/D6/D3 叠加
+
+### D8 外部 Registry
+
+**做法**
+
+- 构建一次，推送镜像
+- s-mart 只带元数据或 digest
+- 平台按 digest 拉取
+
+**优点**
+
+- 不走页面上传
+- registry 天然按 layer 去重
+
+**限制**
+
+- 部署平台必须支持 registry 部署
+- 需要网络与凭证
+- 不是我们可单方面实施的方案
+
+### D9 仅压缩格式优化
+
+**做法**
+
+- 外层 tar 用 zstd/更高 gzip
+- 利用长窗口压缩重复内容
+
+**效果**
+
+- 对 542 MB 去重有限
+- 平台可能只接受 `.tar.gz`
+- 不能替代镜像/包级去重
+
+### D10 合并模块
+
+**做法**
+
+- 四个模块合并为一个模块、多个 process
+
+**效果**
+
+- 包体积 ~135 MB
+- 不依赖平台新能力
+
+**限制**
+
+- 破坏模块独立部署
+- 改变 `app_desc` 语义
+- 仅业务接受时可用
+
 ## 6. 设计对比
 
 | 设计 | 包体积 | 构建次数 | 部署平台依赖 | 应用改动 | 本项目可自主实施 |
@@ -261,10 +462,14 @@ s-mart/
 | D3 共享 blob | 412 MB / 135 MB（叠加 D2） | 1 | **需部署平台已支持**，否则不可行 | 无 | 否 |
 | D4 registry | 不上传 | 1 | **需部署平台已支持** | 无 | 否 |
 | D5 合并模块 | ~135 MB | 1 | 无 | 语义变化 | 是（需业务接受） |
+| D6 多镜像单 tgz | ~136 MB | 1 | **本地通过，待平台上传** | 无 | 是（需实现） |
+| D7 镜像瘦身 | 单镜像 80~100 MB | 1~4 | 无 | 无 | 是（正交） |
+| D8 registry | 不上传 | 1 | **需平台已支持** | 无 | 否 |
+| D9 压缩格式 | 略降 | 1~4 | 平台需接受 | 无 | 是（收益小） |
 
 ## 7. 推荐路线
 
-### 阶段 1：验证 D1 的平台兼容性
+### 阶段 1：验证 D1 的平台兼容性（已完成）
 
 用最小包验证三件事：
 
@@ -274,7 +479,17 @@ s-mart/
 
 验证通过则采用 D1。
 
-### 阶段 2：D1 实现
+### 阶段 2：D1 实现（已用打包后处理验证）
+
+当前 `script/tools/dedup_smart.py` 已实现 D1 的打包后处理版本：
+549 MB → 135.9 MB，平台上传/部署通过。
+
+### 阶段 2.5：评估 D6
+
+D6 保留每个模块独立镜像 digest 和 Procfile，比 D1 更接近生产语义。
+需要先构造多镜像单 tgz 的测试包，验证平台加载四个 tag。
+
+### 阶段 3：D1 正式实现
 
 在 bksmartpacker 中：
 
@@ -401,7 +616,53 @@ default.tgz         # 硬链接 -> api.tgz
 - 不再出现“单模块包卡住”
 - 包体积 135.83 MB，满足 ≤200 MB 目标
 
-### 11.5 仍未验证
+### 11.5 自动去重工具（D1 原型）
+
+脚本：
+
+```
+script/tools/dedup_smart.py
+```
+
+用法：
+
+```bash
+python3 script/tools/dedup_smart.py dist/linux-amd64/s-mart.tar.gz \
+  --out dist/linux-amd64/s-mart-d1.tar.gz
+```
+
+或：
+
+```bash
+just dedup
+```
+
+逻辑：
+
+1. 读 `app_desc.yaml`
+2. 按 `(sourceDir, language, buildpacks)` 分组
+3. 组内取第一个模块的 OCI layout
+4. 给同一个镜像追加组内全部模块 tag
+5. 其余模块 tgz 改为硬链接
+6. 外层 tar 保留硬链接
+
+实测：
+
+| 指标 | 数值 |
+|---|---|
+| 输入 | 549 MB（4 模块独立镜像） |
+| 输出 | **135.9 MB** |
+| tgz 数量 | 4，inode 相同 |
+| 加载 tag | default/callback/pipeline/api |
+| `podman load` | 四个 tag 均可加载 |
+
+产物：
+
+```
+dist/linux-amd64/bk-sops-d1-auto-4modules.tar.gz
+```
+
+### 11.6 仍未验证
 
 - BK 上传器是否保留外层 tar 硬链接（可能复制文件导致体积反弹）
 - BK 是否接受“一个 tgz 内含多个 tag”
@@ -428,7 +689,9 @@ default.tgz         # 硬链接 -> api.tgz
 - 首选：D1（单镜像多 manifest + 硬链接）
 - 备选：D3 + D2（仅当部署平台已验证支持）
 - 不做：D5 合并模块（除非明确接受语义变化）
-- 当前状态：D1 本地与上传验证通过；待部署启动验证
+- 当前状态：D1 端到端验证通过（上传 + 部署 + Pod 正常）
 - 上传结果：tiny 0.02 MB、full 135.83 MB，均成功
+- 自动去重工具：549 MB → 135.9 MB
+- 后续：并入 bksmartpacker，减少重复构建
 - 测试包：`dist/linux-amd64/bk-sops-d1-test-4modules.tar.gz`，136 MB
 - 边界：不修改、不推动修改 BK PaaS
