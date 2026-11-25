@@ -1,6 +1,6 @@
 # 镜像包体积优化需求（专项）
 
-> 状态：**D1 已端到端验证通过（上传 + 部署 + Pod 运行）**；D1 去重工具已实现。
+> 状态：**D1 union 已端到端验证通过（上传 + 四模块部署 + Pod 运行）**；D6 多镜像方案被平台加载器否决。
 > 目标是把 SOPS 测试应用的 s-mart 包压到 200 MB 以内；
 > 后续 Go/Node 等多模块应用复用同一方案。
 
@@ -673,7 +673,76 @@ dist/linux-amd64/bk-sops-d1-auto-4modules.tar.gz
 
 建议先上传 **tiny 包**（19 KB）验证结构；通过后再上传 136 MB 包验证真实镜像。
 
-## 12. 风险与待定
+## 12. D1 union 最终验证（2026-11-25）
+
+### 12.1 平台实际镜像
+
+用 skopeo 拉取四个模块 tag 的 manifest：
+
+```bash
+skopeo inspect --tls-verify=false --raw   docker://docker.dev-x86.cwbk5.com/bkpaas/docker/bk_sops/pipeline:3.34.1-beta.20
+```
+
+四个 tag 的顶层 layer 都是：
+
+```
+sha256:d3eae8791e757d3b5946c03cecf748179564a22a595b2f24f769288d365af454
+```
+
+该 digest 与本地 D1 union 包的顶层 layer **完全一致**。
+
+说明平台确实把四个模块都指向了同一个 union 镜像。
+
+### 12.2 union 镜像内容
+
+顶层 layer 内：
+
+```
+/layers/config/metadata.toml
+  包含 node-timeout、cworker、v1-engine、api-er-*、web（pipeline 命令）
+
+/app/Procfile
+  包含全部 process type
+
+/cnb/process/<type>
+  指向 /cnb/lifecycle/launcher
+```
+
+### 12.3 部署结果
+
+| 模块 | 结果 |
+|---|---|
+| default | 部署成功、Pod 正常 |
+| callback | 部署成功、Pod 正常 |
+| pipeline | 部署成功、Pod 正常 |
+| api | 部署成功、Pod 正常 |
+
+验证方式：用户实际部署 + skopeo 拉取镜像对比。
+
+### 12.4 结论
+
+- 平台只加载一个镜像
+- 不需要多 image manifest
+- 需要把所有 process type 放进同一个镜像 metadata
+- D1 union 满足 ≤200 MB 目标（135.9 MB）
+- D6 多镜像单 tgz 不可行
+
+测试包：
+
+```
+dist/linux-amd64/bk-sops-d1-union-4modules.tar.gz
+```
+
+生成脚本：
+
+```bash
+python3 script/tools/d1_union_package.py <s-mart.tar.gz>   --out bk-sops-d1-union-4modules.tar.gz
+```
+
+注意：同名进程（如 `web`）只能保留一个命令；当前 union 以 pipeline 为准。
+生产实现应在构建阶段生成 union metadata，而不是打包后补层。
+
+## 13. 风险与待定
 
 | 风险 | 处理 |
 |---|---|
@@ -683,13 +752,14 @@ dist/linux-amd64/bk-sops-d1-auto-4modules.tar.gz
 | 模块 tag 冲突 | 先做小规模验证 |
 | 200 MB 目标无法在不改部署平台下达成 | 记录为平台能力限制，不作为本项目承诺 |
 
-## 13. 决策记录
+## 14. 决策记录
 
 - 目标：SOPS 四模块包 ≤ 200 MB
 - 首选：D1（单镜像多 manifest + 硬链接）
 - 备选：D3 + D2（仅当部署平台已验证支持）
 - 不做：D5 合并模块（除非明确接受语义变化）
-- 当前状态：D1 端到端验证通过（上传 + 部署 + Pod 正常）
+- 当前状态：D1 union 端到端验证通过；D6 否决
+- 最终方案：单镜像 + union metadata + 四模块 tag
 - 上传结果：tiny 0.02 MB、full 135.83 MB，均成功
 - 自动去重工具：549 MB → 135.9 MB
 - 后续：并入 bksmartpacker，减少重复构建
