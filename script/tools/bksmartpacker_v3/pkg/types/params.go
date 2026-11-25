@@ -18,4 +18,10 @@ type Params struct {
 	EnvFiles []string `json:"envFiles,omitempty"`
 	// Modules 只构建指定模块（为空表示全部）
 	Modules []string `json:"modules,omitempty"`
+	// PackagingVersion v1(旧) / v2(构建组 + artifact.json)
+	PackagingVersion string `json:"packagingVersion,omitempty"`
+	// BaseImageID 运行时基础镜像 ID
+	BaseImageID string `json:"baseImageId,omitempty"`
+	// Architecture 目标镜像架构
+	Architecture string `json:"architecture,omitempty"`
 }

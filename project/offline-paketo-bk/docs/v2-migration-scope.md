@@ -2,6 +2,8 @@
 
 > 前提：部署平台 apiserver ≥1.7.x，自动识别 `artifact.json`。
 > 目标：用 v2 替换 D1/D6，包 ≤200 MB，四模块进程正确启动。
+>
+> 状态：**已实现并构建出 v2 包**（2026-11-25）。
 
 ## 1. 当前实现与 v2 的差异
 
@@ -258,3 +260,38 @@ v2 的 entrypoint 是：
 - 改造集中在计划、Procfile、执行器、artifact、打包
 - buildpacks 基本不需要改，但要验证 namespaced 进程
 - 当前平台 ≥1.7，建议直接切 v2，停止 D1/D6
+
+
+## 8. 实现结果
+
+SOPS 四模块：
+
+```
+dist/linux-amd64/bk-sops-v2-4modules.tar.gz
+138 MB
+```
+
+结构：
+
+```
+.Version
+app_desc.yaml
+artifact.json
+default.tar
+logo.png
+```
+
+验证：
+
+- 只执行了 1 次 builder build
+- 一个 image tar
+- 18 个 namespaced process
+- `/cnb/process/pipeline-node-timeout` 存在
+- artifact.json 四个模块映射完整
+- 包体积 138 MB
+
+待平台验证：
+
+- 上传
+- 四模块部署
+- pipeline cworker / node-timeout

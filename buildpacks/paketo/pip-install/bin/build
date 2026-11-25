@@ -77,14 +77,4 @@ cat > "${layer}.sbom.cdx.json" <<'JSON'
 { "bomFormat": "CycloneDX", "specVersion": "1.5", "components": [] }
 JSON
 
-# 启动进程：venv 优先，其次 python
-if [ -f app.py ]; then cmd="python app.py"
-elif [ -f main.py ]; then cmd="python main.py"
-else cmd="python app.py"; fi
-cat > "${layers_dir}/launch.toml" <<TOML
-[[processes]]
-  type = "web"
-  command = ["/bin/sh", "-c", "PATH=${layer}/venv/bin:${py_bin}:\$PATH exec ${cmd}"]
-  default = true
-TOML
 echo "  ✅ pip-install complete" >&2

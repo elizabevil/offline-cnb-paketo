@@ -48,13 +48,29 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		log.Info("检测到 logo 文件: ", logoFileName)
 	}
 
+	packagingVersion := params.PackagingVersion
+	if packagingVersion == "" {
+		packagingVersion = "v2"
+	}
+	if packagingVersion != "v1" && packagingVersion != "v2" {
+		return nil, fmt.Errorf("invalid packaging version %q: must be v1 or v2", packagingVersion)
+	}
+	baseImageID := params.BaseImageID
+	if baseImageID == "" {
+		baseImageID = "default"
+	}
+
 	plan := BuildPlan{
-		AppCode:        appDesc.AppInfo.Code,
-		AppDescContent: rawAppDesc,
-		LogoFileName:   logoFileName,
-		Src:            params.Src,
-		Dest:           params.Dest,
-		BuilderImage:   params.BuilderImage,
+		AppCode:          appDesc.AppInfo.Code,
+		AppDescContent:   rawAppDesc,
+		LogoFileName:     logoFileName,
+		Src:              params.Src,
+		Dest:             params.Dest,
+		BuilderImage:     params.BuilderImage,
+		PackagingVersion: packagingVersion,
+		BaseImageID:      baseImageID,
+		Architecture:     params.Architecture,
+		ModuleProcesses:  map[string][]ModuleProcess{},
 	}
 	for _, moduleDesc := range appDesc.Modules {
 		procfile, err := generateProcfile(moduleDesc)
@@ -81,6 +97,54 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		}
 
 		plan.Steps = append(plan.Steps, &step)
+		plan.ModuleProcesses[moduleDesc.Name] = lo.Map(moduleDesc.Spec.Processes, func(p types.Process, _ int) ModuleProcess {
+			return ModuleProcess{Name: p.Name, Command: p.ProcCommand}
+		})
+	}
+
+	if packagingVersion == "v2" {
+		appProcfile, err := GenerateAppProcfile(appDesc.Modules)
+		if err != nil {
+			return nil, err
+		}
+		groups := map[string]*ModuleBuildGroup{}
+		order := make([]string, 0)
+		for i, moduleDesc := range appDesc.Modules {
+			step := plan.Steps[i]
+			keyParts := []string{moduleDesc.SourceDir}
+			for _, bp := range step.Buildpacks {
+				keyParts = append(keyParts, bp.Type, bp.Name, bp.Version)
+			}
+			key := strings.Join(keyParts, "|")
+			group, ok := groups[key]
+			if !ok {
+				group = &ModuleBuildGroup{
+					AppCode:       plan.AppCode,
+					ModuleName:    moduleDesc.Name,
+					ModuleNames:   []string{moduleDesc.Name},
+					Version:       step.Version,
+					SourceDir:     moduleDesc.SourceDir,
+					Src:           step.Src,
+					Procfile:      appProcfile,
+					Buildpacks:    step.Buildpacks,
+					Envs:          map[string]string{},
+					CacheRegistry: step.CacheRegistry,
+					RegistryAuth:  step.RegistryAuth,
+				}
+				groups[key] = group
+				order = append(order, key)
+			} else {
+				group.ModuleNames = append(group.ModuleNames, moduleDesc.Name)
+			}
+			for k, v := range step.Envs {
+				group.Envs[k] = v
+			}
+		}
+		for _, key := range order {
+			group := groups[key]
+			group.OutputImageTarName = group.ModuleName + ".tar"
+			plan.Groups = append(plan.Groups, group)
+		}
 	}
 
 	return &plan, nil
@@ -91,11 +155,21 @@ type BuildPlan struct {
 	// Dest s-mart 构建产物输出路径
 	Dest string `json:"dest"`
 	// 源码路径(从插件输入参数获取)
-	Src            string             `json:"src"`
-	AppCode        string             `json:"appCode"`
-	AppDescContent string             `json:"appDesc"`
-	LogoFileName   string             `json:"logoFileName"`
-	Steps          []*ModuleBuildStep `json:"steps"`
+	Src            string              `json:"src"`
+	AppCode        string              `json:"appCode"`
+	AppDescContent string              `json:"appDesc"`
+	LogoFileName   string              `json:"logoFileName"`
+	Steps          []*ModuleBuildStep  `json:"steps"`
+	Groups         []*ModuleBuildGroup `json:"groups,omitempty"`
+
+	// PackagingVersion 打包方案: v1 | v2
+	PackagingVersion string `json:"packagingVersion"`
+	// BaseImageID artifact.json runtime.base_image_id
+	BaseImageID string `json:"baseImageId"`
+	// Architecture 目标镜像架构
+	Architecture string `json:"architecture"`
+	// ModuleProcesses 模块名 -> 进程列表
+	ModuleProcesses map[string][]ModuleProcess `json:"moduleProcesses,omitempty"`
 
 	BuilderImage string `json:"builderImage"`
 }

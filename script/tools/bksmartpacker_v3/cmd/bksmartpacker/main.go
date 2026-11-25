@@ -38,10 +38,13 @@ var (
 		"",
 		"只检查已有 s-mart 包的结构(不构建), 输出 path/size/version/层包摘要",
 	)
-	inspectFormat = flag.String("inspect-format", "text", "检查输出格式: text | json")
-	buildEnvs     stringList
-	buildModules  stringList
-	buildEnvFiles stringList
+	inspectFormat    = flag.String("inspect-format", "text", "检查输出格式: text | json")
+	buildEnvs        stringList
+	buildModules     stringList
+	buildEnvFiles    stringList
+	packagingVersion = flag.String("packaging-version", "v2", "s-mart 打包方案: v1 | v2")
+	baseImageID      = flag.String("base-image-id", "default", "artifact.json 的 runtime.base_image_id")
+	architecture     = flag.String("architecture", "", "artifact.json 的 runtime.architecture, 默认按目标平台推断")
 )
 
 // stringList 支持重复出现的字符串参数。
@@ -75,6 +78,9 @@ func loadBuildParams() *types.Params {
 	paramData.Envs = []string(buildEnvs)
 	paramData.Modules = []string(buildModules)
 	paramData.EnvFiles = []string(buildEnvFiles)
+	paramData.PackagingVersion = *packagingVersion
+	paramData.BaseImageID = *baseImageID
+	paramData.Architecture = *architecture
 
 	return paramData
 }

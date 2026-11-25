@@ -78,7 +78,7 @@ func Inspect(pkgPath string) (Report, error) {
 			rep.Version = strings.TrimSpace(string(data))
 		case name == DescriptorFile:
 			rep.HasDesc = true
-		case strings.HasSuffix(name, LayerArchiveExt):
+		case strings.HasSuffix(name, LayerArchiveExt) || strings.HasSuffix(name, ".tar"):
 			data, err := io.ReadAll(tr)
 			if err != nil {
 				return Report{}, err

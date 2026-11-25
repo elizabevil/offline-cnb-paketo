@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -79,6 +80,17 @@ func (e *DockerExecutor) Execute() error {
 		return err
 	}
 
+	if e.plan.PackagingVersion == "v2" {
+		for _, group := range e.plan.Groups {
+			if err := e.buildGroup(ctx, group, layerDir); err != nil {
+				return errors.Wrapf(err, "failed to build group<%s>", group.ModuleName)
+			}
+			if err := e.exportGroupImage(ctx, workspace, group); err != nil {
+				return errors.Wrapf(err, "failed to export image of group<%s>", group.ModuleName)
+			}
+		}
+		return e.buildSMartPackageV2(ctx, workspace)
+	}
 	for _, step := range e.plan.Steps {
 		if err := e.buildStep(ctx, step, layerDir); err != nil {
 			return errors.Wrapf(err, "failed to build module<%s>", step.ModuleName)
@@ -233,6 +245,142 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
+	if info, err := os.Stat(group.Src); err != nil {
+		return errors.Wrap(err, "group src is not found")
+	} else if !info.IsDir() {
+		return errors.New("group src must be a directory")
+	}
+
+	fh, err := os.CreateTemp("", "*.tgz")
+	if err != nil {
+		return errors.Wrap(err, "failed to archive src")
+	}
+	_ = os.Remove(fh.Name())
+	if err := builder.BuildSourceTarball(group.Src, group.Procfile, fh.Name()); err != nil {
+		return errors.Wrap(err, "failed to archive src")
+	}
+	tarballPath := fh.Name()
+
+	platformDir, err := os.MkdirTemp("", "platform")
+	if err != nil {
+		return errors.Wrap(err, "failed to create platform dir")
+	}
+	defer os.RemoveAll(platformDir)
+	if err := os.Chmod(platformDir, 0o755); err != nil {
+		return errors.Wrap(err, "failed to chmod platform dir")
+	}
+	if err := writePlatformEnv(platformDir, group.Envs); err != nil {
+		return errors.Wrap(err, "failed to write platform env")
+	}
+
+	args := []string{
+		"run", "--rm",
+		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", group.RequiredBuildpacks()),
+		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", group.OutputImage()),
+		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage()),
+		"-e", "SOURCE_GET_URL=file:///tmp/source.tgz",
+		"-e", "USE_DOCKER_DAEMON=1",
+		"-e", "CNB_PLATFORM_API=0.11",
+		"-e", "CNB_BUILDPACK_ALIASES=" + buildpackAliases(),
+	}
+	if group.CacheRegistry != "" {
+		cacheImage := fmt.Sprintf("%s/%s/%s:cnb-build-cache", group.CacheRegistry, group.AppCode, group.ModuleName)
+		args = append(args, "-e", fmt.Sprintf("CACHE_IMAGE=%s", cacheImage))
+		if group.RegistryAuth != "" {
+			args = append(args, "-e", fmt.Sprintf("CNB_REGISTRY_AUTH=%s", group.RegistryAuth))
+		}
+	}
+	if pf := targetPlatform(); pf != "" {
+		args = append(args, "--platform", pf)
+	}
+	sock := os.Getenv("BKS_DOCKER_SOCK")
+	if sock == "" {
+		sock = "/var/run/docker.sock"
+	}
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", sock))
+	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
+	args = append(args, "-e", "CNB_EXPORT_MODE=layout")
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
+	args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s", group.OutputImageTarName))
+	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
+		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
+	}
+	if net := os.Getenv("BKS_NETWORK"); net != "" {
+		args = append(args, "--network", net)
+	}
+	for _, extra := range strings.Fields(os.Getenv("BKS_EXTRA_MOUNTS")) {
+		args = append(args, extra)
+	}
+	args = append(args, e.cnbBuilderImage)
+	log.Info("执行云原生构建: ", args)
+	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (e *DockerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
+	layerDir := filepath.Join(workspace, "layers")
+	if err := os.MkdirAll(layerDir, 0o755); err != nil {
+		return err
+	}
+	produced := filepath.Join(layerDir, group.OutputImageTarName)
+	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
+		fmt.Printf("using layer archive from cnb: %s\n", produced)
+		if err := utils.Copy(produced, filepath.Join(workspace, group.OutputImageTarName)); err != nil {
+			return err
+		}
+		return os.Remove(produced)
+	}
+	args := saveArgs(e.dockerExecPath, filepath.Join(workspace, group.OutputImageTarName), group.OutputImage())
+	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace string) error {
+	if e.plan.Architecture == "" {
+		if pf := targetPlatform(); pf != "" {
+			_, arch := splitPlatform(pf)
+			e.plan.Architecture = arch
+		} else {
+			e.plan.Architecture = runtime.GOARCH
+		}
+	}
+	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
+	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
+	if err := os.WriteFile(filepath.Join(workspace, "app_desc.yaml"), []byte(e.plan.AppDescContent), 0o644); err != nil {
+		return errors.Wrap(err, "failed to write app_desc.yaml")
+	}
+	if err := os.WriteFile(filepath.Join(workspace, ".Version"), []byte("cnb-image-layers"), 0o644); err != nil {
+		return errors.Wrap(err, "failed to write .Version")
+	}
+	if e.plan.LogoFileName != "" {
+		if err := utils.Copy(filepath.Join(e.plan.Src, e.plan.LogoFileName), filepath.Join(workspace, e.plan.LogoFileName)); err != nil {
+			return errors.Wrapf(err, "failed to copy logo %s", e.plan.LogoFileName)
+		}
+	}
+	artifact, err := builder.BuildArtifactJSON(&e.plan)
+	if err != nil {
+		return errors.Wrap(err, "failed to build artifact.json")
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "artifact.json"), artifact, 0o644); err != nil {
+		return errors.Wrap(err, "failed to write artifact.json")
+	}
+	if err := os.RemoveAll(e.plan.Dest); err != nil {
+		return errors.Wrap(err, "failed to reset dest")
+	}
+	if err := utils.PackDirTarGz(workspace, e.plan.Dest); err != nil {
+		return errors.Wrap(err, "failed to archive package")
+	}
+	return nil
 }
 
 func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {

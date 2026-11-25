@@ -33,6 +33,20 @@ main
      └─ buildSMartPackage       → 写 .Version/app_desc/artifact/logo，打 tar.gz
 ```
 
+### v2 构建组
+
+默认 `--packaging-version v2`：
+
+```
+sourceDir + buildpacks 相同 → 一个构建组
+组内只构建一次
+Procfile key = <module>-<process>
+输出 <group>.tar
+artifact.json 记录 image_tar 与 proc_entrypoints
+```
+
+v1 仍保留旧的每模块 `<module>.tgz` 输出。
+
 ### buildStep 细节
 
 1. 源码目录打成 `source.tgz`（`step.Procfile` 也会被写入）
