@@ -752,7 +752,19 @@ python3 script/tools/d1_union_package.py <s-mart.tar.gz>   --out bk-sops-d1-unio
 | 模块 tag 冲突 | 先做小规模验证 |
 | 200 MB 目标无法在不改部署平台下达成 | 记录为平台能力限制，不作为本项目承诺 |
 
-## 14. 决策记录
+## 14. 官方 v2 方案
+
+官方 smart-app-builder v2 用 artifact.json 解决同一问题，详见：
+
+[project/offline-paketo-bk/docs/smart-app-v2-analysis.md](../../project/offline-paketo-bk/docs/smart-app-v2-analysis.md)
+
+核心结论：
+
+- v2 没有改变平台“一个 tar 只取第一个 manifest”的行为
+- v2 改为一个构建组一个 image tar
+- artifact.json 负责 image_tar 共享和进程 entrypoint 映射
+
+## 15. 决策记录
 
 - 目标：SOPS 四模块包 ≤ 200 MB
 - 首选：D1（单镜像多 manifest + 硬链接）
