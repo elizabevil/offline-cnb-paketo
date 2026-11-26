@@ -295,3 +295,14 @@ logo.png
 - 上传
 - 四模块部署
 - pipeline cworker / node-timeout
+
+
+## 9. 代码优化记录（2026-11-25）
+
+- 执行器合并 v1/v2 重复逻辑：`runBuild` + `exportArchive`
+- v2 不再为每模块生成无用 Procfile
+- 增加 `--allow-partial`：默认禁止生成不可部署的部分包
+- 打包后校验每个 image tar 存在且非空
+- 包体积 >200 MB 时告警
+- `--inspect` 增加 `has_artifact` / `artifact_modules`
+- `just check` / 单测通过

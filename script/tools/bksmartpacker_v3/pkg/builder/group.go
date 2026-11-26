@@ -11,6 +11,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// ArtifactJSONVersion 是 artifact.json 的协议版本。
+	ArtifactJSONVersion = "1.0"
+	// PackagingVersionV1 是旧的每模块 tgz 方案。
+	PackagingVersionV1 = "v1"
+	// PackagingVersionV2 是构建组 + artifact.json 方案。
+	PackagingVersionV2 = "v2"
+)
+
 // ModuleBuildGroup 是共享同一构建产物的模块集合。
 type ModuleBuildGroup struct {
 	AppCode            string            `json:"appCode"`
@@ -34,7 +43,7 @@ func (g ModuleBuildGroup) RequiredBuildpacks() string {
 	for _, bp := range g.Buildpacks {
 		bpType := bp.Type
 		if bpType == "" {
-			bpType = "oci-embedded"
+			bpType = BuildpackTypeOCIEmbedded
 		}
 		parts = append(parts, bpType+" "+bp.Name)
 	}
@@ -111,7 +120,7 @@ func GenerateAppProcfile(modules []types.ModuleDescription) (string, error) {
 // BuildArtifactJSON 根据构建组生成 artifact.json。
 func BuildArtifactJSON(plan *BuildPlan) ([]byte, error) {
 	artifact := ArtifactJSON{
-		Version: "1.0",
+		Version: ArtifactJSONVersion,
 		Runtime: ArtifactRuntime{
 			BaseImageID:  plan.BaseImageID,
 			Architecture: plan.Architecture,

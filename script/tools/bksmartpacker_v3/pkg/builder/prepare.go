@@ -26,6 +26,9 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		return nil, err
 	}
 
+	if len(params.Modules) > 0 && !params.AllowPartial {
+		return nil, fmt.Errorf("--module generates a partial package which cannot be deployed; use --allow-partial for debug builds")
+	}
 	if len(params.Modules) > 0 {
 		want := lo.SliceToMap(params.Modules, func(name string) (string, bool) { return name, true })
 		filtered := make([]types.ModuleDescription, 0, len(params.Modules))
@@ -50,9 +53,9 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 
 	packagingVersion := params.PackagingVersion
 	if packagingVersion == "" {
-		packagingVersion = "v2"
+		packagingVersion = PackagingVersionV2
 	}
-	if packagingVersion != "v1" && packagingVersion != "v2" {
+	if packagingVersion != PackagingVersionV1 && packagingVersion != PackagingVersionV2 {
 		return nil, fmt.Errorf("invalid packaging version %q: must be v1 or v2", packagingVersion)
 	}
 	baseImageID := params.BaseImageID
@@ -73,9 +76,13 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		ModuleProcesses:  map[string][]ModuleProcess{},
 	}
 	for _, moduleDesc := range appDesc.Modules {
-		procfile, err := generateProcfile(moduleDesc)
-		if err != nil {
-			return nil, err
+		procfile := ""
+		if packagingVersion == PackagingVersionV1 {
+			var err error
+			procfile, err = generateProcfile(moduleDesc)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		envs, err := mergeModuleEnvs(moduleDesc.Spec.Configuration.Env, params.EnvFiles, params.Envs)
@@ -102,7 +109,9 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		})
 	}
 
-	if packagingVersion == "v2" {
+	// v2: 按 sourceDir + buildpacks 分组，组内只构建一次；
+	// v1: 保留每模块独立构建，Steps 即构建单元。
+	if packagingVersion == PackagingVersionV2 {
 		appProcfile, err := GenerateAppProcfile(appDesc.Modules)
 		if err != nil {
 			return nil, err
@@ -136,6 +145,8 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 			} else {
 				group.ModuleNames = append(group.ModuleNames, moduleDesc.Name)
 			}
+			// 组内 env 取并集，后出现的模块覆盖同名键；
+			// 运行期差异仍以各模块 app_desc 为准，不影响镜像共享。
 			for k, v := range step.Envs {
 				group.Envs[k] = v
 			}

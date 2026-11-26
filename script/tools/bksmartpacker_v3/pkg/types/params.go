@@ -24,4 +24,6 @@ type Params struct {
 	BaseImageID string `json:"baseImageId,omitempty"`
 	// Architecture 目标镜像架构
 	Architecture string `json:"architecture,omitempty"`
+	// AllowPartial 允许生成只含部分模块的调试包（不可部署）
+	AllowPartial bool `json:"allowPartial,omitempty"`
 }

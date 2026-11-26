@@ -4,10 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
+	"sort"
 	"strings"
 )
 
@@ -17,8 +19,12 @@ const (
 	VersionFile = ".Version"
 	// DescriptorFile 是 BK 应用描述。
 	DescriptorFile = "app_desc.yaml"
-	// LayerArchiveExt 是层包后缀。
-	LayerArchiveExt = ".tgz"
+	// LayerArchiveExtTgz 是 gzip 层包后缀。
+	LayerArchiveExtTgz = ".tgz"
+	// LayerArchiveExtTar 是未压缩层包后缀（layout / docker save）。
+	LayerArchiveExtTar = ".tar"
+	// ArtifactFile 是 v2 的构建映射文件。
+	ArtifactFile = "artifact.json"
 )
 
 // Report 是 s-mart 包的结构化检查结果。
@@ -28,7 +34,11 @@ type Report struct {
 	Version string   `json:"version" yaml:"version"`
 	HasDesc bool     `json:"has_app_desc" yaml:"has_app_desc"`
 	Files   []string `json:"files" yaml:"files"`
-	Layers  []Layer  `json:"layers" yaml:"layers"`
+	// HasArtifact 表示包内存在 v2 的 artifact.json
+	HasArtifact bool `json:"has_artifact" yaml:"has_artifact"`
+	// ArtifactModules 是 artifact.json 中声明的模块名
+	ArtifactModules []string `json:"artifact_modules,omitempty" yaml:"artifact_modules,omitempty"`
+	Layers          []Layer  `json:"layers" yaml:"layers"`
 }
 
 // Layer 是包内单个层归档的摘要。
@@ -78,7 +88,19 @@ func Inspect(pkgPath string) (Report, error) {
 			rep.Version = strings.TrimSpace(string(data))
 		case name == DescriptorFile:
 			rep.HasDesc = true
-		case strings.HasSuffix(name, LayerArchiveExt) || strings.HasSuffix(name, ".tar"):
+		case name == ArtifactFile:
+			rep.HasArtifact = true
+			data, _ := io.ReadAll(tr)
+			var artifact struct {
+				AppArtifacts map[string]struct{} `json:"app_artifacts"`
+			}
+			if json.Unmarshal(data, &artifact) == nil {
+				for module := range artifact.AppArtifacts {
+					rep.ArtifactModules = append(rep.ArtifactModules, module)
+				}
+				sort.Strings(rep.ArtifactModules)
+			}
+		case isLayerArchive(name):
 			data, err := io.ReadAll(tr)
 			if err != nil {
 				return Report{}, err
@@ -128,18 +150,72 @@ func inspectLayer(name string, data []byte) (Layer, error) {
 	return layer, nil
 }
 
-// sourceMarkers 是应用源码的典型文件名；出现在层里说明打包范围过宽。
-var sourceMarkers = []string{
-	"package.json", "go.mod", "pyproject.toml", "requirements.txt", "Gemfile", "main.go",
+// sourceMarkers 是应用源码根目录的典型文件。
+// 注意：这是启发式检查，只覆盖常见语言，不能证明层里一定没有源码。
+var sourceMarkers = map[string]struct{}{
+	"package.json":      {},
+	"package-lock.json": {},
+	"yarn.lock":         {},
+	"pnpm-lock.yaml":    {},
+	"go.mod":            {},
+	"go.sum":            {},
+	"pyproject.toml":    {},
+	"requirements.txt":  {},
+	"Pipfile":           {},
+	"Pipfile.lock":      {},
+	"poetry.lock":       {},
+	"setup.py":          {},
+	"setup.cfg":         {},
+	"manage.py":         {},
+	"app.py":            {},
+	"main.py":           {},
+	"Gemfile":           {},
+	"Gemfile.lock":      {},
+	"main.go":           {},
+	"pom.xml":           {},
+	"build.gradle":      {},
+	"build.gradle.kts":  {},
+	"settings.gradle":   {},
+	"Cargo.toml":        {},
+	"Cargo.lock":        {},
+	"composer.json":     {},
+	"composer.lock":     {},
+	"mix.exs":           {},
+	"mix.lock":          {},
+	"index.js":          {},
+	"runtime.txt":       {},
+}
+
+// isLayerArchive 判断外层条目是否为一个镜像层包。
+func isLayerArchive(name string) bool {
+	switch path.Ext(name) {
+	case LayerArchiveExtTgz, LayerArchiveExtTar:
+		return true
+	default:
+		return false
+	}
 }
 
 // isSourcePath 判断路径是否像应用源码。
+//
+// 只检查 /app 或 /workspace 的根文件，避免把依赖目录里的 setup.py、
+// 测试夹具里的 package.json 误判为源码；仍无法覆盖所有语言，仅作告警。
 func isSourcePath(name string) bool {
-	base := path.Base(name)
-	for _, m := range sourceMarkers {
-		if base == m {
-			return true
-		}
+	clean := strings.TrimPrefix(path.Clean("/"+name), "/")
+	var rel string
+	switch {
+	case strings.HasPrefix(clean, "app/"):
+		rel = strings.TrimPrefix(clean, "app/")
+	case strings.HasPrefix(clean, "workspace/"):
+		rel = strings.TrimPrefix(clean, "workspace/")
+	default:
+		return false
 	}
-	return false
+	if rel == "" || strings.Contains(rel, "/") {
+		return false
+	}
+	if _, ok := sourceMarkers[rel]; ok {
+		return true
+	}
+	return strings.HasSuffix(rel, ".csproj")
 }

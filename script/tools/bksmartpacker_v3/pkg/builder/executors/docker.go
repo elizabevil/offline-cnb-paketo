@@ -80,7 +80,7 @@ func (e *DockerExecutor) Execute() error {
 		return err
 	}
 
-	if e.plan.PackagingVersion == "v2" {
+	if e.plan.PackagingVersion == builder.PackagingVersionV2 {
 		for _, group := range e.plan.Groups {
 			if err := e.buildGroup(ctx, group, layerDir); err != nil {
 				return errors.Wrapf(err, "failed to build group<%s>", group.ModuleName)
@@ -140,20 +140,64 @@ func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
 	return cmd.Run()
 }
 
+type buildInput struct {
+	Name               string
+	Src                string
+	Procfile           string
+	RequiredBuildpacks string
+	OutputImage        string
+	ArchiveName        string
+	CacheRegistry      string
+	RegistryAuth       string
+	Envs               map[string]string
+}
+
 func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuildStep, layerDir string) error {
+	return e.runBuild(ctx, buildInput{
+		Name:               step.ModuleName,
+		Src:                step.Src,
+		Procfile:           step.Procfile,
+		RequiredBuildpacks: step.RequiredBuildpacks(),
+		OutputImage:        step.OutputImage(),
+		ArchiveName:        step.ModuleName + ".tgz",
+		CacheRegistry:      step.CacheRegistry,
+		RegistryAuth:       step.RegistryAuth,
+		Envs:               step.Envs,
+	}, layerDir)
+}
+
+func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
+	return e.runBuild(ctx, buildInput{
+		Name:               group.ModuleName,
+		Src:                group.Src,
+		Procfile:           group.Procfile,
+		RequiredBuildpacks: group.RequiredBuildpacks(),
+		OutputImage:        group.OutputImage(),
+		ArchiveName:        group.OutputImageTarName,
+		CacheRegistry:      group.CacheRegistry,
+		RegistryAuth:       group.RegistryAuth,
+		Envs:               group.Envs,
+	}, layerDir)
+}
+
+// runBuild 执行一次 builder 构建；v1 每模块调用一次，v2 每构建组调用一次。
+func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir string) error {
+	info, err := os.Stat(in.Src)
+	if err != nil {
+		return errors.Wrap(err, "src is not found")
+	}
+
 	var tarballPath string
-	if info, err := os.Stat(step.Src); err != nil {
-		return errors.Wrap(err, "step src is not found")
-	} else if !info.IsDir() {
-		tarballPath = step.Src
+	if !info.IsDir() {
+		tarballPath = in.Src
 	} else {
 		fh, err := os.CreateTemp("", "*.tgz")
 		if err != nil {
 			return errors.Wrap(err, "failed to archive src")
 		}
 		_ = os.Remove(fh.Name())
-		if err = builder.BuildSourceTarball(step.Src, step.Procfile, fh.Name()); err != nil {
-			return errors.Wrap(err, "failed to archive src!")
+		if err := builder.BuildSourceTarball(in.Src, in.Procfile, fh.Name()); err != nil {
+			return errors.Wrap(err, "failed to archive src")
 		}
 		tarballPath = fh.Name()
 	}
@@ -163,157 +207,64 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 		return errors.Wrap(err, "failed to create platform dir")
 	}
 	defer os.RemoveAll(platformDir)
-	// 容器内 buildpack 以非 root 用户运行，平台目录必须可读可进入
 	if err := os.Chmod(platformDir, 0o755); err != nil {
 		return errors.Wrap(err, "failed to chmod platform dir")
 	}
-	if err := writePlatformEnv(platformDir, step.Envs); err != nil {
+	if err := writePlatformEnv(platformDir, in.Envs); err != nil {
 		return errors.Wrap(err, "failed to write platform env")
 	}
 
 	args := []string{
 		"run", "--rm",
-		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", step.RequiredBuildpacks()),
-		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", step.OutputImage()),
-		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage()),
-		"-e", fmt.Sprintf("SOURCE_GET_URL=file:///tmp/source.tgz"),
-		"-e", "USE_DOCKER_DAEMON=1",
-		"-e", "CNB_PLATFORM_API=0.11",
-		"-e", "CNB_BUILDPACK_ALIASES=" + buildpackAliases(),
-	}
-
-	if step.CacheRegistry != "" {
-		cacheImage := fmt.Sprintf("%s/%s/%s:cnb-build-cache", step.CacheRegistry, step.AppCode, step.ModuleName)
-		args = append(args, "-e", fmt.Sprintf("CACHE_IMAGE=%s", cacheImage))
-
-		if step.RegistryAuth != "" {
-			args = append(args, "-e", fmt.Sprintf("CNB_REGISTRY_AUTH=%s", step.RegistryAuth))
-		}
-	}
-
-	// 目标平台（qemu 交叉构建时显式指定）
-	if pf := targetPlatform(); pf != "" {
-		args = append(args, "--platform", pf)
-	}
-
-	// 挂载容器运行时 socket（默认 /var/run/docker.sock，可用 BKS_DOCKER_SOCK 换成 podman）
-	sock := os.Getenv("BKS_DOCKER_SOCK")
-	if sock == "" {
-		sock = "/var/run/docker.sock"
-	}
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", sock))
-	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
-
-	// 业务环境变量走平台目录，lifecycle 会注入 buildpack
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
-	// 挂载源码压缩包
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
-	// 导出方式：
-	//   layout（默认）：容器内导出 OCI layout，再打包为层包写回宿主目录
-	//   daemon：导出到容器运行时，构建后由 image save 取回。
-	//           仅适用于真 dockerd。podman 的 docker 兼容层会让 lifecycle
-	//           导出阶段报 "singleton connection already in use"
-	//           （lifecycle 0.21.29，issue #1763，尚未修复）；
-	//           该模式保留用于 docker 节点，podman 下必须用 layout。
-	if exportMode() == "daemon" {
-		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
-	} else {
-		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
-		args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s.tgz", step.ModuleName))
-	}
-	// run image 以 docker-archive 形式落盘并挂载，容器内不再需要 daemon
-	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
-		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
-	}
-
-	// 网络模式：BKS_NETWORK=host 可让容器直接访问宿主机网络
-	if net := os.Getenv("BKS_NETWORK"); net != "" {
-		args = append(args, "--network", net)
-	}
-
-	// 额外挂载：BKS_EXTRA_MOUNTS="--mount type=bind,source=...,target=/cnb/runtimes"
-	for _, extra := range strings.Fields(os.Getenv("BKS_EXTRA_MOUNTS")) {
-		args = append(args, extra)
-	}
-
-	args = append(args, e.cnbBuilderImage)
-	log.Info("执行云原生构建: ", args)
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
-}
-
-func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
-	if info, err := os.Stat(group.Src); err != nil {
-		return errors.Wrap(err, "group src is not found")
-	} else if !info.IsDir() {
-		return errors.New("group src must be a directory")
-	}
-
-	fh, err := os.CreateTemp("", "*.tgz")
-	if err != nil {
-		return errors.Wrap(err, "failed to archive src")
-	}
-	_ = os.Remove(fh.Name())
-	if err := builder.BuildSourceTarball(group.Src, group.Procfile, fh.Name()); err != nil {
-		return errors.Wrap(err, "failed to archive src")
-	}
-	tarballPath := fh.Name()
-
-	platformDir, err := os.MkdirTemp("", "platform")
-	if err != nil {
-		return errors.Wrap(err, "failed to create platform dir")
-	}
-	defer os.RemoveAll(platformDir)
-	if err := os.Chmod(platformDir, 0o755); err != nil {
-		return errors.Wrap(err, "failed to chmod platform dir")
-	}
-	if err := writePlatformEnv(platformDir, group.Envs); err != nil {
-		return errors.Wrap(err, "failed to write platform env")
-	}
-
-	args := []string{
-		"run", "--rm",
-		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", group.RequiredBuildpacks()),
-		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", group.OutputImage()),
+		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", in.RequiredBuildpacks),
+		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", in.OutputImage),
 		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage()),
 		"-e", "SOURCE_GET_URL=file:///tmp/source.tgz",
 		"-e", "USE_DOCKER_DAEMON=1",
 		"-e", "CNB_PLATFORM_API=0.11",
 		"-e", "CNB_BUILDPACK_ALIASES=" + buildpackAliases(),
 	}
-	if group.CacheRegistry != "" {
-		cacheImage := fmt.Sprintf("%s/%s/%s:cnb-build-cache", group.CacheRegistry, group.AppCode, group.ModuleName)
+	// 缓存镜像：只在显式配置 cache registry 时启用，避免默认依赖外部仓库。
+	if in.CacheRegistry != "" {
+		cacheImage := fmt.Sprintf("%s/%s/%s:cnb-build-cache", in.CacheRegistry, e.plan.AppCode, in.Name)
 		args = append(args, "-e", fmt.Sprintf("CACHE_IMAGE=%s", cacheImage))
-		if group.RegistryAuth != "" {
-			args = append(args, "-e", fmt.Sprintf("CNB_REGISTRY_AUTH=%s", group.RegistryAuth))
+		if in.RegistryAuth != "" {
+			args = append(args, "-e", fmt.Sprintf("CNB_REGISTRY_AUTH=%s", in.RegistryAuth))
 		}
 	}
+	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
 	if pf := targetPlatform(); pf != "" {
 		args = append(args, "--platform", pf)
 	}
+	// 容器运行时 socket；默认 docker.sock，podman 通过 BKS_DOCKER_SOCK 覆盖。
 	sock := os.Getenv("BKS_DOCKER_SOCK")
 	if sock == "" {
 		sock = "/var/run/docker.sock"
 	}
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", sock))
 	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
+	// 业务 env 走 /platform/env；lifecycle 只放行白名单环境变量，不能依赖 -e。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
+	// 源码以只读 tar 挂入容器，避免修改宿主源码目录。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
-	args = append(args, "-e", "CNB_EXPORT_MODE=layout")
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
-	args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s", group.OutputImageTarName))
+	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
+	if exportMode() == "daemon" {
+		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
+	} else {
+		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
+		args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s", in.ArchiveName))
+	}
+	// run image 以 docker-archive 形式挂入，避免容器内再访问 daemon。
 	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
 		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
 	}
+	// 网络模式：BKS_NETWORK=host 可访问宿主机内网镜像源。
 	if net := os.Getenv("BKS_NETWORK"); net != "" {
 		args = append(args, "--network", net)
 	}
+	// 额外挂载：BKS_EXTRA_MOUNTS 以空格分隔，原样传给运行时。
 	for _, extra := range strings.Fields(os.Getenv("BKS_EXTRA_MOUNTS")) {
 		args = append(args, extra)
 	}
@@ -325,24 +276,32 @@ func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBu
 	return cmd.Run()
 }
 
-func (e *DockerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
+func (e *DockerExecutor) exportArchive(ctx context.Context, workspace, archiveName, image string) error {
 	layerDir := filepath.Join(workspace, "layers")
 	if err := os.MkdirAll(layerDir, 0o755); err != nil {
 		return err
 	}
-	produced := filepath.Join(layerDir, group.OutputImageTarName)
+	produced := filepath.Join(layerDir, archiveName)
 	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
 		fmt.Printf("using layer archive from cnb: %s\n", produced)
-		if err := utils.Copy(produced, filepath.Join(workspace, group.OutputImageTarName)); err != nil {
+		if err := utils.Copy(produced, filepath.Join(workspace, archiveName)); err != nil {
 			return err
 		}
 		return os.Remove(produced)
 	}
-	args := saveArgs(e.dockerExecPath, filepath.Join(workspace, group.OutputImageTarName), group.OutputImage())
+	args := saveArgs(e.dockerExecPath, filepath.Join(workspace, archiveName), image)
 	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
+	return e.exportArchive(ctx, workspace, step.ModuleName+".tgz", step.OutputImage())
+}
+
+func (e *DockerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
+	return e.exportArchive(ctx, workspace, group.OutputImageTarName, group.OutputImage())
 }
 
 func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace string) error {
@@ -374,6 +333,12 @@ func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace stri
 	if err := os.WriteFile(filepath.Join(workspace, "artifact.json"), artifact, 0o644); err != nil {
 		return errors.Wrap(err, "failed to write artifact.json")
 	}
+	for _, group := range e.plan.Groups {
+		p := filepath.Join(workspace, group.OutputImageTarName)
+		if fi, err := os.Stat(p); err != nil || fi.Size() == 0 {
+			return errors.Errorf("image tar %s is missing or empty", group.OutputImageTarName)
+		}
+	}
 	if err := os.RemoveAll(e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to reset dest")
 	}
@@ -381,27 +346,6 @@ func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace stri
 		return errors.Wrap(err, "failed to archive package")
 	}
 	return nil
-}
-
-func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
-	layerDir := filepath.Join(workspace, "layers")
-	if err := os.MkdirAll(layerDir, 0o755); err != nil {
-		return err
-	}
-	produced := filepath.Join(layerDir, step.ModuleName+".tgz")
-	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
-		fmt.Printf("using layer archive from cnb: %s\n", produced)
-		if err := utils.Copy(produced, filepath.Join(workspace, step.ModuleName+".tgz")); err != nil {
-			return err
-		}
-		// 只删本模块的层包，保留目录供后续模块复用
-		return os.Remove(produced)
-	}
-	args := saveArgs(e.dockerExecPath, fmt.Sprintf("%s/%s.tgz", workspace, step.ModuleName), step.OutputImage())
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func (e *DockerExecutor) buildSMartPackage(ctx context.Context, workspace string) error {

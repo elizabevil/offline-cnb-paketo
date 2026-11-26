@@ -57,7 +57,8 @@ bksmartpacker \
 | `--base-image-id` | artifact.json 的 runtime.base_image_id，默认 `default` |
 | `--architecture` | artifact.json 的目标架构，默认按目标平台推断 |
 | `--env KEY=VALUE` | 运行时覆盖，可重复；优先级最高 |
-| `--module <name>` | 只构建指定模块，可重复；空表示全部 |
+| `--module <name>` | 只构建指定模块，可重复；空表示全部；部分包不可部署 |
+| `--allow-partial` | 允许 `--module` 生成部分调试包 |
 | `--inspect <pkg>` | 只检查已有包，不构建 |
 | `--inspect-format` | `text` 或 `json`，默认 `text` |
 

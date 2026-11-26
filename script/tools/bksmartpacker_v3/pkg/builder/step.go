@@ -11,6 +11,9 @@ import (
 	"github.com/samber/lo"
 )
 
+// BuildpackTypeOCIEmbedded 表示 buildpack 已嵌入 builder 镜像。
+const BuildpackTypeOCIEmbedded = "oci-embedded"
+
 type ModuleBuildStep struct {
 	AppCode    string `json:"appCode"`
 	ModuleName string `json:"module_name"`
@@ -32,7 +35,7 @@ func (step ModuleBuildStep) RequiredBuildpacks() string {
 	for _, bp := range step.Buildpacks {
 		bpType := bp.Type
 		if bpType == "" {
-			bpType = "oci-embedded"
+			bpType = BuildpackTypeOCIEmbedded
 		}
 		parts = append(parts, bpType+" "+bp.Name)
 	}
