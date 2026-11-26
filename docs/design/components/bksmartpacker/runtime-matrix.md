@@ -25,7 +25,7 @@
 | F | Docker | Dockerd | managed dind | 未测 | 推测可行，需 Docker 外层 + privileged |
 | G | Docker | Dockerd | host dind | 未测 | 需要宿主机 Docker daemon |
 | H | Podman | Podman Docker API | cnb 原始复现：daemon export | **上游 issue 已确认；本机完整 cnb 未复现** | https://github.com/buildpacks/lifecycle/issues/1763；fake root-owned socket 触发 |
-| I | Podman | Podman Docker API | cnb 非 root 复现 | **已验证** | cnb mini app + podman daemon export 成功；非 root builder |
+| I | Podman | Podman Docker API | cnb 非 root 复现 | **已验证** | CMDB SaaS + podman daemon export 成功；非 root builder |
 
 ## 3. 推测说明
 
@@ -171,8 +171,17 @@ podman unshare（root userns）:
 ImageSave error: ... singleton connection already in use
 ```
 
-这验证了 singleton 的触发条件，但还没有经过完整
-cnb lifecycle + 真实 Podman Docker API + daemon exporter。
+这验证了 singleton 的触发条件。后续又做了完整 cnb 测试：
+
+- 非 root + Podman daemon + CMDB：成功
+- rootful Podman + root builder + CMDB：成功，未复现 #1763
+
+因此当前结论是：
+
+```text
+复现器条件成立
+完整 cnb root-owned 路径未复现
+```
 
 ## 3.2 cnb + Podman daemon export 实际测试
 

@@ -2,6 +2,8 @@
 
 本文是**当前实现**的架构总览与两条案例，不描述历史方案。执行细节见 [pipeline.md](pipeline.md)，数据流与失败归属见 [build-chain.md](build-chain.md)。
 
+运行时概念（layout/daemon、outer/inner、pind/dind、singleton）见 [runtime-concepts.md](runtime-concepts.md)。
+
 ## 1. 分层
 
 ```

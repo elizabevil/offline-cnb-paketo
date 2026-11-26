@@ -2,6 +2,7 @@
 
 > 本文描述 `project/offline-paketo-bk` 的**当前实现**。
 > 仓库级架构见 [`docs/design/architecture.md`](../../../docs/design/architecture.md)，
+运行时概念见 [`docs/design/runtime-concepts.md`](../../../docs/design/runtime-concepts.md)，
 > 需求与验收见 [`requirements.md`](requirements.md)，
 > 与 offline-paketo 的差异见 [`delta-from-paketo.md`](delta-from-paketo.md)。
 

@@ -26,6 +26,7 @@
 
 | 文档 | 说明 |
 |---|---|
+| [runtime-concepts.md](design/runtime-concepts.md) | **前置概念：layout/daemon、outer/inner runtime、pind/dind** |
 | [architecture.md](design/architecture.md) | **当前架构与两条案例流程**（含 mermaid 图） |
 | [constraints.md](design/constraints.md) | 基座约定：路径、平台命名、信任边界 |
 | [pipeline.md](design/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
