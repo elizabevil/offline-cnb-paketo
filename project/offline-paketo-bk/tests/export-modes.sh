@@ -19,12 +19,12 @@ echo "out=$OUT"
 echo "===== layout ====="
 BKS_PLATFORM="$PLATFORM" just --justfile "$PB/justfile" smart "$APP" >"$OUT/layout.log" 2>&1
 echo "layout exit=$?"
-cp -f "$PB/dist/$PLATFORM/s-mart.tar.gz" "$OUT/layout.tar.gz" 2>/dev/null || true
+cp -f "$PB/dist/$PLATFORM/s-mart.tar.gz" "$OUT/s-mart-layout-$PLATFORM.tar.gz" 2>/dev/null || true
 
 echo "===== daemon ====="
 BKS_EXPORT_MODE=daemon BKS_PLATFORM="$PLATFORM" \
   just --justfile "$PB/justfile" smart "$APP" >"$OUT/daemon.log" 2>&1 || true
 echo "daemon exit=$?"
-cp -f "$PB/dist/$PLATFORM/s-mart.tar.gz" "$OUT/daemon.tar.gz" 2>/dev/null || true
+cp -f "$PB/dist/$PLATFORM/s-mart.tar.gz" "$OUT/s-mart-daemon-$PLATFORM.tar.gz" 2>/dev/null || true
 
 echo "logs: $OUT/layout.log $OUT/daemon.log"
