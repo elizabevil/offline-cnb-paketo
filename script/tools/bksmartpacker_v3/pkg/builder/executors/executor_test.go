@@ -59,7 +59,7 @@ func contains(values []string, want string) bool {
 func TestEnsureRuntimeManagedRequiresSocket(t *testing.T) {
 	e := &ContainerExecutor{runtime: container.Config{
 		Driver: container.DriverManaged,
-		Socket: filepath.Join(t.TempDir(), "missing.sock"),
+		Inner:  container.RuntimeConfig{Socket: filepath.Join(t.TempDir(), "missing.sock")},
 	}}
 	if err := e.ensureRuntime(context.Background()); err == nil {
 		t.Fatal("expected missing managed socket error")
@@ -91,7 +91,7 @@ func TestArgBuilder(t *testing.T) {
 }
 
 func TestImageSaveArgs(t *testing.T) {
-	got := imageSaveArgs(container.Config{Backend: container.BackendPodman}, "/tmp/out.tar", "bk/app:1")
+	got := imageSaveArgs(container.RuntimeConfig{Backend: container.BackendPodman}, "/tmp/out.tar", "bk/app:1")
 	want := []string{"image", "save", "--format", "oci-archive", "-o", "/tmp/out.tar", "bk/app:1"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
@@ -126,7 +126,7 @@ func TestSidecarSpec(t *testing.T) {
 		plan:      plan.BuildPlan{AppCode: "app"},
 		workspace: ws,
 		runtime: container.Config{
-			Backend:      container.BackendPodman,
+			Inner:        container.RuntimeConfig{Backend: container.BackendPodman},
 			RuntimeImage: "runtime-pind:test",
 			Cache:        container.Cache{HostPath: "/tmp/cache", ContainerPath: "/layers/cache"},
 			Network:      "host",
@@ -162,7 +162,7 @@ func TestRuntimeHealthy(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	e := &ContainerExecutor{runtime: container.Config{Binary: script, Socket: "/tmp/any.sock"}}
+	e := &ContainerExecutor{runtime: container.Config{Inner: container.RuntimeConfig{Binary: script, Socket: "/tmp/any.sock"}}}
 	if !e.runtimeHealthy(context.Background()) {
 		t.Fatal("healthy runtime should pass")
 	}

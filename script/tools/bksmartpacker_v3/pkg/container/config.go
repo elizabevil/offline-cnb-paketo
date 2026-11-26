@@ -79,14 +79,27 @@ const (
 	DefaultSidecarTimeout = 60 * time.Second
 )
 
+// RuntimeConfig 是一个具体运行时端点的配置。
+type RuntimeConfig struct {
+	Backend Backend
+	Binary  string
+	Socket  string
+}
+
+// IsPodman 返回该运行时端点是否使用 Podman。
+func (r RuntimeConfig) IsPodman() bool { return r.Backend == BackendPodman }
+
+// SocketURL 返回该运行时端点的 unix URL。
+func (r RuntimeConfig) SocketURL() string { return UnixSocketURL(r.Socket) }
+
 // Config 是执行器需要的全部运行时配置。
+// Outer 负责启动 builder/sidecar；Inner 负责 builder 内构建。
 // 环境变量只在本包解析，executors 不再读取 BKS_*。
 type Config struct {
 	Driver           Driver
-	Backend          Backend
+	Outer            RuntimeConfig
+	Inner            RuntimeConfig
 	Environment      Environment
-	Binary           string
-	Socket           string
 	ExportMode       ExportMode
 	Platform         string
 	Network          string
@@ -97,45 +110,53 @@ type Config struct {
 	Workspace        string
 	RuntimeImage     string
 	SidecarTimeout   time.Duration
+	BuilderUser      string
+	BuilderUserNS    string
 }
 
 // envConfig 是环境变量的唯一读取结果。
 // 解析函数只接收该结构，不再各自调用 os.Getenv。
 type envConfig struct {
-	Runtime          string
-	Driver           string
-	ContainerCLI     string
-	DockerSock       string
-	ExportMode       string
-	Platform         string
-	Network          string
-	ExtraMounts      string
-	RunImageArchive  string
-	CacheDir         string
-	Workspace        string
-	RuntimeImage     string
-	SidecarTimeout   string
-	BuildpackAliases string
-	XDGRuntimeDir    string
+	Runtime           string
+	Driver            string
+	ContainerCLI      string
+	InnerContainerCLI string
+	DockerSock        string
+	ExportMode        string
+	Platform          string
+	Network           string
+	ExtraMounts       string
+	RunImageArchive   string
+	CacheDir          string
+	Workspace         string
+	RuntimeImage      string
+	SidecarTimeout    string
+	BuilderUser       string
+	BuilderUserNS     string
+	BuildpackAliases  string
+	XDGRuntimeDir     string
 }
 
 func readEnv(getenv func(string) string) envConfig {
 	return envConfig{
-		Runtime:          firstNonEmpty(getenv(EnvBksRuntime), getenv(EnvRuntime)),
-		Driver:           firstNonEmpty(getenv(EnvRuntimeDriver), getenv(EnvBksRuntimeDriver)),
-		ContainerCLI:     getenv(EnvContainerCLI),
-		DockerSock:       getenv(EnvDockerSock),
-		ExportMode:       getenv(EnvExportMode),
-		Platform:         getenv(EnvPlatform),
-		Network:          getenv(EnvNetwork),
-		ExtraMounts:      getenv(EnvExtraMounts),
-		RunImageArchive:  getenv(EnvBksRunImageArchiveFile),
-		CacheDir:         firstNonEmpty(getenv(EnvCacheDir), getenv(EnvBksCacheDir)),
-		Workspace:        firstNonEmpty(getenv(EnvWorkspace), getenv(EnvBksWorkspace)),
-		RuntimeImage:     firstNonEmpty(getenv(EnvRuntimeImage), getenv(EnvBksRuntimeImage)),
-		SidecarTimeout:   firstNonEmpty(getenv(EnvSidecarTimeout), getenv(EnvBksSidecarTimeout)),
-		BuildpackAliases: getenv(EnvBuildpackAliases),
-		XDGRuntimeDir:    getenv(EnvXDGRuntimeDir),
+		Runtime:           firstNonEmpty(getenv(EnvBksRuntime), getenv(EnvRuntime)),
+		Driver:            firstNonEmpty(getenv(EnvRuntimeDriver), getenv(EnvBksRuntimeDriver)),
+		ContainerCLI:      getenv(EnvContainerCLI),
+		InnerContainerCLI: getenv(EnvInnerContainerCLI),
+		DockerSock:        getenv(EnvDockerSock),
+		ExportMode:        getenv(EnvExportMode),
+		Platform:          getenv(EnvPlatform),
+		Network:           getenv(EnvNetwork),
+		ExtraMounts:       getenv(EnvExtraMounts),
+		RunImageArchive:   getenv(EnvBksRunImageArchiveFile),
+		CacheDir:          firstNonEmpty(getenv(EnvCacheDir), getenv(EnvBksCacheDir)),
+		Workspace:         firstNonEmpty(getenv(EnvWorkspace), getenv(EnvBksWorkspace)),
+		RuntimeImage:      firstNonEmpty(getenv(EnvRuntimeImage), getenv(EnvBksRuntimeImage)),
+		SidecarTimeout:    firstNonEmpty(getenv(EnvSidecarTimeout), getenv(EnvBksSidecarTimeout)),
+		BuilderUser:       getenv(EnvBuilderUser),
+		BuilderUserNS:     getenv(EnvBuilderUserNS),
+		BuildpackAliases:  getenv(EnvBuildpackAliases),
+		XDGRuntimeDir:     getenv(EnvXDGRuntimeDir),
 	}
 }
 
@@ -143,10 +164,10 @@ func readEnv(getenv func(string) string) envConfig {
 const DockerSocketContainerPath = dockerSocket
 
 // DockerHostURL 是 builder 容器内访问运行时 socket 的地址。
-const DockerHostURL = "unix://" + DockerSocketContainerPath
+var DockerHostURL = UnixSocketURL(DockerSocketContainerPath)
 
 // IsPodman 返回是否使用 Podman 后端。
-func (c Config) IsPodman() bool { return c.Backend == BackendPodman }
+func (c Config) IsPodman() bool { return c.Inner.IsPodman() }
 
 // ResolveFromEnv 从进程环境解析运行时配置。
 func ResolveFromEnv() (Config, error) {
@@ -167,15 +188,19 @@ func resolve(env envConfig) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	backend, err := resolveBackend(selection, strings.TrimSpace(env.ContainerCLI))
+	outerBackend, err := resolveOuterBackend(selection, strings.TrimSpace(env.ContainerCLI), driver)
 	if err != nil {
 		return Config{}, err
 	}
-	return newConfig(backend, selection.Environment, strings.TrimSpace(env.ContainerCLI), driver, env)
+	innerBackend := selection.Backend
+	if innerBackend == "" {
+		innerBackend = outerBackend
+	}
+	return newConfig(outerBackend, innerBackend, selection.Environment, driver, env)
 }
 
-// runtimeSelection 是 RUNTIME 解析出的环境与后端组合。
-// Backend 为空表示需要自动探测。
+// runtimeSelection 是 RUNTIME 解析出的环境与内层后端组合。
+// Backend 为空表示 host 模式需要自动探测；pind/dind 表示内层后端。
 type runtimeSelection struct {
 	Environment Environment
 	Backend     Backend
@@ -198,26 +223,24 @@ func parseRuntimeSelection(runtimeName string) (runtimeSelection, error) {
 	}
 }
 
-func resolveBackend(selection runtimeSelection, explicitBinary string) (Backend, error) {
+func resolveOuterBackend(selection runtimeSelection, explicitBinary string, driver Driver) (Backend, error) {
 	if explicitBinary != "" {
-		backend, err := backendFromBinary(explicitBinary)
-		if err != nil {
-			return "", err
-		}
-		if selection.Backend != "" && selection.Backend != backend {
-			return "", fmt.Errorf("runtime environment %s requires the %s backend, got %s", selection.Environment, selection.Backend, backend)
-		}
-		return backend, nil
+		return backendFromBinary(explicitBinary)
 	}
-	if selection.Backend != "" {
+	if driver != DriverManaged && selection.Backend != "" {
 		return selection.Backend, nil
 	}
-	for _, candidate := range []Backend{BackendDocker, BackendPodman} {
+	for _, candidate := range []Backend{BackendPodman, BackendDocker} {
 		if _, err := exec.LookPath(string(candidate)); err == nil {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("failed to find docker or podman; set BKS_RUNTIME or BKS_CONTAINER_CLI")
+	return "", fmt.Errorf("failed to find podman or docker; set BKS_CONTAINER_CLI")
+}
+
+func resolveBackend(selection runtimeSelection, explicitBinary string) (Backend, error) {
+	// 兼容测试和旧调用：host 模式解析外层后端。
+	return resolveOuterBackend(selection, explicitBinary, DriverHost)
 }
 
 func backendFromBinary(binary string) (Backend, error) {
@@ -231,22 +254,29 @@ func backendFromBinary(binary string) (Backend, error) {
 	}
 }
 
-func newConfig(backend Backend, environment Environment, explicitBinary string, driver Driver, env envConfig) (Config, error) {
-	if err := validatePair(backend, environment); err != nil {
+func newConfig(outerBackend, innerBackend Backend, environment Environment, driver Driver, env envConfig) (Config, error) {
+	if err := validatePair(innerBackend, environment); err != nil {
 		return Config{}, err
 	}
-	binary := explicitBinary
-	if binary == "" {
-		binary = string(backend)
-	}
-	if got := Backend(filepath.Base(binary)); got != backend {
-		return Config{}, fmt.Errorf("runtime backend %s requires the %s binary, got %s", backend, backend, binary)
-	}
-	binaryPath, err := exec.LookPath(binary)
+	outerBinary, err := resolveBinary(outerBackend, env.ContainerCLI)
 	if err != nil {
-		return Config{}, fmt.Errorf("container runtime %s not found: %w", binary, err)
+		return Config{}, err
 	}
-	exportMode, err := resolveExportMode(backend, environment, env.ExportMode)
+	innerBinary := outerBinary
+	if driver == DriverManaged || outerBackend != innerBackend {
+		if explicit := strings.TrimSpace(env.InnerContainerCLI); explicit != "" {
+			innerBinary, err = resolveBinary(innerBackend, explicit)
+			if err != nil {
+				return Config{}, err
+			}
+		} else if outerBackend != innerBackend {
+			innerBinary, err = resolveBinary(innerBackend, "")
+			if err != nil {
+				return Config{}, err
+			}
+		}
+	}
+	exportMode, err := resolveExportMode(innerBackend, environment, env.ExportMode)
 	if err != nil {
 		return Config{}, err
 	}
@@ -259,24 +289,19 @@ func newConfig(backend Backend, environment Environment, explicitBinary string, 
 		return Config{}, err
 	}
 	workspace := strings.TrimSpace(env.Workspace)
-	socket := resolveSocket(backend, environment, env.DockerSock, env.XDGRuntimeDir)
-	if driver == DriverManaged {
-		if workspace == "" {
-			return Config{}, fmt.Errorf("BKS_RUNTIME_DRIVER=managed requires CNB_RUNTIME_WORKSPACE")
-		}
-		if strings.TrimSpace(env.DockerSock) == "" {
-			socket = filepath.Join(workspace, workspaceRunDir, podmanSocketName)
-			if backend == BackendDocker {
-				socket = filepath.Join(workspace, workspaceRunDir, dockerSocketName)
-			}
-		}
+	if driver == DriverManaged && workspace == "" {
+		return Config{}, fmt.Errorf("BKS_RUNTIME_DRIVER=managed requires CNB_RUNTIME_WORKSPACE")
+	}
+	innerSocket := resolveInnerSocket(innerBackend, environment, driver, env.DockerSock, env.XDGRuntimeDir, workspace)
+	outerSocket := ""
+	if driver == DriverHost {
+		outerSocket = innerSocket
 	}
 	return Config{
 		Driver:           driver,
-		Backend:          backend,
+		Outer:            RuntimeConfig{Backend: outerBackend, Binary: outerBinary, Socket: outerSocket},
+		Inner:            RuntimeConfig{Backend: innerBackend, Binary: innerBinary, Socket: innerSocket},
 		Environment:      environment,
-		Binary:           binaryPath,
-		Socket:           socket,
 		ExportMode:       exportMode,
 		Platform:         strings.TrimSpace(env.Platform),
 		Network:          strings.TrimSpace(env.Network),
@@ -287,7 +312,37 @@ func newConfig(backend Backend, environment Environment, explicitBinary string, 
 		Workspace:        workspace,
 		RuntimeImage:     strings.TrimSpace(env.RuntimeImage),
 		SidecarTimeout:   sidecarTimeout,
+		BuilderUser:      strings.TrimSpace(env.BuilderUser),
+		BuilderUserNS:    strings.TrimSpace(env.BuilderUserNS),
 	}, nil
+}
+
+func resolveBinary(backend Backend, explicit string) (string, error) {
+	binary := explicit
+	if binary == "" {
+		binary = string(backend)
+	}
+	if got := Backend(filepath.Base(binary)); got != backend {
+		return "", fmt.Errorf("runtime backend %s requires the %s binary, got %s", backend, backend, binary)
+	}
+	binaryPath, err := exec.LookPath(binary)
+	if err != nil {
+		return "", fmt.Errorf("container runtime %s not found: %w", binary, err)
+	}
+	return binaryPath, nil
+}
+
+func resolveInnerSocket(backend Backend, environment Environment, driver Driver, dockerSock, xdgRuntimeDir, workspace string) string {
+	if socket := strings.TrimSpace(dockerSock); socket != "" {
+		return socket
+	}
+	if driver == DriverManaged {
+		if backend == BackendDocker {
+			return filepath.Join(workspace, workspaceRunDir, dockerSocketName)
+		}
+		return filepath.Join(workspace, workspaceRunDir, podmanSocketName)
+	}
+	return resolveSocket(backend, environment, "", xdgRuntimeDir)
 }
 
 func resolveSidecarTimeout(value string) (time.Duration, error) {

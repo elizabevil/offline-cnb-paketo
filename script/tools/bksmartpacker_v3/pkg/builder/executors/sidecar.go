@@ -83,7 +83,7 @@ func (e *ContainerExecutor) sidecarSpec(name string) sidecarSpec {
 	}
 	mounts = append(mounts, sidecarMount{
 		Type:   "volume",
-		Source: runtimeVolumeName(e.runtime.Backend),
+		Source: runtimeVolumeName(e.runtime.Inner.Backend),
 		Target: sidecarRuntimeMount,
 	})
 	return sidecarSpec{
@@ -106,7 +106,7 @@ func (e *ContainerExecutor) startSidecar(ctx context.Context) error {
 	}
 	args := e.sidecarSpec(name).args()
 	log.Info("start runtime sidecar", "args", args)
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -127,14 +127,14 @@ func runtimeVolumeName(backend container.Backend) string {
 }
 
 func (e *ContainerExecutor) ensureRuntimeVolume(ctx context.Context) error {
-	name := runtimeVolumeName(e.runtime.Backend)
-	inspect := exec.CommandContext(ctx, e.runtime.Binary, "volume", "inspect", name)
+	name := runtimeVolumeName(e.runtime.Inner.Backend)
+	inspect := exec.CommandContext(ctx, e.runtime.Outer.Binary, "volume", "inspect", name)
 	inspect.Stdout = io.Discard
 	inspect.Stderr = io.Discard
 	if inspect.Run() == nil {
 		return nil
 	}
-	create := exec.CommandContext(ctx, e.runtime.Binary, "volume", "create", name)
+	create := exec.CommandContext(ctx, e.runtime.Outer.Binary, "volume", "create", name)
 	create.Stdout = io.Discard
 	create.Stderr = os.Stderr
 	if err := create.Run(); err != nil {
@@ -153,14 +153,14 @@ func (e *ContainerExecutor) waitSocket(ctx context.Context) error {
 	ticker := time.NewTicker(sidecarPollInterval)
 	defer ticker.Stop()
 	for {
-		if _, err := os.Stat(e.runtime.Socket); err == nil && e.runtimeHealthy(ctx) {
+		if _, err := os.Stat(e.runtime.Inner.Socket); err == nil && e.runtimeHealthy(ctx) {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "waiting for managed runtime socket")
 		case <-timer.C:
-			return fmt.Errorf("managed runtime socket %s not ready after %s", e.runtime.Socket, timeout)
+			return fmt.Errorf("managed runtime socket %s not ready after %s", e.runtime.Inner.Socket, timeout)
 		case <-ticker.C:
 		}
 	}
@@ -169,13 +169,9 @@ func (e *ContainerExecutor) waitSocket(ctx context.Context) error {
 func (e *ContainerExecutor) runtimeHealthy(parent context.Context) bool {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
-	var args []string
-	if e.runtime.Backend == container.BackendDocker {
-		args = []string{"-H", "unix://" + e.runtime.Socket, "info"}
-	} else {
-		args = []string{"--url", "unix://" + e.runtime.Socket, "info"}
-	}
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cli := newRuntimeCLI(e.runtime.Inner)
+	args := append(cli.connectionArgs(), "info")
+	cmd := exec.CommandContext(ctx, cli.binary, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	return cmd.Run() == nil
@@ -184,7 +180,7 @@ func (e *ContainerExecutor) runtimeHealthy(parent context.Context) bool {
 func (e *ContainerExecutor) sidecarLogs(_ context.Context, name string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, "logs", "--tail", "50", name)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, "logs", "--tail", "50", name)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	_ = cmd.Run()
@@ -196,7 +192,7 @@ func (e *ContainerExecutor) stopSidecar() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), containerCleanupTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, "rm", "-f", e.sidecarName)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, "rm", "-f", e.sidecarName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	_ = cmd.Run()

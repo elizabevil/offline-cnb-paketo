@@ -83,6 +83,10 @@ smart-builder *args:
 smart-runtime *args:
     @{{_cnb}} pipeline run {{_profile}} --until runtime-pind {{args}}
 
+# 构建 builder，并从 bundle 加载 runtime-pind + runtime-dind
+smart-runtime-dind *args:
+    @{{_cnb}} pipeline run {{_profile}} --until runtime-dind {{args}}
+
 # 下载并校验静态 podman bundle（生产者步骤）
 podman-static:
     @mkdir -p {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1
@@ -92,6 +96,18 @@ podman-static:
     @test -f {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1/podman-linux-{{_arch}}.tar.gz.sha256 || \
         (cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum podman-linux-{{_arch}}.tar.gz > podman-linux-{{_arch}}.tar.gz.sha256)
     @(cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum -c {{_dir}}/docker/podman-static-{{_arch}}.sha256 2>/dev/null || sha256sum -c {{_dir}}/docker/podman-static.sha256)
+
+# 产出 runtime-dind 离线镜像 tar（生产者步骤，需要 docker:27-dind）
+runtime-dind-bundle:
+    @mkdir -p {{_root}}/bundle/{{_platform}}/images
+    @podman build -f {{_dir}}/docker/runtime-dind.dockerfile \
+        --build-arg DIND_BASE_IMAGE=docker:27-dind \
+        -t offline-runtime-dind-bk:{{_arch}} {{_dir}}
+    @podman save --format oci-archive \
+        -o {{_root}}/bundle/{{_platform}}/images/runtime-dind.tar \
+        offline-runtime-dind-bk:{{_arch}}
+    @sha256sum {{_root}}/bundle/{{_platform}}/images/runtime-dind.tar > \
+        {{_root}}/bundle/{{_platform}}/images/runtime-dind.tar.sha256
 
 # 产出 runtime-pind 离线镜像 tar（生产者步骤，需要静态 podman bundle）
 runtime-pind-bundle:

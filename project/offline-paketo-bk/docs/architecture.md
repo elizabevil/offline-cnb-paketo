@@ -265,3 +265,37 @@ podman volume rm -f cnb-runtime-podman
 ```
 
 卷默认跨构建保留；只有需要彻底重置 runtime cache 时才删除。
+
+
+### runtime-dind
+
+runtime-dind 基于 `docker:27-dind`：
+
+```text
+bundle/<platform>/images/runtime-dind.tar
+```
+
+入口启动 dockerd：
+
+```text
+/cnb/work/run/docker.sock
+```
+
+rootless 外层运行时默认：
+
+```text
+--bridge=none
+--iptables=false
+--ip-forward=false
+```
+
+因此 inner 容器默认无桥接网络；rootful 场景可开启。
+
+outer podman + inner dockerd 的完整构建已验证，但 builder 必须使用非 root 用户：
+
+```text
+BKS_BUILDER_USER=1000:1000
+BKS_BUILDER_USERNS=keep-id
+```
+
+root builder 会触发 lifecycle 的 `singleton connection already in use`。

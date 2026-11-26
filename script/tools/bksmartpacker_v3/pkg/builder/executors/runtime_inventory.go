@@ -12,21 +12,26 @@ import (
 // runtimeCLI 封装运行时二进制和 socket 参数，避免调用点直接拼命令。
 // 运行时镜像只需要提供与 podman/docker 兼容的 images 子命令；
 // system df 是可选能力，缺失时只影响 size 观测，不影响构建。
+const (
+	flagDockerHost = "-H"
+	flagPodmanURL  = "--url"
+)
+
 type runtimeCLI struct {
 	binary  string
 	socket  string
 	backend container.Backend
 }
 
-func newRuntimeCLI(cfg container.Config) runtimeCLI {
+func newRuntimeCLI(cfg container.RuntimeConfig) runtimeCLI {
 	return runtimeCLI{binary: cfg.Binary, socket: cfg.Socket, backend: cfg.Backend}
 }
 
 func (c runtimeCLI) connectionArgs() []string {
 	if c.backend == container.BackendDocker {
-		return []string{"-H", "unix://" + c.socket}
+		return []string{flagDockerHost, container.UnixSocketURL(c.socket)}
 	}
-	return []string{"--url", "unix://" + c.socket}
+	return []string{flagPodmanURL, container.UnixSocketURL(c.socket)}
 }
 
 func (c runtimeCLI) args(command ...string) []string {

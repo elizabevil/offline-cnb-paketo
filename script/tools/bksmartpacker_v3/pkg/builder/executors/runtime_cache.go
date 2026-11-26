@@ -22,7 +22,7 @@ func (s runtimeCacheSnapshot) count() int { return len(s.Images) }
 func (e *ContainerExecutor) snapshotRuntimeCache() runtimeCacheSnapshot {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cli := newRuntimeCLI(e.runtime)
+	cli := newRuntimeCLI(e.runtime.Inner)
 	snapshot := runtimeCacheSnapshot{Images: map[string]bool{}}
 	if ids, err := cli.images(ctx); err == nil {
 		snapshot.ImagesKnown = true

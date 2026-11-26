@@ -1,6 +1,8 @@
 package container
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -30,13 +32,14 @@ func TestParseRuntimeSelection(t *testing.T) {
 	}
 }
 
-func TestResolveBackend(t *testing.T) {
+func TestResolveOuterBackendIndependent(t *testing.T) {
 	selection := runtimeSelection{Environment: EnvironmentPind, Backend: BackendPodman}
 	if backend, err := resolveBackend(selection, "podman"); err != nil || backend != BackendPodman {
 		t.Fatalf("backend=%s err=%v", backend, err)
 	}
-	if _, err := resolveBackend(selection, "docker"); err == nil {
-		t.Fatal("pind + docker should fail")
+	// outer docker + inner podman 是允许的，外层不再被 inner backend 绑定。
+	if backend, err := resolveBackend(selection, "docker"); err != nil || backend != BackendDocker {
+		t.Fatalf("backend=%s err=%v", backend, err)
 	}
 }
 
@@ -118,7 +121,7 @@ func TestParseWithInjectedEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Backend != BackendPodman || cfg.Environment != EnvironmentHost {
+	if cfg.Outer.Backend != BackendPodman || cfg.Inner.Backend != BackendPodman || cfg.Environment != EnvironmentHost {
 		t.Fatalf("cfg = %#v", cfg)
 	}
 	if cfg.Cache.HostPath != cacheDir || cfg.Platform != "linux/amd64" || cfg.Network != "host" {
@@ -146,5 +149,50 @@ func TestResolveSidecarTimeout(t *testing.T) {
 	}
 	if _, err := resolveSidecarTimeout("bad"); err == nil {
 		t.Fatal("expected invalid timeout error")
+	}
+}
+
+func TestParseDind(t *testing.T) {
+	dir := t.TempDir()
+	docker := filepath.Join(dir, "docker")
+	if err := os.WriteFile(docker, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{
+		"RUNTIME":           "dind",
+		"BKS_CONTAINER_CLI": docker,
+	}
+	cfg, err := Parse(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Outer.Backend != BackendDocker || cfg.Inner.Backend != BackendDocker || cfg.Environment != EnvironmentDind || cfg.ExportMode != ExportDaemon {
+		t.Fatalf("cfg = %#v", cfg)
+	}
+}
+
+func TestParseOuterPodmanInnerDocker(t *testing.T) {
+	dir := t.TempDir()
+	docker := filepath.Join(dir, "docker")
+	if err := os.WriteFile(docker, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{
+		"RUNTIME":                 "dind",
+		"CNB_RUNTIME_DRIVER":      "managed",
+		"CNB_RUNTIME_WORKSPACE":   filepath.Join(dir, "workspace"),
+		"CNB_RUNTIME_IMAGE":       "runtime-dind:test",
+		"BKS_CONTAINER_CLI":       "podman",
+		"BKS_INNER_CONTAINER_CLI": docker,
+	}
+	cfg, err := Parse(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Outer.Backend != BackendPodman || cfg.Inner.Backend != BackendDocker {
+		t.Fatalf("outer=%s inner=%s", cfg.Outer.Backend, cfg.Inner.Backend)
+	}
+	if cfg.ExportMode != ExportDaemon {
+		t.Fatalf("export=%s", cfg.ExportMode)
 	}
 }

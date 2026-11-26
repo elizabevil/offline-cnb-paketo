@@ -76,6 +76,9 @@ bksmartpacker \
 | `CNB_RUNTIME_WORKSPACE` | 宿主机 workspace 根；容器内固定 `/cnb/work`；未设置时使用临时目录 |
 | `CNB_RUNTIME_DRIVER` | `host`（默认）或 `managed`；managed 可用外部 socket 或自动启动 sidecar |
 | `CNB_RUNTIME_IMAGE` | managed sidecar 镜像；entrypoint 需在 `/cnb/work/run/` 提供运行时 socket |
+| `BKS_INNER_CONTAINER_CLI` | inner runtime CLI，例如 outer podman + inner dockerd 时指定 `docker` |
+| `BKS_BUILDER_USER` | builder 容器用户，dind 非 root 验证使用 `1000:1000` |
+| `BKS_BUILDER_USERNS` | builder user namespace，dind 非 root 验证使用 `keep-id` |
 | `CNB_SIDECAR_TIMEOUT` | sidecar socket 就绪超时，默认 `60s`；`BKS_SIDECAR_TIMEOUT` 兼容 |
 | `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/podman 仅支持 `layout`，dind 要求 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
@@ -149,3 +152,35 @@ miss    构建前镜像已不存在
 ```
 
 当前 layout 构建模式下 `after_images=0` 是正常现象：镜像层由 buildpack cache 管理，inner podman 主要提供 socket，不应把 buildpack cache 命中误判为 runtime image cache 命中。
+
+
+### runtime-dind
+
+`runtime-dind` 基于 `docker:27-dind`，entrypoint 启动 `dockerd` 并监听：
+
+```text
+/cnb/work/run/docker.sock
+```
+
+rootless 外层运行时下默认关闭 bridge/iptables：
+
+```text
+CNB_DIND_BRIDGE=none
+CNB_DIND_IPTABLES=false
+CNB_DIND_IP_FORWARD=false
+```
+
+rootful 环境可按需开启：
+
+```bash
+CNB_DIND_BRIDGE=docker0
+CNB_DIND_IPTABLES=true
+CNB_DIND_IP_FORWARD=true
+```
+
+生产和构建：
+
+```bash
+just runtime-dind-bundle
+just smart-runtime-dind
+```

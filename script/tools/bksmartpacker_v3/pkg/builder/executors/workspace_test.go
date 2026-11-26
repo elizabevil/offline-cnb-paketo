@@ -12,7 +12,7 @@ func TestNewWorkspaceTemporary(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := ws.Host
-	for _, dir := range []string{ws.SourceDir(), ws.PlatformDir(), ws.LayersDir(), ws.RunDir(), ws.OutDir(), ws.TmpDir()} {
+	for _, dir := range []string{ws.SourceDir(), ws.PlatformDir(), ws.LayersDir(), ws.RunDir(), ws.OutDir(), ws.TmpDir(), ws.AppDir()} {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			t.Fatalf("missing dir %s: %v", dir, err)
 		}

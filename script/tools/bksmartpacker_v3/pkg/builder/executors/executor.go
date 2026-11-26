@@ -41,7 +41,7 @@ func NewContainerExecutor(buildPlan plan.BuildPlan, runtimeCfg container.Config)
 	if buildPlan.BuilderImage != "" {
 		builderImage = buildPlan.BuilderImage
 	}
-	log.Info("container runtime", "driver", runtimeCfg.Driver, "backend", runtimeCfg.Backend, "environment", runtimeCfg.Environment, "binary", runtimeCfg.Binary, "socket", runtimeCfg.Socket, "export", runtimeCfg.ExportMode)
+	log.Info("container runtime", "driver", runtimeCfg.Driver, "environment", runtimeCfg.Environment, "outer", runtimeCfg.Outer.Backend, "outer_binary", runtimeCfg.Outer.Binary, "inner", runtimeCfg.Inner.Backend, "inner_binary", runtimeCfg.Inner.Binary, "inner_socket", runtimeCfg.Inner.Socket, "export", runtimeCfg.ExportMode)
 	return &ContainerExecutor{
 		plan:            buildPlan,
 		runtime:         runtimeCfg,
@@ -67,6 +67,11 @@ func (e *ContainerExecutor) execute(ctx context.Context) error {
 		return err
 	}
 	defer e.stopSidecar()
+	if e.runtime.BuilderUser != "" {
+		if err := os.Chmod(e.runtime.Inner.Socket, 0o666); err != nil {
+			return errors.Wrap(err, "failed to make runtime socket accessible to builder user")
+		}
+	}
 	if e.runtime.Driver == container.DriverManaged {
 		cacheBefore := e.snapshotRuntimeCache()
 		defer e.reportRuntimeCache(cacheBefore)
@@ -123,7 +128,7 @@ func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
 	defer func() { _ = f.Close() }()
 
 	args := imageImportArgs(e.runtime.Platform, fakeRunnerImage(e.runtime.Platform))
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, args...)
 	cmd.Stdin = f
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -202,7 +207,7 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput) error {
 	args := e.buildArgs(in)
 	args = append(args, e.cnbBuilderImage)
 	log.Info("执行云原生构建", "args", args)
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
@@ -241,10 +246,17 @@ func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	// 单次构建的所有内部路径统一在 /cnb/work 下。
 	a.bindMount(e.workspace.Host, e.workspace.Container, false)
 	// 容器运行时 socket：podman/pind 使用解析后的 rootful/rootless socket。
-	a.bindMount(e.runtime.Socket, container.DockerSocketContainerPath, false)
+	a.bindMount(e.runtime.Inner.Socket, container.DockerSocketContainerPath, false)
 	a.env(container.EnvDockerHost, container.DockerHostURL)
-	// lifecycle 的 platform 目录固定为 /platform。
+	if e.runtime.BuilderUser != "" {
+		a.option("--user", e.runtime.BuilderUser)
+	}
+	if e.runtime.BuilderUserNS != "" {
+		a.option("--userns", e.runtime.BuilderUserNS)
+	}
+	// lifecycle 的 platform 目录固定为 /platform，app 目录固定为 /workspace。
 	a.bindMount(e.workspace.PlatformDir(), e.workspace.PlatformContainerPath(), true)
+	a.bindMount(e.workspace.AppDir(), WorkspaceAppMount, false)
 	// 持久文件缓存独立于 workspace；用户显式挂载时不重复添加。
 	if e.runtime.Cache.Enabled() && !hasMountTarget(e.runtime.ExtraMounts, e.runtime.Cache.ContainerPath) {
 		a.bindMount(e.runtime.Cache.HostPath, e.runtime.Cache.ContainerPath, false)
@@ -285,7 +297,7 @@ func buildContainerName(appCode, module string) string {
 func (e *ContainerExecutor) removeContainer(name string) {
 	ctx, cancel := context.WithTimeout(context.Background(), containerCleanupTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, "rm", "-f", name)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, "rm", "-f", name)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	_ = cmd.Run()
@@ -312,13 +324,22 @@ func (e *ContainerExecutor) ensureRuntime(ctx context.Context) error {
 	if e.runtime.RuntimeImage != "" {
 		return e.startSidecar(ctx)
 	}
-	if _, err := os.Stat(e.runtime.Socket); err != nil {
-		return errors.Wrapf(err, "managed runtime socket %s is not ready; set CNB_RUNTIME_IMAGE to start a sidecar", e.runtime.Socket)
+	if _, err := os.Stat(e.runtime.Inner.Socket); err != nil {
+		return errors.Wrapf(err, "managed runtime socket %s is not ready; set CNB_RUNTIME_IMAGE to start a sidecar", e.runtime.Inner.Socket)
 	}
 	if !e.runtimeHealthy(ctx) {
-		return fmt.Errorf("managed runtime socket %s exists but is not healthy", e.runtime.Socket)
+		return fmt.Errorf("managed runtime socket %s exists but is not healthy", e.runtime.Inner.Socket)
 	}
 	return nil
+}
+
+func loadedImageName(output string) string {
+	for line := range strings.SplitSeq(output, "\n") {
+		if value, ok := strings.CutPrefix(strings.TrimSpace(line), "Loaded image:"); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (e *ContainerExecutor) prepareRunImage(ctx context.Context) error {
@@ -329,7 +350,7 @@ func (e *ContainerExecutor) prepareRunImage(ctx context.Context) error {
 			}
 		}
 		e.runImageArchive = e.workspace.RunImagePath()
-		return nil
+		return e.loadRunImageIntoInner(ctx, "")
 	}
 	if err := e.prepareFakeRunner(ctx); err != nil {
 		return errors.Wrap(err, "failed to build fake runner")
@@ -337,6 +358,37 @@ func (e *ContainerExecutor) prepareRunImage(ctx context.Context) error {
 	if err := e.exportFakeRunnerArchive(ctx); err != nil {
 		return errors.Wrap(err, "failed to export fake runner")
 	}
+	return e.loadRunImageIntoInner(ctx, fakeRunnerImage(e.runtime.Platform))
+}
+
+// loadRunImageIntoInner 在 daemon 导出模式下把 run image 放进 inner runtime。
+// imageName 非空时确保加载后的镜像有可引用的 tag。
+func (e *ContainerExecutor) loadRunImageIntoInner(ctx context.Context, imageName string) error {
+	if e.runtime.ExportMode != container.ExportDaemon {
+		return nil
+	}
+	cli := newRuntimeCLI(e.runtime.Inner)
+	output, err := cli.output(ctx, "image", "load", "-i", e.runImageArchive)
+	if err != nil {
+		return errors.Wrap(err, "failed to load run image into inner runtime")
+	}
+	log.Info("load run image into inner runtime", "output", strings.TrimSpace(output))
+	if imageName == "" {
+		return nil
+	}
+	// docker load 可能把镜像保存为 localhost/name，需要显式补上无前缀 tag。
+	source := loadedImageName(output)
+	if source == "" {
+		ids, listErr := cli.images(ctx)
+		if listErr != nil || len(ids) == 0 {
+			return errors.Wrapf(errors.New("loaded image name not found"), "run image %s not found in inner runtime after load", imageName)
+		}
+		source = ids[0]
+	}
+	if _, tagErr := cli.output(ctx, "image", "tag", source, imageName); tagErr != nil {
+		return errors.Wrapf(tagErr, "failed to tag run image %s from %s", imageName, source)
+	}
+	log.Info("tag run image in inner runtime", "source", source, "image", imageName)
 	return nil
 }
 
@@ -353,8 +405,9 @@ func (e *ContainerExecutor) exportArchive(ctx context.Context, archiveName, imag
 		}
 		return os.Remove(produced)
 	}
-	args := imageSaveArgs(e.runtime, filepath.Join(e.workspace.OutDir(), archiveName), image)
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	inner := newRuntimeCLI(e.runtime.Inner)
+	args := append(inner.connectionArgs(), imageSaveArgs(e.runtime.Inner, filepath.Join(e.workspace.OutDir(), archiveName), image)...)
+	cmd := exec.CommandContext(ctx, e.runtime.Inner.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -487,7 +540,7 @@ func tarDir(src, dest string) error {
 func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context) error {
 	path := e.workspace.RunImagePath()
 	args := dockerArchiveSaveArgs(path, fakeRunnerImage(e.runtime.Platform))
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

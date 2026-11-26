@@ -100,10 +100,21 @@ run = [
 ]
 
 
+[[spec.stages]]
+name        = "runtime-dind"
+description = "从离线 bundle 加载 managed dind sidecar 镜像"
+workdir     = "."
+run = [
+  "sh", "-c", "set -eu; img=\"${runtime.bundle}/${spec.project.platform}/images/runtime-dind.tar\"; test -f \"$img\" || { echo \"missing runtime-dind bundle: $img\"; exit 1; }; (cd \"$(dirname \"$img\")\" && sha256sum -c runtime-dind.tar.sha256); podman load -i \"$img\"",
+]
+
 # ── 静态检查：Dockerfile 的 COPY 源 ──
 
 [[spec.checks.dockerfiles]]
 path = "docker/builder-base.dockerfile"
+
+[[spec.checks.dockerfiles]]
+path = "docker/runtime-dind.dockerfile"
 
 [[spec.checks.dockerfiles]]
 path = "docker/runtime-pind.dockerfile"

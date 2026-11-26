@@ -22,12 +22,15 @@ const (
 	WorkspaceContainerRoot = "/cnb/work"
 	// WorkspacePlatformMount 是 lifecycle 固定的 platform 挂载点，不能改成 workspace 子路径。
 	WorkspacePlatformMount = "/platform"
+	// WorkspaceAppMount 是 lifecycle 的 app 目录。
+	WorkspaceAppMount = "/workspace"
 
 	sourceDirName   = "source"
 	platformDirName = "platform"
 	layersDirName   = "layers"
 	runDirName      = "run"
 	outDirName      = "out"
+	appDirName      = "app"
 	tmpDirName      = "tmp"
 
 	sourceArchiveName = "source.tgz"
@@ -80,7 +83,7 @@ func (w *Workspace) Close() error {
 
 func (w *Workspace) reset() error {
 	for _, dir := range []string{
-		w.SourceDir(), w.PlatformDir(), w.LayersDir(), w.RunDir(), w.OutDir(), w.TmpDir(),
+		w.SourceDir(), w.PlatformDir(), w.LayersDir(), w.RunDir(), w.OutDir(), w.TmpDir(), w.AppDir(),
 	} {
 		if err := os.RemoveAll(dir); err != nil {
 			return errors.Wrapf(err, "failed to reset %s", dir)
@@ -128,6 +131,9 @@ func (w *Workspace) RunImageContainerPath() string {
 	return path.Join(w.Container, runDirName, runImageName)
 }
 
+// AppDir 是 lifecycle app 目录。
+func (w *Workspace) AppDir() string { return filepath.Join(w.Host, appDirName) }
+
 // OutDir 是 s-mart 组装目录。
 func (w *Workspace) OutDir() string { return filepath.Join(w.Host, outDirName) }
 
@@ -137,6 +143,11 @@ func (w *Workspace) TmpDir() string { return filepath.Join(w.Host, tmpDirName) }
 // MountArgs 返回根挂载参数。
 func (w *Workspace) MountArgs() []string {
 	return bindMountArgs(w.Host, w.Container, false)
+}
+
+// AppMountArgs 返回 lifecycle app 挂载参数。
+func (w *Workspace) AppMountArgs() []string {
+	return bindMountArgs(w.AppDir(), WorkspaceAppMount, false)
 }
 
 // PlatformMountArgs 返回 lifecycle platform 挂载参数。
