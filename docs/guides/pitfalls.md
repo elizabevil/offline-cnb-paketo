@@ -206,3 +206,67 @@ sha256 = ""                             # 发布后自动回填
 | `bundle/<platform>/binaries` 手工改文件 | 下次 fetch 按标记重解压会覆盖 | 不要在 `binaries/` 下做任何手工修改，改 lock 或改脚本 |
 
 ---
+
+## 六、运行时与 pind/dind
+
+### 17. qemu-user 下 Podman 报 `function not implemented`
+
+| | |
+|---|---|
+| 现象 | arm64 pind sidecar 启动失败：`failed to create 2048 locks in /libpod_lock: function not implemented` |
+| 原因 | Podman 默认 shm lock 使用 robust process-shared pthread mutex；qemu-user 不完整支持 robust futex / `set_robust_list` |
+| 修法 | 真机/arm64 CI 验证；临时探测可用 `[engine] lock_type = "file"` |
+| 影响 | 不是 pind 镜像或 podman-static 缺依赖；qemu-user 的限制 |
+
+参考：
+
+- [runtime-matrix.md](../design/components/bksmartpacker/runtime-matrix.md)
+- [runtime-concepts.md](../design/runtime-concepts.md)
+
+### 18. lifecycle `singleton connection already in use`
+
+| | |
+|---|---|
+| 现象 | Podman Docker-compatible API + exporter `-daemon`，导出 base layers 时报 singleton |
+| 原因 | lifecycle `priv/docker.go` 复用一条预打开连接；root-owned socket 时进入单连接路径，第二个请求无法 dial |
+| 修法 | ① Podman 使用 `layout` 导出；② 非 root builder + `keep-id` 让 socket 在容器内非 root；③ 等 lifecycle #1763 修复 |
+| 注意 | Podman 服务端本身并发 `image get` 正常，问题在 lifecycle 客户端 |
+
+上游：
+
+- https://github.com/buildpacks/lifecycle/issues/1763
+
+### 19. dind 在 root builder 下同样触发 singleton
+
+| | |
+|---|---|
+| 现象 | `runtime-dind` + root builder 在 analyze/export 阶段失败 |
+| 原因 | 与 Podman 场景共享 lifecycle 单连接机制；builder 内 socket 属主为 root |
+| 修法 | 使用 `BKS_BUILDER_USER=1000:1000`、`BKS_BUILDER_USERNS=keep-id` |
+| 前提 | builder 用户对 workspace/cache 可写；socket 在 builder 内可见且可连接 |
+
+### 20. 不要把 Docker 静态物料重复登记
+
+| | |
+|---|---|
+| 现象 | 曾新增 `docker-static` asset，与已有 `docker` asset 重复 |
+| 原因 | 已有 `docker` asset 本身就是静态 Docker 包，包含 dockerd/containerd/runc/docker CLI |
+| 修法 | runtime-dind 直接复用 `bundle/<platform>/binaries/docker/<version>/docker/`；不依赖 `docker:27-dind` 镜像 |
+| 教训 | 新增 asset 前先查 `project/assets.toml` |
+
+### 21. arm64 Python buildpack 仍可能下载 x86_64 运行时
+
+| | |
+|---|---|
+| 现象 | `BKS_PLATFORM=linux/arm64` 下 cpython buildpack 下载 `cpython-*-linux-x86_64-gnu` |
+| 原因 | 虽然注入了 `CNB_TARGET_ARCH=arm64`，但当前 cpython/uv 下载路径没有完全按目标架构选择 |
+| 状态 | 未修复；arm64 Go 构建已验证，arm64 Python 需要单独修 buildpack |
+| 影响 | 不是 dind/pind 运行时问题，是 arm64 buildpack 支持问题 |
+
+### 22. 测试产物必须带方案/架构
+
+| | |
+|---|---|
+| 现象 | 过去测试统一生成 `s-mart.tar.gz`，无法区分 host/pind/dind、amd64/arm64 |
+| 修法 | 测试产物命名为 `s-mart-<mode>-<arch>.tar.gz`，例如 `s-mart-pind-amd64.tar.gz` |
+| 位置 | `.cache/tests/full/<platform>/`、`.cache/tests/offline-paketo-bk/<platform>/` |

@@ -26,7 +26,7 @@
 | G | Docker | Dockerd | host dind | 未测 | 需要宿主机 Docker daemon |
 | H | Podman | Podman Docker API | cnb 原始复现：daemon export | **上游 issue 已确认；本机完整 cnb 未复现** | https://github.com/buildpacks/lifecycle/issues/1763；fake root-owned socket 触发 |
 | I | Podman | Podman Docker API | cnb 非 root 复现 | **已验证** | CMDB SaaS + podman daemon export 成功；非 root builder |
-| J | Podman | Podman | managed pind arm64 | **镜像已构建** | runtime-pind arm64 tar 已生成；qemu 下 sidecar 未能启动（libpod lock） |
+| J | Podman | Podman | managed pind arm64 | **暂缓** | runtime-pind arm64 镜像已生成；qemu-user robust futex 限制，交由真机/arm64 CI 验证 |
 | K | Podman | Dockerd | managed dind arm64 | **已验证** | 静态 Docker arm64 asset + Debian arm64 base；CMDB arm64 完整构建成功 |
 
 ## 3. 推测说明
@@ -341,14 +341,14 @@ podman-linux-arm64.tar.gz
 
 ```text
 arm64 镜像构建：通过
-qemu 下 arm64 pind sidecar 启动：失败（libpod lock）
+qemu 下 arm64 pind sidecar：libpod robust futex 限制，暂不验证
 arm64 dind：静态 Docker arm64 asset，CMDB arm64 完整构建成功
 ```
 
 因此：
 
 ```text
-pind arm64：产物已生成，sidecar 运行未验证
+pind arm64：产物已生成，交由真机/arm64 CI 验证
 dind arm64：完整构建已验证
 ```
 
@@ -442,3 +442,93 @@ iproute2
 2. outer Docker + inner Podman（managed pind）
 3. outer Podman + inner Dockerd 的完整构建
 4. 多架构重复上述矩阵
+
+## 测试产物矩阵
+
+组合定义：
+
+```text
+架构（amd64 / arm64）
+× 运行时（host / pind / dind）
+× 导出模式（layout / daemon）
+= 12 个组合
+```
+
+外层工具不是独立维度，但必须写明：
+
+| 运行时 | 外层工具 | 内层运行时 |
+|---|---|---|
+| host | podman 或 docker | 同外层 |
+| pind | podman | sidecar podman |
+| dind | podman | sidecar docker |
+
+`host` 的 `layout` 当前用 Podman；`host` 的 `daemon` 需要 Docker 后端。
+
+### 12 个组合
+
+| 架构 | 运行时 | 外层工具 | 内层运行时 | 导出 | 合法性 | 产物 | 状态 | 原因 |
+|---|---|---|---|---|---|---|---|---|
+| amd64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-amd64.tar.gz` | 已生成 | 当前 host 路径 |
+| amd64 | host | docker | 宿主 docker | daemon | 条件合法 | — | 未打包 | 需要宿主机 Docker daemon |
+| amd64 | pind | podman | sidecar podman | layout | 合法 | `s-mart-pind-amd64.tar.gz` | 已生成 | inner Podman |
+| amd64 | pind | podman | sidecar podman | daemon | 不支持 | — | 未打包 | daemon 要求 Docker backend |
+| amd64 | dind | podman | sidecar docker | layout | 不支持 | — | 未打包 | 配置强制 dind 使用 daemon |
+| amd64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-amd64.tar.gz` | 已生成 | inner Docker daemon |
+| arm64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-arm64.tar.gz` | 已生成 | 当前 host 路径 |
+| arm64 | host | docker | 宿主 docker | daemon | 条件合法 | — | 未打包 | 需要宿主机 Docker daemon |
+| arm64 | pind | podman | sidecar podman | layout | 合法 | — | 未打包 | qemu-user robust lock |
+| arm64 | pind | podman | sidecar podman | daemon | 不支持且受限 | — | 未打包 | pind daemon 不支持，且 qemu lock 限制 |
+| arm64 | dind | podman | sidecar docker | layout | 不支持 | — | 未打包 | 配置强制 dind 使用 daemon |
+| arm64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-arm64.tar.gz` | 已生成 | inner Docker daemon |
+
+### 当前已生成
+
+```text
+.cache/tests/full/linux-amd64/
+  s-mart-host-amd64.tar.gz
+  s-mart-pind-amd64.tar.gz
+  s-mart-dind-amd64.tar.gz
+
+.cache/tests/full/linux-arm64/
+  s-mart-host-arm64.tar.gz
+  s-mart-dind-arm64.tar.gz
+```
+
+共 5 个，不是 12 个。
+
+### 未生成原因汇总
+
+| 原因 | 影响组合 | 类型 |
+|---|---|---|
+| host 当前是 Podman；daemon 需要 Docker 后端 | host + daemon × 2 | 环境/路径未接入 |
+| pind 的 inner 是 Podman，不接受 daemon 导出 | pind + daemon × 2 | 设计不支持 |
+| dind 强制 daemon，layout 被配置拒绝 | dind + layout × 2 | 设计不支持 |
+| qemu-user robust lock 限制 | arm64 + pind × 2 | 验证环境限制 |
+| 上述限制叠加 | arm64 + pind + daemon | 设计 + 环境 |
+
+### 配置约束
+
+`pkg/container/config.go`：
+
+```text
+dind + layout        → error: dind requires BKS_EXPORT_MODE=daemon
+daemon + 非 Docker   → error: BKS_EXPORT_MODE=daemon requires the docker backend
+```
+
+因此 12 个组合不可能全部合法。若要 12 个都产出，需要先扩展：
+
+```text
+host + docker + daemon
+pind + podman + daemon（或改变 pind 的 inner backend）
+dind + layout（或改变 dind 的导出方式）
+```
+
+### 导出格式差异
+
+```text
+host/pind + layout  → OCI layout，gzip blob
+dind + daemon       → docker-archive，未压缩 layer.tar
+```
+
+因此 `s-mart.tar.gz` 大小不能直接比较。统一比较前需要先转换成同一种格式
+（推荐 OCI layout）。

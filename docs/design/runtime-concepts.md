@@ -282,3 +282,24 @@ iproute2
 ```
 
 当前静态物料不包含这些额外系统包。
+
+
+## 12. arm64 pind 与 qemu
+
+`qemu-user` 模拟 arm64 时，Podman 默认 robust shared-memory lock 会失败：
+
+```text
+failed to create 2048 locks in /libpod_lock: function not implemented
+```
+
+原因是 qemu-user 不完整支持 robust futex / `set_robust_list` 路径。
+这不是 arm64 Podman 本身的缺陷。
+
+当前决策：
+
+```text
+arm64 pind 交给真机或 arm64 CI 验证
+qemu-user 下改用 lock_type=file 仅作为临时探测手段
+```
+
+`qemu-system` 需要完整 arm64 虚拟机和 rootfs，暂不纳入当前测试链。
