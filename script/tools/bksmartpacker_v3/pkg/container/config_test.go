@@ -62,6 +62,9 @@ func TestResolveExportMode(t *testing.T) {
 	if mode, err := resolveExportMode(BackendDocker, EnvironmentDind, ""); err != nil || mode != ExportDaemon {
 		t.Fatalf("dind mode=%s err=%v", mode, err)
 	}
+	if mode, err := resolveExportMode(BackendDocker, EnvironmentDind, "layout"); err != nil || mode != ExportLayout {
+		t.Fatalf("dind layout mode=%s err=%v", mode, err)
+	}
 	if _, err := resolveExportMode(BackendPodman, EnvironmentHost, "daemon"); err == nil {
 		t.Fatal("podman daemon should fail")
 	}

@@ -395,9 +395,6 @@ func resolveExportMode(backend Backend, environment Environment, value string) (
 	if raw := strings.TrimSpace(value); raw != "" {
 		switch ExportMode(raw) {
 		case ExportLayout:
-			if environment == EnvironmentDind {
-				return "", fmt.Errorf("dind requires BKS_EXPORT_MODE=daemon")
-			}
 			return ExportLayout, nil
 		case ExportDaemon:
 			if backend != BackendDocker {

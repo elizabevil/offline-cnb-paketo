@@ -462,39 +462,41 @@ iproute2
 | pind | podman | sidecar podman |
 | dind | podman | sidecar docker |
 
-`host` 的 `layout` 当前用 Podman；`host` 的 `daemon` 需要 Docker 后端。
+`dind` 默认仍是 daemon；显式传入 `BKS_EXPORT_MODE=layout` 时走 OCI layout 路径。
 
 ### 12 个组合
 
 | 架构 | 运行时 | 外层工具 | 内层运行时 | 导出 | 合法性 | 产物 | 状态 | 原因 |
 |---|---|---|---|---|---|---|---|---|
-| amd64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-amd64.tar.gz` | 已生成 | 当前 host 路径 |
+| amd64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-layout-amd64.tar.gz` | 已生成 | 当前 host 路径 |
 | amd64 | host | docker | 宿主 docker | daemon | 条件合法 | — | 未打包 | 需要宿主机 Docker daemon |
-| amd64 | pind | podman | sidecar podman | layout | 合法 | `s-mart-pind-amd64.tar.gz` | 已生成 | inner Podman |
+| amd64 | pind | podman | sidecar podman | layout | 合法 | `s-mart-pind-layout-amd64.tar.gz` | 已生成 | inner Podman |
 | amd64 | pind | podman | sidecar podman | daemon | 不支持 | — | 未打包 | daemon 要求 Docker backend |
-| amd64 | dind | podman | sidecar docker | layout | 不支持 | — | 未打包 | 配置强制 dind 使用 daemon |
-| amd64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-amd64.tar.gz` | 已生成 | inner Docker daemon |
-| arm64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-arm64.tar.gz` | 已生成 | 当前 host 路径 |
+| amd64 | dind | podman | sidecar docker | layout | 合法 | `s-mart-dind-layout-amd64.tar.gz` | 已生成 | layout 不经过 inner dockerd |
+| amd64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-daemon-amd64.tar.gz` | 已生成 | inner Docker daemon |
+| arm64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-layout-arm64.tar.gz` | 已生成 | 当前 host 路径 |
 | arm64 | host | docker | 宿主 docker | daemon | 条件合法 | — | 未打包 | 需要宿主机 Docker daemon |
 | arm64 | pind | podman | sidecar podman | layout | 合法 | — | 未打包 | qemu-user robust lock |
 | arm64 | pind | podman | sidecar podman | daemon | 不支持且受限 | — | 未打包 | pind daemon 不支持，且 qemu lock 限制 |
-| arm64 | dind | podman | sidecar docker | layout | 不支持 | — | 未打包 | 配置强制 dind 使用 daemon |
-| arm64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-arm64.tar.gz` | 已生成 | inner Docker daemon |
+| arm64 | dind | podman | sidecar docker | layout | 合法 | `s-mart-dind-layout-arm64.tar.gz` | 已生成 | layout 不经过 inner dockerd |
+| arm64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-daemon-arm64.tar.gz` | 已生成 | inner Docker daemon |
 
 ### 当前已生成
 
 ```text
 .cache/tests/full/linux-amd64/
-  s-mart-host-amd64.tar.gz
-  s-mart-pind-amd64.tar.gz
-  s-mart-dind-amd64.tar.gz
+  s-mart-host-layout-amd64.tar.gz
+  s-mart-pind-layout-amd64.tar.gz
+  s-mart-dind-layout-amd64.tar.gz
+  s-mart-dind-daemon-amd64.tar.gz
 
 .cache/tests/full/linux-arm64/
-  s-mart-host-arm64.tar.gz
-  s-mart-dind-arm64.tar.gz
+  s-mart-host-layout-arm64.tar.gz
+  s-mart-dind-layout-arm64.tar.gz
+  s-mart-dind-daemon-arm64.tar.gz
 ```
 
-共 5 个，不是 12 个。
+共 7 个。
 
 ### 未生成原因汇总
 
@@ -502,32 +504,51 @@ iproute2
 |---|---|---|
 | host 当前是 Podman；daemon 需要 Docker 后端 | host + daemon × 2 | 环境/路径未接入 |
 | pind 的 inner 是 Podman，不接受 daemon 导出 | pind + daemon × 2 | 设计不支持 |
-| dind 强制 daemon，layout 被配置拒绝 | dind + layout × 2 | 设计不支持 |
 | qemu-user robust lock 限制 | arm64 + pind × 2 | 验证环境限制 |
-| 上述限制叠加 | arm64 + pind + daemon | 设计 + 环境 |
 
 ### 配置约束
 
 `pkg/container/config.go`：
 
 ```text
-dind + layout        → error: dind requires BKS_EXPORT_MODE=daemon
-daemon + 非 Docker   → error: BKS_EXPORT_MODE=daemon requires the docker backend
+daemon + 非 Docker → error: BKS_EXPORT_MODE=daemon requires the docker backend
 ```
 
-因此 12 个组合不可能全部合法。若要 12 个都产出，需要先扩展：
+`dind + layout` 现在被允许：
 
 ```text
-host + docker + daemon
-pind + podman + daemon（或改变 pind 的 inner backend）
-dind + layout（或改变 dind 的导出方式）
+dind 默认        → daemon
+dind + 显式 layout → OCI layout
 ```
+
+### dind layout 的语义
+
+```text
+dind + layout
+  → 启动 dind sidecar
+  → builder 使用 OCI layout exporter
+  → 不经过 inner dockerd 的 image store
+```
+
+它验证的是：
+
+```text
+dind 外层环境 + lifecycle layout 路径
+```
+
+不是：
+
+```text
+dind 的 docker image save 路径
+```
+
+后者由 `dind + daemon` 覆盖。
 
 ### 导出格式差异
 
 ```text
-host/pind + layout  → OCI layout，gzip blob
-dind + daemon       → docker-archive，未压缩 layer.tar
+host/pind/dind + layout → OCI layout，gzip blob
+dind + daemon           → docker-archive，未压缩 layer.tar
 ```
 
 因此 `s-mart.tar.gz` 大小不能直接比较。统一比较前需要先转换成同一种格式

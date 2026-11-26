@@ -199,9 +199,10 @@ pind:
   layout
 
 dind:
-  daemon
-  + non-root builder
-  + keep-id
+  默认 daemon
+  也可显式 layout（不经过 inner dockerd 的 image store）
+  + non-root builder（daemon 路径）
+  + keep-id（daemon 路径）
   + 可写 workspace/cache
 
 cnb + Podman daemon:

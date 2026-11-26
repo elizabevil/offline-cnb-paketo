@@ -230,6 +230,7 @@ sha256 = ""                             # 发布后自动回填
 | 现象 | Podman Docker-compatible API + exporter `-daemon`，导出 base layers 时报 singleton |
 | 原因 | lifecycle `priv/docker.go` 复用一条预打开连接；root-owned socket 时进入单连接路径，第二个请求无法 dial |
 | 修法 | ① Podman 使用 `layout` 导出；② 非 root builder + `keep-id` 让 socket 在容器内非 root；③ 等 lifecycle #1763 修复 |
+| dind 备注 | dind 也允许显式 `layout`；默认仍是 daemon |
 | 注意 | Podman 服务端本身并发 `image get` 正常，问题在 lifecycle 客户端 |
 
 上游：
@@ -268,5 +269,5 @@ sha256 = ""                             # 发布后自动回填
 | | |
 |---|---|
 | 现象 | 过去测试统一生成 `s-mart.tar.gz`，无法区分 host/pind/dind、amd64/arm64 |
-| 修法 | 测试产物命名为 `s-mart-<mode>-<arch>.tar.gz`，例如 `s-mart-pind-amd64.tar.gz` |
+| 修法 | 测试产物命名为 `s-mart-<runtime>-<export>-<arch>.tar.gz`，例如 `s-mart-pind-layout-amd64.tar.gz` |
 | 位置 | `.cache/tests/full/<platform>/`、`.cache/tests/offline-paketo-bk/<platform>/` |
