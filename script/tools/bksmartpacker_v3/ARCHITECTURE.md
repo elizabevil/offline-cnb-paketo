@@ -5,15 +5,23 @@
 ## 一、模块划分
 
 ```
-cmd/bksmartpacker      命令行入口：参数解析、inspect 分支
+cmd/bksmartpacker
+  ├── cli.go            Kong 结构体参数
+  └── main.go           入口、inspect 分支
 pkg/builder
-  ├── prepare.go       解析 app_desc，生成 BuildPlan / ModuleBuildStep
-  ├── buildpacks.go    读取 buildpack 配置、别名与 required buildpacks
-  ├── step.go          把源码打成 tar.gz，生成构建环境变量
+  ├── plan.go           BuildPlan / Step / Group / Process
+  ├── prepare.go        构建计划编排
+  ├── appdesc.go        app_desc 读取、校验、过滤
+  ├── env.go            env-file 与三层 env 合并
+  ├── procfile.go       模块级 / 应用级 Procfile
+  ├── groups.go         构建组
+  ├── artifact.go       artifact.json 映射
+  ├── buildpacks.go     语言 → buildpack
+  ├── source.go         源码 tar
   └── executors
-      └── docker.go    运行时交互：fake runner、构建、导出、打包
-pkg/config             配置结构与默认值
-pkg/types              共享类型
+      └── executor.go   fake runner、构建、导出、打包
+pkg/container          运行时配置解析（backend + environment、socket、export mode）
+pkg/types              协议 schema 与构建参数
 pkg/utils              文件、归档、环境变量工具
 pkg/smartpkg           S-Mart 包结构检查（inspect）
 ```
@@ -22,9 +30,9 @@ pkg/smartpkg           S-Mart 包结构检查（inspect）
 
 ```
 main
- └─ config.Load
- └─ builder.Prepare            → BuildPlan（每个模块一个 Step）
- └─ DockerExecutor.Execute
+ └─ builder.PrepareBuildPlan    → BuildPlan（Step / Group）
+ └─ container.ResolveFromEnv    → RuntimeConfig
+ └─ ContainerExecutor.Execute
      ├─ prepareFakeRunner      → 单层空镜像，作为 run image
      ├─ exportFakeRunnerArchive→ docker-archive，供容器内使用
      ├─ for each step

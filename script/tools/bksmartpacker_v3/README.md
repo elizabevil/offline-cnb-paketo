@@ -68,13 +68,14 @@ bksmartpacker \
 
 | 变量 | 作用 |
 |---|---|
-| `BKS_CONTAINER_CLI` | 指定 `docker` 或 `podman`，缺省自动探测 |
-| `BKS_DOCKER_SOCK` | 传给容器的 socket 路径 |
-| `BKS_EXPORT_MODE` | `layout`（默认）或 `daemon` |
+| `BKS_RUNTIME` / `RUNTIME` | `pind`、`dind`、`host-podman`、`host-docker`；也兼容 `podman`、`docker` |
+| `BKS_CONTAINER_CLI` | 覆盖后端二进制；必须与 backend 匹配 |
+| `BKS_DOCKER_SOCK` | 宿主机运行时 socket；podman 自动选择 rootful `/run/podman/podman.sock` 或 rootless socket |
+| `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/podman 仅支持 `layout`，dind 要求 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
 | `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |
 | `BKS_EXTRA_MOUNTS` | 追加 `--mount` 参数 |
-| `BKS_NETWORK` | 传给 `docker run` 的网络模式 |
+| `BKS_NETWORK` | 传给容器运行时的网络模式 |
 | `BKS_BUILDPACK_ALIASES` | 覆盖 buildpack 别名 |
 | `BKS_LOG_LEVEL` | 日志级别：`debug`/`info`/`warn`/`error`，默认 `info` |
 

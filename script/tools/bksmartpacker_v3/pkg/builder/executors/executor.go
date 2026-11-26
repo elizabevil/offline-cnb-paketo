@@ -14,55 +14,36 @@ import (
 	"github.com/pkg/errors"
 
 	"bksmartpacker/pkg/builder"
+	"bksmartpacker/pkg/container"
 	"bksmartpacker/pkg/log"
 	"bksmartpacker/pkg/utils"
 )
 
-const exportModeDaemon = "daemon"
-
-var dockerExecPath string
-
-// DockerExecutor 使用 docker/podman 执行构建计划。
-type DockerExecutor struct {
+// ContainerExecutor 使用 docker 或 podman 执行构建计划。
+type ContainerExecutor struct {
 	plan            builder.BuildPlan
-	dockerExecPath  string
+	runtime         container.Config
 	cnbBuilderImage string
+	runImageArchive string
 }
 
-// NewDockerExecutor ...
-func NewDockerExecutor(plan builder.BuildPlan) (*DockerExecutor, error) {
-	if dockerExecPath == "" {
-		// 临时改动：允许用 podman 验证（本机无 docker 时）
-		candidates := []string{os.Getenv("BKS_CONTAINER_CLI"), "docker", "podman"}
-		var lastErr error
-		for _, c := range candidates {
-			if c == "" {
-				continue
-			}
-			p, err := exec.LookPath(c)
-			if err == nil {
-				dockerExecPath = p
-				break
-			}
-			lastErr = err
-		}
-		if dockerExecPath == "" {
-			return nil, errors.Wrap(lastErr, "failed to lookup docker/podman")
-		}
-	}
+// NewContainerExecutor 使用已解析的运行时配置创建执行器。
+func NewContainerExecutor(plan builder.BuildPlan, runtimeCfg container.Config) (*ContainerExecutor, error) {
 	builderImage := DefaultCNBBuilderImage
 	if plan.BuilderImage != "" {
 		builderImage = plan.BuilderImage
 	}
-	return &DockerExecutor{
+	log.Info("container runtime", "backend", runtimeCfg.Backend, "environment", runtimeCfg.Environment, "binary", runtimeCfg.Binary, "socket", runtimeCfg.Socket, "export", runtimeCfg.ExportMode)
+	return &ContainerExecutor{
 		plan:            plan,
-		dockerExecPath:  dockerExecPath,
+		runtime:         runtimeCfg,
 		cnbBuilderImage: builderImage,
+		runImageArchive: runtimeCfg.RunImageArchive,
 	}, nil
 }
 
-// Execute build plan with docker
-func (e *DockerExecutor) Execute() error {
+// Execute 使用选中的容器运行时执行构建计划。
+func (e *ContainerExecutor) Execute() error {
 	// 生成临时目录, 用于存放输出的镜像层
 	workspace, err := os.MkdirTemp("", "workspace")
 	if err != nil {
@@ -105,7 +86,7 @@ func (e *DockerExecutor) Execute() error {
 	return e.buildSMartPackage(ctx, workspace)
 }
 
-func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
+func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
 	// 用 image import 构造只有一层的空镜像：
 	// FROM scratch + COPY 在部分运行时会得到 0 层镜像，
 	// exporter 需要 run image 的 top layer，0 层会报 "image has no layers"。
@@ -131,12 +112,12 @@ func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
 	defer func() { _ = f.Close() }()
 
 	args := []string{"import", "-c", "ENV HOME=/app", "-c", "WORKDIR /app"}
-	if pf := targetPlatform(); pf != "" {
+	if pf := e.runtime.Platform; pf != "" {
 		osName, arch := splitPlatform(pf)
 		args = append(args, "--os", osName, "--arch", arch)
 	}
-	args = append(args, "-", fakeRunnerImage())
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	args = append(args, "-", fakeRunnerImage(e.runtime.Platform))
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdin = f
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -155,7 +136,7 @@ type buildInput struct {
 	Envs               map[string]string
 }
 
-func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuildStep, layerDir string) error {
+func (e *ContainerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuildStep, layerDir string) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               step.ModuleName,
 		Src:                step.Src,
@@ -169,7 +150,7 @@ func (e *DockerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuil
 	}, layerDir)
 }
 
-func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
+func (e *ContainerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               group.ModuleName,
 		Src:                group.Src,
@@ -184,7 +165,7 @@ func (e *DockerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBu
 }
 
 // runBuild 执行一次 builder 构建；v1 每模块调用一次，v2 每构建组调用一次。
-func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir string) error {
+func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput, layerDir string) error {
 	info, err := os.Stat(in.Src)
 	if err != nil {
 		return errors.Wrap(err, "src is not found")
@@ -220,22 +201,22 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 	args := e.buildArgs(in, layerDir, platformDir, tarballPath)
 	args = append(args, e.cnbBuilderImage)
 	log.Info("执行云原生构建", "args", args)
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func (e *DockerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarballPath string) []string {
+func (e *ContainerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarballPath string) []string {
 	args := []string{
 		"run", "--rm",
 		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", in.RequiredBuildpacks),
 		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", in.OutputImage),
-		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage()),
+		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage(e.runtime.Platform)),
 		"-e", "SOURCE_GET_URL=file:///tmp/source.tgz",
 		"-e", "USE_DOCKER_DAEMON=1",
 		"-e", "CNB_PLATFORM_API=0.11",
-		"-e", "CNB_BUILDPACK_ALIASES=" + buildpackAliases(),
+		"-e", "CNB_BUILDPACK_ALIASES=" + e.runtime.BuildpackAliases,
 	}
 	// 缓存镜像：只在显式配置 cache registry 时启用，避免默认依赖外部仓库。
 	if in.CacheRegistry != "" {
@@ -246,22 +227,18 @@ func (e *DockerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarball
 		}
 	}
 	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
-	if pf := targetPlatform(); pf != "" {
+	if pf := e.runtime.Platform; pf != "" {
 		args = append(args, "--platform", pf)
 	}
-	// 容器运行时 socket；默认 docker.sock，podman 通过 BKS_DOCKER_SOCK 覆盖。
-	sock := os.Getenv("BKS_DOCKER_SOCK")
-	if sock == "" {
-		sock = "/var/run/docker.sock"
-	}
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", sock))
+	// 容器运行时 socket：podman/pind 使用解析后的 rootful/rootless socket。
+	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", e.runtime.Socket))
 	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
 	// 业务 env 走 /platform/env；lifecycle 只放行白名单环境变量，不能依赖 -e。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
 	// 源码以只读 tar 挂入容器，避免修改宿主源码目录。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
 	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
-	if exportMode() == exportModeDaemon {
+	if e.runtime.ExportMode == container.ExportDaemon {
 		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
 	} else {
 		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
@@ -269,22 +246,20 @@ func (e *DockerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarball
 		args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s", in.ArchiveName))
 	}
 	// run image 以 docker-archive 形式挂入，避免容器内再访问 daemon。
-	if archive := os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE"); archive != "" {
+	if archive := e.runImageArchive; archive != "" {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
 		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
 	}
-	// 网络模式：BKS_NETWORK=host 可访问宿主机内网镜像源。
-	if net := os.Getenv("BKS_NETWORK"); net != "" {
+	// 网络模式：host 可访问宿主机内网镜像源。
+	if net := e.runtime.Network; net != "" {
 		args = append(args, "--network", net)
 	}
-	// 额外挂载：BKS_EXTRA_MOUNTS 以空格分隔，原样传给运行时。
-	for extra := range strings.FieldsSeq(os.Getenv("BKS_EXTRA_MOUNTS")) {
-		args = append(args, extra)
-	}
+	// 额外挂载已由容器配置解析，原样传给运行时。
+	args = append(args, e.runtime.ExtraMounts...)
 	return args
 }
 
-func (e *DockerExecutor) exportArchive(ctx context.Context, workspace, archiveName, image string) error {
+func (e *ContainerExecutor) exportArchive(ctx context.Context, workspace, archiveName, image string) error {
 	layerDir := filepath.Join(workspace, "layers")
 	if err := os.MkdirAll(layerDir, 0o755); err != nil {
 		return err
@@ -297,24 +272,24 @@ func (e *DockerExecutor) exportArchive(ctx context.Context, workspace, archiveNa
 		}
 		return os.Remove(produced)
 	}
-	args := saveArgs(e.dockerExecPath, filepath.Join(workspace, archiveName), image)
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	args := e.runtime.SaveArgs(filepath.Join(workspace, archiveName), image)
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func (e *DockerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
+func (e *ContainerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
 	return e.exportArchive(ctx, workspace, step.ModuleName+".tgz", step.OutputImage())
 }
 
-func (e *DockerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
+func (e *ContainerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
 	return e.exportArchive(ctx, workspace, group.OutputImageTarName, group.OutputImage())
 }
 
-func (e *DockerExecutor) buildSMartPackageV2(_ context.Context, workspace string) error {
+func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace string) error {
 	if e.plan.Architecture == "" {
-		if pf := targetPlatform(); pf != "" {
+		if pf := e.runtime.Platform; pf != "" {
 			_, arch := splitPlatform(pf)
 			e.plan.Architecture = arch
 		} else {
@@ -356,7 +331,7 @@ func (e *DockerExecutor) buildSMartPackageV2(_ context.Context, workspace string
 	return nil
 }
 
-func (e *DockerExecutor) buildSMartPackage(_ context.Context, workspace string) error {
+func (e *ContainerExecutor) buildSMartPackage(_ context.Context, workspace string) error {
 	// 构建期中间产物，不进 s-mart
 	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
 	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
@@ -432,52 +407,17 @@ func tarDir(src, dest string) error {
 }
 
 // exportFakeRunnerArchive 把 fake runner 导出为 docker-archive，供容器内使用。
-func (e *DockerExecutor) exportFakeRunnerArchive(ctx context.Context, workspace string) error {
+func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context, workspace string) error {
 	path := filepath.Join(workspace, "run-image.tar")
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, "image", "save", "-o", path, fakeRunnerImage())
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, "image", "save", "-o", path, fakeRunnerImage(e.runtime.Platform))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return err
 	}
-	return os.Setenv("BKS_RUN_IMAGE_ARCHIVE_FILE", path)
+	e.runImageArchive = path
+	return nil
 }
-
-// defaultBuildpackAliases 是 BK 名称到 order id 的映射；
-// 可用 BKS_BUILDPACK_ALIASES 覆盖（格式 a=b,c=d）。
-const defaultBuildpackAliases = "bk-buildpack-go=paketo-buildpacks/go," +
-	"bk-buildpack-nodejs=paketo-buildpacks/nodejs," +
-	"bk-buildpack-python=paketo-buildpacks/python"
-
-// buildpackAliases 返回注入给 cnb 的别名表。
-func buildpackAliases() string {
-	if v := os.Getenv("BKS_BUILDPACK_ALIASES"); v != "" {
-		return v
-	}
-	return defaultBuildpackAliases
-}
-
-// saveArgs 生成镜像导出参数。
-// podman 使用 --format oci-archive 直接产出 OCI layout（蓝鲸平台期望的格式）；
-// docker 无该参数，保持默认（容器存储为 containerd 时本身即 OCI layout）。
-func saveArgs(runtime, dest, image string) []string {
-	args := []string{"image", "save"}
-	if filepath.Base(runtime) == "podman" {
-		args = append(args, "--format", "oci-archive")
-	}
-	return append(args, "-o", dest, image)
-}
-
-// exportMode 返回导出模式（BKS_EXPORT_MODE，默认 layout）。
-func exportMode() string {
-	if mode := os.Getenv("BKS_EXPORT_MODE"); mode == exportModeDaemon {
-		return "daemon"
-	}
-	return "layout"
-}
-
-// targetPlatform 返回 BKS_PLATFORM（如 linux/arm64），未设置时为空。
-func targetPlatform() string { return os.Getenv("BKS_PLATFORM") }
 
 // splitPlatform 拆分 os/arch。
 func splitPlatform(p string) (string, string) {
@@ -488,8 +428,8 @@ func splitPlatform(p string) (string, string) {
 }
 
 // fakeRunnerImage 按目标平台返回 fake runner 镜像名，避免架构间互相覆盖。
-func fakeRunnerImage() string {
-	if pf := targetPlatform(); pf != "" {
+func fakeRunnerImage(platform string) string {
+	if pf := platform; pf != "" {
 		return cnbFakeRunnerImageBase + ":" + strings.ReplaceAll(pf, "/", "-")
 	}
 	return cnbFakeRunnerImageBase + ":latest"
