@@ -1,5 +1,11 @@
 package builder
 
+import (
+	"github.com/samber/lo"
+
+	"bksmartpacker/pkg/types"
+)
+
 // 本地 order 只包含以下 Paketo 组件；不再兼容 BK 自带 buildpack。
 const (
 	BuildpackGo     = "paketo-buildpacks/go"
@@ -21,4 +27,17 @@ func GetDefaultBuildpacks() map[string]Buildpack {
 		"NodeJS": {Name: BuildpackNodeJS},
 		"Python": {Name: BuildpackPython},
 	}
+}
+
+// generateModuleBuildpacks 生成模块需要的 buildpacks。
+func generateModuleBuildpacks(_ string, moduleDesc *types.ModuleDescription) []Buildpack {
+	if len(moduleDesc.Spec.Build.Buildpacks) > 0 {
+		return lo.Map(moduleDesc.Spec.Build.Buildpacks, func(item types.Buildpack, _ int) Buildpack {
+			return Buildpack{Name: item.Name, Version: item.Version}
+		})
+	}
+	if bp, ok := GetDefaultBuildpacks()[moduleDesc.Language]; ok {
+		return []Buildpack{bp}
+	}
+	return nil
 }

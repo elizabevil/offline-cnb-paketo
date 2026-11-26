@@ -59,7 +59,7 @@ var (
 	// v1 保留旧的每模块 tgz，仅用于兼容旧平台/旧产物。
 	packagingVersion = flag.String("packaging-version", builder.PackagingVersionV2, "s-mart 打包方案: v1(旧) | v2(默认，构建组+artifact)")
 	// baseImageID 是平台侧 SMART_CNB_IMAGE_CONF 的 key；构建器不选择、不拉取 base image。
-	baseImageID = flag.String("base-image-id", "default", "artifact.json 的 runtime.base_image_id（平台 base image 配置的 key）")
+	baseImageID = flag.String("base-image-id", builder.DefaultBaseImageID, "artifact.json 的 runtime.base_image_id（平台 base image 配置的 key）")
 	// architecture 是目标镜像架构，必须与镜像内容一致；默认按 BKS_PLATFORM/宿主推断。
 	architecture = flag.String("architecture", "", "artifact.json 的 runtime.architecture，默认按目标平台推断")
 	// allowPartial 只用于调试；部分包缺少 app_desc 声明的其他模块，平台部署会失败。
