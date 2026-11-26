@@ -88,7 +88,10 @@ for f in project/*/pipeline.toml; do
 done
 
 phase "buildpack 结构检查"
-"$CNB" buildpack lint buildpacks/*/*
+for dir in buildpacks/*/*/; do
+  [ -f "$dir/buildpack.toml" ] || continue
+  "$CNB" buildpack lint "$dir"
+done
 
 if [ "$HAVE_BUNDLE" = 1 ]; then
   phase "流水线 lint"
