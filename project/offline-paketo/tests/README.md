@@ -1,4 +1,18 @@
 # offline-paketo 测试
 
-项目级测试目录。当前通用 e2e 仍在仓库根 `test/`，
-后续 runtime 抽离后把 runtime 相关用例迁移到这里。
+## 入口
+
+```bash
+just test-quick
+```
+
+`quick.sh` 执行 builder 构建和 pipeline plan 冒烟，不依赖 run image。
+完整 lifecycle e2e 仍使用：
+
+```bash
+just test-case /path/to/app
+```
+
+## 历史
+
+项目级测试从通用 `test/` 逐步迁移到这里。

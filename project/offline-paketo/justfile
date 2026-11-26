@@ -10,6 +10,9 @@ _profile_env := env_var_or_default("CNB_PROFILE", "")
 # 物料清单：仓库级 project/assets.toml（脚手架生成的项目会改写为本地 assets.toml）
 _manifest := env_var_or_default("CNB_ASSETS", _dir / ".." / "assets.toml")
 _profile := if _profile_env == "" { _root / "project" / "offline-paketo" / "pipeline.toml" } else if _profile_env =~ '^/' { _profile_env } else { _root / _profile_env }
+_host_platform := "linux-" + (if arch() == "aarch64" { "arm64" } else { "amd64" })
+_platform := env_var_or_default("PLATFORM", _host_platform)
+_fx := _dir / "fixtures" / "go-app"
 
 _default:
     @just --list
@@ -38,6 +41,10 @@ fixtures *args:
 # 对本项目夹具跑 e2e（detect → build → analyze → export）
 test *args:
     @just --justfile {{_dir}}/fixtures/justfile test-all {{args}}
+
+# 开发期快速验证：builder + plan 冒烟
+test-quick app="" platform="": build
+    @BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/quick.sh
 
 # 对任意应用目录跑一次 e2e：just test-case /path/to/app
 test-case dir *args:

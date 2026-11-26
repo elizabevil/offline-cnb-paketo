@@ -141,16 +141,16 @@ runtime-pind-bundle:
         {{_root}}/bundle/{{_platform}}/images/runtime-pind.tar.sha256
 
 # 开发期快速打包验证
-test-quick app=_fx platform=_platform:
-    @{{_dir}}/tests/quick.sh "{{app}}" "{{platform}}"
+test-quick app="" platform="":
+    @BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/quick.sh
 
 # layout / daemon 导出对比
-test-export-modes app=_fx platform=_platform:
-    @{{_dir}}/tests/export-modes.sh "{{app}}" "{{platform}}"
+test-export-modes app="" platform="":
+    @BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/export-modes.sh
 
 # runtime 组合矩阵入口
-test-runtime-matrix app=_fx platform=_platform:
-    @{{_dir}}/tests/matrix.sh "{{app}}" "{{platform}}"
+test-runtime-matrix app="" platform="":
+    @BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/matrix.sh
 
 # 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:

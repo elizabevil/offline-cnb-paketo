@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# layout / daemon 导出对比；日志写入 .cache/tests/offline-paketo-bk/<platform>/
+# layout / daemon 导出对比；可通过 BKS_APP / BKS_PLATFORM 覆盖默认值。
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
-  echo "usage: export-modes.sh <app-dir> <platform>" >&2
-  exit 2
-fi
-
-APP=$1
-PLATFORM=$2
 DIR=$(cd "$(dirname "$0")" && pwd)
 PB=$(cd "$DIR/.." && pwd)
 ROOT=$(cd "$PB/../.." && pwd)
+APP="$PB/fixtures/single"
+PLATFORM="linux-amd64"
+[ -n "${BKS_APP:-}" ] && APP="$BKS_APP"
+[ -n "${BKS_PLATFORM:-}" ] && PLATFORM="$BKS_PLATFORM"
 OUT="$ROOT/.cache/tests/offline-paketo-bk/$PLATFORM"
 mkdir -p "$OUT"
 

@@ -65,6 +65,7 @@ check: _ensure_tools
       rm -rf "$tmp"
     @echo "── shell 语法 ──"
     @bash -n {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ bash -n 通过"
+    @find {{_script}}/../project/*/tests {{_script}}/tools/cnb/tests -type f -name '*.sh' -print0 2>/dev/null | xargs -0 -r bash -n && echo "  ✓ test scripts bash -n 通过"
     @echo "── go 静态检查 ──"
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \

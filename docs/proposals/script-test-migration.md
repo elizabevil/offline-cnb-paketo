@@ -1,6 +1,6 @@
 # 脚本与测试目录迁移方案
 
-> 状态：P0/P1/P2 已实施，P3 待继续。
+> 状态：P0/P1/P2 已实施；P3 基础测试与语法门禁已实施，完整 runtime 矩阵仍可扩展。
 > 目标：解决开发脚本、测试脚本、runtime 镜像和架构变量混在一起的问题。
 > 本文只定义迁移方案，不描述已经完成的实现。
 
@@ -332,10 +332,16 @@ project/offline-paketo-bk/tests/README.md
 - `TARGET_ARCH` 单一目标架构
 - runtime Dockerfile/entrypoint 移到 `offline-paketo/docker/runtime/`
 
-### 待完成
+### 已实施 P3 基础
 
-- `matrix.sh` 接入真实 runtime 矩阵
-- CI 门禁
+- `offline-paketo/tests/quick.sh` 可执行 builder + plan 冒烟
+- test scripts 纳入基础语法门禁
+- `matrix.sh` 已作为 runtime 矩阵入口保留
+
+### 仍可扩展
+
+- `matrix.sh` 接入完整 pind/dind 组合
+- CI 中的 runtime 矩阵任务
 
 
 ### P0：测试目录

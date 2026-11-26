@@ -19,7 +19,12 @@ fixtures:
     @echo "  ✓ procfile-app/app"
 
 # 全部快速测试（单测 + 契约）
-test: test-unit test-contract
+test: test-unit test-contract test-scripts
+
+# 脚本语法检查
+test-scripts:
+    @find {{_test}}/../project/*/tests {{_test}}/../script/tools/cnb/tests -type f -name '*.sh' -print0 2>/dev/null | xargs -0 -r bash -n
+    @echo "  ✓ test scripts syntax"
 
 # Go 单测
 test-unit:
