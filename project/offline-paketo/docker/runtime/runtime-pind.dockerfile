@@ -15,7 +15,7 @@ COPY --from=bundle /${BUNDLE_ARCH}/binaries/podman-static/${PODMAN_STATIC_VERSIO
 RUN tar -xzf /tmp/podman-static.tar.gz --strip-components=1 -C / \
     && rm -f /tmp/podman-static.tar.gz
 
-COPY docker/runtime-pind-entrypoint.sh /usr/local/bin/runtime-pind-entrypoint
+COPY --from=runtime runtime-pind-entrypoint.sh /usr/local/bin/runtime-pind-entrypoint
 RUN chmod +x /usr/local/bin/runtime-pind-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/runtime-pind-entrypoint"]

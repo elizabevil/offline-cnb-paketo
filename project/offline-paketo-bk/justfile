@@ -53,7 +53,6 @@ _out  := env_var_or_default("S_MART_OUT", _dir / "dist" / _platform)
 # 下载代理：优先 CNB_DOWNLOAD_PROXY，其次标准 HTTPS_PROXY/HTTP_PROXY
 _download_proxy := env_var_or_default("CNB_DOWNLOAD_PROXY", env_var_or_default("HTTPS_PROXY", env_var_or_default("https_proxy", env_var_or_default("HTTP_PROXY", env_var_or_default("http_proxy", "")))))
 _download_proxy_env := if _download_proxy != "" { "http_proxy=" + _download_proxy + " https_proxy=" + _download_proxy + " " } else { "" }
-_arch := if arch() == "aarch64" { "arm64" } else { "amd64" }
 _target_arch := if _platform == "linux-arm64" { "arm64" } else { "amd64" }
 _runtime_base := if _platform == "linux-arm64" { "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim-linuxarm64" } else { "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 _platform_flag := " --platform " + _platform
@@ -108,11 +107,12 @@ runtime-dind-bundle:
     @test -f {{_root}}/bundle/{{_platform}}/binaries/docker/27.0.3/docker/dockerd || \
         { echo "  ✗ 缺少 docker 物料：请先 cnb materials sync docker"; exit 1; }
     @mkdir -p {{_root}}/bundle/{{_platform}}/images
-    @podman build --platform linux/{{_target_arch}} -f {{_dir}}/docker/runtime-dind.dockerfile \
+    @podman build --platform linux/{{_target_arch}} -f {{_root}}/project/offline-paketo/docker/runtime/runtime-dind.dockerfile \
         --build-arg BASE_IMAGE_TAG={{_runtime_base}} \
         --build-arg BUNDLE_ARCH={{_platform}} \
         --build-arg DOCKER_VERSION=27.0.3 \
         --build-context bundle={{_root}}/bundle \
+        --build-context runtime={{_root}}/project/offline-paketo/docker/runtime \
         -t offline-runtime-dind-bk:{{_target_arch}} {{_dir}}
     @podman save --format oci-archive \
         -o {{_root}}/bundle/{{_platform}}/images/runtime-dind.tar \
@@ -126,12 +126,13 @@ runtime-pind-bundle:
         { echo "  ✗ 缺少静态 podman bundle，请先放入 bundle/{{_platform}}/binaries/podman-static/6.2.1/"; exit 1; }
     @(cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum -c podman-linux-{{_target_arch}}.tar.gz.sha256)
     @mkdir -p {{_root}}/bundle/{{_platform}}/images
-    @podman build --platform linux/{{_target_arch}} -f {{_dir}}/docker/runtime-pind.dockerfile \
+    @podman build --platform linux/{{_target_arch}} -f {{_root}}/project/offline-paketo/docker/runtime/runtime-pind.dockerfile \
         --build-arg BASE_IMAGE_TAG={{_runtime_base}} \
         --build-arg BUNDLE_ARCH={{_platform}} \
         --build-arg PODMAN_STATIC_VERSION=6.2.1 \
         --build-arg PODMAN_STATIC_ARCH={{_target_arch}} \
         --build-context bundle={{_root}}/bundle \
+        --build-context runtime={{_root}}/project/offline-paketo/docker/runtime \
         -t offline-runtime-pind-bk:{{_target_arch}} {{_dir}}
     @podman save --format oci-archive \
         -o {{_root}}/bundle/{{_platform}}/images/runtime-pind.tar \

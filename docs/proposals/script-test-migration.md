@@ -1,6 +1,6 @@
 # 脚本与测试目录迁移方案
 
-> 状态：待实施。
+> 状态：P0/P1/P2 已实施，P3 待继续。
 > 目标：解决开发脚本、测试脚本、runtime 镜像和架构变量混在一起的问题。
 > 本文只定义迁移方案，不描述已经完成的实现。
 
@@ -323,6 +323,20 @@ project/offline-paketo-bk/tests/README.md
 旧文件名不再保留。
 
 ## 8. 迁移阶段
+
+### 已完成
+
+- 各子项目 `tests/` 目录
+- `run-test.sh` → `tests/quick.sh`
+- justfile 默认值与根入口
+- `TARGET_ARCH` 单一目标架构
+- runtime Dockerfile/entrypoint 移到 `offline-paketo/docker/runtime/`
+
+### 待完成
+
+- `matrix.sh` 接入真实 runtime 矩阵
+- CI 门禁
+
 
 ### P0：测试目录
 

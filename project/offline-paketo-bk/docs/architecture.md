@@ -270,7 +270,7 @@ podman volume rm -f cnb-runtime-podman
 
 ### runtime-dind
 
-runtime-dind 基于静态 Docker bundle + Debian base：
+runtime-dind 基于静态 Docker bundle + Debian base，Dockerfile 位于 `project/offline-paketo/docker/runtime/`：
 
 ```text
 bundle/<platform>/images/runtime-dind.tar

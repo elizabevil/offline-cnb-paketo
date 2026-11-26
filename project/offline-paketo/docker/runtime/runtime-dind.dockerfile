@@ -12,7 +12,7 @@ ARG DOCKER_VERSION
 # 复用已有 docker 物料（静态 Docker CLI + dockerd 依赖包），不依赖 Docker 镜像。
 COPY --from=bundle /${BUNDLE_ARCH}/binaries/docker/${DOCKER_VERSION}/docker/ /usr/local/bin/
 
-COPY docker/runtime-dind-entrypoint.sh /usr/local/bin/runtime-dind-entrypoint
+COPY --from=runtime runtime-dind-entrypoint.sh /usr/local/bin/runtime-dind-entrypoint
 RUN chmod +x /usr/local/bin/runtime-dind-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/runtime-dind-entrypoint"]
