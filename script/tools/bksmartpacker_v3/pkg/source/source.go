@@ -1,4 +1,4 @@
-package builder
+package source
 
 import (
 	"archive/tar"
@@ -13,8 +13,8 @@ import (
 
 const procfileName = "Procfile"
 
-// BuildSourceTarball 把源码目录打成 tar.gz，并写入生成的 Procfile。
-func BuildSourceTarball(src, procfileContent, destPath string) error {
+// Build 把源码目录打成 tar.gz，并写入生成的 Procfile。
+func Build(src, procfileContent, destPath string) error {
 	procfilePath := filepath.Join(src, procfileName)
 	// 每次构建都重写 Procfile，避免不同模块共用源码目录时互相影响。
 	if err := os.WriteFile(procfilePath, []byte(procfileContent), 0o755); err != nil {

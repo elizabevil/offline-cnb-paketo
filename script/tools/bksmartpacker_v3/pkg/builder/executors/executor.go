@@ -13,22 +13,24 @@ import (
 
 	"github.com/pkg/errors"
 
-	"bksmartpacker/pkg/builder"
 	"bksmartpacker/pkg/container"
+	"bksmartpacker/pkg/env"
 	"bksmartpacker/pkg/log"
+	"bksmartpacker/pkg/plan"
+	"bksmartpacker/pkg/source"
 	"bksmartpacker/pkg/utils"
 )
 
 // ContainerExecutor 使用 docker 或 podman 执行构建计划。
 type ContainerExecutor struct {
-	plan            builder.BuildPlan
+	plan            plan.BuildPlan
 	runtime         container.Config
 	cnbBuilderImage string
 	runImageArchive string
 }
 
 // NewContainerExecutor 使用已解析的运行时配置创建执行器。
-func NewContainerExecutor(plan builder.BuildPlan, runtimeCfg container.Config) (*ContainerExecutor, error) {
+func NewContainerExecutor(plan plan.BuildPlan, runtimeCfg container.Config) (*ContainerExecutor, error) {
 	builderImage := DefaultCNBBuilderImage
 	if plan.BuilderImage != "" {
 		builderImage = plan.BuilderImage
@@ -64,7 +66,7 @@ func (e *ContainerExecutor) Execute() error {
 		return err
 	}
 
-	if e.plan.PackagingVersion == builder.PackagingVersionV2 {
+	if e.plan.PackagingVersion == plan.PackagingVersionV2 {
 		for _, group := range e.plan.Groups {
 			if err := e.buildGroup(ctx, group, layerDir); err != nil {
 				return errors.Wrapf(err, "failed to build group<%s>", group.ModuleName)
@@ -136,7 +138,7 @@ type buildInput struct {
 	Envs               map[string]string
 }
 
-func (e *ContainerExecutor) buildStep(ctx context.Context, step *builder.ModuleBuildStep, layerDir string) error {
+func (e *ContainerExecutor) buildStep(ctx context.Context, step *plan.ModuleBuildStep, layerDir string) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               step.ModuleName,
 		Src:                step.Src,
@@ -150,7 +152,7 @@ func (e *ContainerExecutor) buildStep(ctx context.Context, step *builder.ModuleB
 	}, layerDir)
 }
 
-func (e *ContainerExecutor) buildGroup(ctx context.Context, group *builder.ModuleBuildGroup, layerDir string) error {
+func (e *ContainerExecutor) buildGroup(ctx context.Context, group *plan.ModuleBuildGroup, layerDir string) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               group.ModuleName,
 		Src:                group.Src,
@@ -180,7 +182,7 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput, layerDi
 			return errors.Wrap(err, "failed to archive src")
 		}
 		_ = os.Remove(fh.Name())
-		if err := builder.BuildSourceTarball(in.Src, in.Procfile, fh.Name()); err != nil {
+		if err := source.Build(in.Src, in.Procfile, fh.Name()); err != nil {
 			return errors.Wrap(err, "failed to archive src")
 		}
 		tarballPath = fh.Name()
@@ -194,7 +196,7 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput, layerDi
 	if err := os.Chmod(platformDir, 0o755); err != nil {
 		return errors.Wrap(err, "failed to chmod platform dir")
 	}
-	if err := writePlatformEnv(platformDir, in.Envs); err != nil {
+	if err := env.WritePlatform(platformDir, in.Envs); err != nil {
 		return errors.Wrap(err, "failed to write platform env")
 	}
 
@@ -279,11 +281,11 @@ func (e *ContainerExecutor) exportArchive(ctx context.Context, workspace, archiv
 	return cmd.Run()
 }
 
-func (e *ContainerExecutor) exportImageLayer(ctx context.Context, workspace string, step *builder.ModuleBuildStep) error {
+func (e *ContainerExecutor) exportImageLayer(ctx context.Context, workspace string, step *plan.ModuleBuildStep) error {
 	return e.exportArchive(ctx, workspace, step.ModuleName+".tgz", step.OutputImage())
 }
 
-func (e *ContainerExecutor) exportGroupImage(ctx context.Context, workspace string, group *builder.ModuleBuildGroup) error {
+func (e *ContainerExecutor) exportGroupImage(ctx context.Context, workspace string, group *plan.ModuleBuildGroup) error {
 	return e.exportArchive(ctx, workspace, group.OutputImageTarName, group.OutputImage())
 }
 
@@ -309,7 +311,7 @@ func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace str
 			return errors.Wrapf(err, "failed to copy logo %s", e.plan.LogoFileName)
 		}
 	}
-	artifact, err := builder.BuildArtifactJSON(&e.plan)
+	artifact, err := plan.BuildArtifactJSON(&e.plan)
 	if err != nil {
 		return errors.Wrap(err, "failed to build artifact.json")
 	}
@@ -433,42 +435,4 @@ func fakeRunnerImage(platform string) string {
 		return cnbFakeRunnerImageBase + ":" + strings.ReplaceAll(pf, "/", "-")
 	}
 	return cnbFakeRunnerImageBase + ":latest"
-}
-
-// writePlatformEnv 把环境变量写成 <platform>/env/<KEY> 文件。
-func writePlatformEnv(platformDir string, envs map[string]string) error {
-	envDir := filepath.Join(platformDir, "env")
-	if err := os.MkdirAll(envDir, 0o755); err != nil {
-		return err
-	}
-	if err := os.Chmod(envDir, 0o755); err != nil {
-		return err
-	}
-	for key, value := range envs {
-		if !validEnvKey(key) {
-			return fmt.Errorf("invalid env key %q", key)
-		}
-		if strings.ContainsAny(value, "\n\r") {
-			return fmt.Errorf("env %s contains newline", key)
-		}
-		if err := os.WriteFile(filepath.Join(envDir, key), []byte(value), 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validEnvKey(key string) bool {
-	if key == "" {
-		return false
-	}
-	for i, r := range key {
-		switch {
-		case r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z'):
-		case i > 0 && r >= '0' && r <= '9':
-		default:
-			return false
-		}
-	}
-	return true
 }

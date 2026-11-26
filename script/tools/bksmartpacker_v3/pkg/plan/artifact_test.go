@@ -1,4 +1,4 @@
-package builder
+package plan
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package builder
+package env
 
 import (
 	"bufio"
@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// LoadEnvFile 解析 dotenv 文件：KEY=VALUE，支持空行与 # 注释。
-func LoadEnvFile(path string) (map[string]string, error) {
+// LoadFile 解析 dotenv 文件：KEY=VALUE，支持空行与 # 注释。
+func LoadFile(path string) (map[string]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func LoadEnvFile(path string) (map[string]string, error) {
 			return nil, fmt.Errorf("%s:%d: missing '='", path, lineNo)
 		}
 		key = strings.TrimSpace(key)
-		if !validEnvKey(key) {
+		if !ValidKey(key) {
 			return nil, fmt.Errorf("%s:%d: invalid key %q", path, lineNo, key)
 		}
 		value = strings.TrimSpace(value)
@@ -42,20 +42,4 @@ func LoadEnvFile(path string) (map[string]string, error) {
 		return nil, err
 	}
 	return out, nil
-}
-
-// validEnvKey 校验环境变量名。
-func validEnvKey(key string) bool {
-	if key == "" {
-		return false
-	}
-	for i, r := range key {
-		switch {
-		case r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z'):
-		case i > 0 && r >= '0' && r <= '9':
-		default:
-			return false
-		}
-	}
-	return true
 }

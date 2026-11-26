@@ -1,8 +1,6 @@
-package builder
+package plan
 
 const (
-	// BuildpackTypeOCIEmbedded 表示 buildpack 已嵌入 builder 镜像。
-	BuildpackTypeOCIEmbedded = "oci-embedded"
 	// PackagingVersionV1 是旧的每模块 tgz 方案。
 	PackagingVersionV1 = "v1"
 	// PackagingVersionV2 是构建组 + artifact.json 方案。

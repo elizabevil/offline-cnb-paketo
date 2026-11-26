@@ -1,9 +1,10 @@
-package builder
+package plan
 
 import (
 	"maps"
 	"strings"
 
+	"bksmartpacker/pkg/buildpack"
 	"bksmartpacker/pkg/types"
 )
 
@@ -49,7 +50,7 @@ func buildGroups(modules []types.ModuleDescription, plan *BuildPlan) error {
 	return nil
 }
 
-func groupKey(sourceDir string, buildpacks []Buildpack) string {
+func groupKey(sourceDir string, buildpacks []buildpack.Buildpack) string {
 	parts := make([]string, 0, 1+len(buildpacks)*3)
 	parts = append(parts, sourceDir)
 	for _, bp := range buildpacks {

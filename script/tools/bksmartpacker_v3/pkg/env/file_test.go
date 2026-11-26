@@ -1,4 +1,4 @@
-package builder
+package env
 
 import (
 	"os"
@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-func TestLoadEnvFile(t *testing.T) {
+func TestLoadFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "build.env")
 	content := "# comment\nA=1\nB=\"two words\"\n\nC=\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m, err := LoadEnvFile(path)
+	m, err := LoadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,13 +22,13 @@ func TestLoadEnvFile(t *testing.T) {
 	}
 }
 
-func TestLoadEnvFileInvalid(t *testing.T) {
+func TestLoadFileInvalid(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.env")
 	if err := os.WriteFile(path, []byte("1A=x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadEnvFile(path); err == nil {
+	if _, err := LoadFile(path); err == nil {
 		t.Fatal("expected error for invalid key")
 	}
 }

@@ -1,4 +1,4 @@
-package builder
+package env
 
 import (
 	"maps"
@@ -9,8 +9,8 @@ import (
 	"bksmartpacker/pkg/types"
 )
 
-// mergeEnvs 合并 app_desc 环境变量与命令行注入项，后者覆盖前者。
-func mergeEnvs(declared []types.AppEnvVar, extra []string) map[string]string {
+// Merge 合并 app_desc 环境变量与命令行注入项，后者覆盖前者。
+func Merge(declared []types.AppEnvVar, extra []string) map[string]string {
 	out := lo.Associate(declared, func(item types.AppEnvVar) (string, string) {
 		return item.Name, item.Value
 	})
@@ -24,11 +24,11 @@ func mergeEnvs(declared []types.AppEnvVar, extra []string) map[string]string {
 	return out
 }
 
-// mergeModuleEnvs 合并 app_desc、env-file、CLI 三层，后者覆盖前者。
-func mergeModuleEnvs(declared []types.AppEnvVar, envFiles []string, extra []string) (map[string]string, error) {
-	out := mergeEnvs(declared, nil)
+// MergeModule 合并 app_desc、env-file、CLI 三层，后者覆盖前者。
+func MergeModule(declared []types.AppEnvVar, envFiles []string, extra []string) (map[string]string, error) {
+	out := Merge(declared, nil)
 	for _, path := range envFiles {
-		values, err := LoadEnvFile(path)
+		values, err := LoadFile(path)
 		if err != nil {
 			return nil, err
 		}

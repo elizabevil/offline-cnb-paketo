@@ -1,4 +1,4 @@
-package builder
+package appdesc
 
 import (
 	"fmt"
@@ -18,9 +18,9 @@ const (
 	appDescAltFileName = "app_desc.yml"
 )
 
-// loadAppDesc 读取并解析 app_desc.yaml。
-func loadAppDesc(src string) (types.ApplicationDescription, string, error) {
-	if err := ensureAppDescYaml(src); err != nil {
+// Load 读取并解析 app_desc.yaml。
+func Load(src string) (types.ApplicationDescription, string, error) {
+	if err := ensureYAML(src); err != nil {
 		return types.ApplicationDescription{}, "", errors.Wrap(err, appDescFileName+" not found")
 	}
 
@@ -36,7 +36,7 @@ func loadAppDesc(src string) (types.ApplicationDescription, string, error) {
 }
 
 // ensureAppDescYaml 保证 app_desc.yaml 存在；兼容 app_desc.yml。
-func ensureAppDescYaml(src string) error {
+func ensureYAML(src string) error {
 	path := filepath.Join(src, appDescFileName)
 	if _, err := os.Stat(path); err == nil {
 		return nil
@@ -54,8 +54,8 @@ func ensureAppDescYaml(src string) error {
 	return os.Remove(alt)
 }
 
-// filterModules 按 --module 过滤模块；部分包默认禁止生成。
-func filterModules(appDesc *types.ApplicationDescription, modules []string, allowPartial bool) error {
+// Filter 按 --module 过滤模块；部分包默认禁止生成。
+func Filter(appDesc *types.ApplicationDescription, modules []string, allowPartial bool) error {
 	if len(modules) == 0 {
 		return nil
 	}
@@ -75,28 +75,4 @@ func filterModules(appDesc *types.ApplicationDescription, modules []string, allo
 	}
 	appDesc.Modules = filtered
 	return nil
-}
-
-// newBuildPlan 初始化构建计划的基础字段。
-func newBuildPlan(appDesc types.ApplicationDescription, rawAppDesc, logoFileName string, params *types.Params) BuildPlan {
-	packagingVersion := params.PackagingVersion
-	if packagingVersion == "" {
-		packagingVersion = PackagingVersionV2
-	}
-	baseImageID := params.BaseImageID
-	if baseImageID == "" {
-		baseImageID = DefaultBaseImageID
-	}
-	return BuildPlan{
-		AppCode:          appDesc.AppInfo.Code,
-		AppDescContent:   rawAppDesc,
-		LogoFileName:     logoFileName,
-		Src:              params.Src,
-		Dest:             params.Dest,
-		BuilderImage:     params.BuilderImage,
-		PackagingVersion: packagingVersion,
-		BaseImageID:      baseImageID,
-		Architecture:     params.Architecture,
-		ModuleProcesses:  map[string][]ModuleProcess{},
-	}
 }

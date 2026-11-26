@@ -1,4 +1,4 @@
-package builder
+package buildpack
 
 import (
 	"github.com/samber/lo"
@@ -13,6 +13,9 @@ const (
 	BuildpackPython = "paketo-buildpacks/python"
 )
 
+// TypeOCIEmbedded 表示 buildpack 已嵌入 builder 镜像。
+const TypeOCIEmbedded = "oci-embedded"
+
 // Buildpack 描述一个 buildpack 条目。
 type Buildpack struct {
 	Name    string `json:"name"`
@@ -20,8 +23,8 @@ type Buildpack struct {
 	Type    string `json:"type,omitempty"`
 }
 
-// GetDefaultBuildpacks 返回语言到本地 order 的映射。
-func GetDefaultBuildpacks() map[string]Buildpack {
+// Defaults 返回语言到本地 order 的映射。
+func Defaults() map[string]Buildpack {
 	return map[string]Buildpack{
 		"Go":     {Name: BuildpackGo},
 		"NodeJS": {Name: BuildpackNodeJS},
@@ -29,14 +32,14 @@ func GetDefaultBuildpacks() map[string]Buildpack {
 	}
 }
 
-// generateModuleBuildpacks 生成模块需要的 buildpacks。
-func generateModuleBuildpacks(_ string, moduleDesc *types.ModuleDescription) []Buildpack {
+// ForModule 生成模块需要的 buildpacks。
+func ForModule(moduleDesc *types.ModuleDescription) []Buildpack {
 	if len(moduleDesc.Spec.Build.Buildpacks) > 0 {
 		return lo.Map(moduleDesc.Spec.Build.Buildpacks, func(item types.Buildpack, _ int) Buildpack {
 			return Buildpack{Name: item.Name, Version: item.Version}
 		})
 	}
-	if bp, ok := GetDefaultBuildpacks()[moduleDesc.Language]; ok {
+	if bp, ok := Defaults()[moduleDesc.Language]; ok {
 		return []Buildpack{bp}
 	}
 	return nil

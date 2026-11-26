@@ -1,8 +1,10 @@
-package builder
+package plan
 
 import (
 	"fmt"
 	"strings"
+
+	"bksmartpacker/pkg/buildpack"
 )
 
 // BuildPlan 是 bksmartpacker 的构建计划。
@@ -35,10 +37,10 @@ type ModuleBuildStep struct {
 	ModuleName string `json:"module_name"`
 	Version    string `json:"version"`
 	// Src 源码目录或源码压缩包的绝对路径
-	Src        string            `json:"src"`
-	Procfile   string            `json:"procfile"`
-	Buildpacks []Buildpack       `json:"buildpacks"`
-	Envs       map[string]string `json:"envs"`
+	Src        string                `json:"src"`
+	Procfile   string                `json:"procfile"`
+	Buildpacks []buildpack.Buildpack `json:"buildpacks"`
+	Envs       map[string]string     `json:"envs"`
 
 	CacheRegistry string `json:"cacheRegistry"`
 	RegistryAuth  string `json:"registryAuth"`
@@ -59,16 +61,16 @@ func (step ModuleBuildStep) OutputImage() string {
 
 // ModuleBuildGroup 是共享同一构建产物的模块集合。
 type ModuleBuildGroup struct {
-	AppCode            string            `json:"appCode"`
-	ModuleName         string            `json:"moduleName"`
-	ModuleNames        []string          `json:"moduleNames"`
-	Version            string            `json:"version"`
-	SourceDir          string            `json:"sourceDir"`
-	Src                string            `json:"src"`
-	Procfile           string            `json:"procfile"`
-	Buildpacks         []Buildpack       `json:"buildpacks"`
-	Envs               map[string]string `json:"envs"`
-	OutputImageTarName string            `json:"outputImageTarName"`
+	AppCode            string                `json:"appCode"`
+	ModuleName         string                `json:"moduleName"`
+	ModuleNames        []string              `json:"moduleNames"`
+	Version            string                `json:"version"`
+	SourceDir          string                `json:"sourceDir"`
+	Src                string                `json:"src"`
+	Procfile           string                `json:"procfile"`
+	Buildpacks         []buildpack.Buildpack `json:"buildpacks"`
+	Envs               map[string]string     `json:"envs"`
+	OutputImageTarName string                `json:"outputImageTarName"`
 
 	CacheRegistry string `json:"cacheRegistry"`
 	RegistryAuth  string `json:"registryAuth"`
@@ -93,12 +95,12 @@ type ModuleProcess struct {
 	Command string `json:"command"`
 }
 
-func requiredBuildpacks(buildpacks []Buildpack) string {
+func requiredBuildpacks(buildpacks []buildpack.Buildpack) string {
 	parts := make([]string, 0, len(buildpacks))
 	for _, bp := range buildpacks {
 		bpType := bp.Type
 		if bpType == "" {
-			bpType = BuildpackTypeOCIEmbedded
+			bpType = buildpack.TypeOCIEmbedded
 		}
 		parts = append(parts, bpType+" "+bp.Name)
 	}

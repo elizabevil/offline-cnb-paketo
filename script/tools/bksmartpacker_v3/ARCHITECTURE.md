@@ -8,19 +8,15 @@
 cmd/bksmartpacker
   ├── cli.go            Kong 结构体参数
   └── main.go           入口、inspect 分支
-pkg/builder
-  ├── plan.go           BuildPlan / Step / Group / Process
-  ├── prepare.go        构建计划编排
-  ├── appdesc.go        app_desc 读取、校验、过滤
-  ├── env.go            env-file 与三层 env 合并
-  ├── procfile.go       模块级 / 应用级 Procfile
-  ├── groups.go         构建组
-  ├── artifact.go       artifact.json 映射
-  ├── buildpacks.go     语言 → buildpack
-  ├── source.go         源码 tar
-  └── executors
-      └── executor.go   fake runner、构建、导出、打包
-pkg/container          运行时配置解析（backend + environment、socket、export mode）
+
+pkg/appdesc            app_desc 读取、校验、模块过滤
+pkg/buildpack          语言 → buildpack
+pkg/plan               BuildPlan/Step/Group、分组、Procfile、artifact.json
+pkg/source             源码 tar
+pkg/env                dotenv 解析、env 合并、环境变量校验与写入
+pkg/builder            PrepareBuildPlan 编排
+pkg/builder/executors  fake runner、构建、导出、打包
+pkg/container          运行时配置（backend + environment、socket、export mode）
 pkg/types              协议 schema 与构建参数
 pkg/utils              文件、归档、环境变量工具
 pkg/smartpkg           S-Mart 包结构检查（inspect）

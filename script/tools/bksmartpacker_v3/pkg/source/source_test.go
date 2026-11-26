@@ -1,4 +1,4 @@
-package builder
+package source
 
 import (
 	"archive/tar"
@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestBuildSourceTarball(t *testing.T) {
+func TestBuild(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "main.py"), []byte("print('ok')\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -22,7 +22,7 @@ func TestBuildSourceTarball(t *testing.T) {
 	}
 
 	dest := filepath.Join(t.TempDir(), "source.tgz")
-	if err := BuildSourceTarball(src, "web: python main.py\n", dest); err != nil {
+	if err := Build(src, "web: python main.py\n", dest); err != nil {
 		t.Fatal(err)
 	}
 

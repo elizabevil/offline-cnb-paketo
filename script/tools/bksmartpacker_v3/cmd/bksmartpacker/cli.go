@@ -6,8 +6,8 @@ import (
 
 	"github.com/alecthomas/kong"
 
-	"bksmartpacker/pkg/builder"
 	"bksmartpacker/pkg/builder/executors"
+	"bksmartpacker/pkg/plan"
 	"bksmartpacker/pkg/types"
 )
 
@@ -54,8 +54,8 @@ func parseCLIOptions(args []string) (cliOptions, error) {
 			"defaultDest":             "./s-mart.tar.gz",
 			"defaultBuilderImage":     executors.DefaultCNBBuilderImage,
 			"defaultInspectFormat":    "text",
-			"defaultPackagingVersion": builder.PackagingVersionV2,
-			"defaultBaseImageID":      builder.DefaultBaseImageID,
+			"defaultPackagingVersion": plan.PackagingVersionV2,
+			"defaultBaseImageID":      plan.DefaultBaseImageID,
 		},
 	)
 	if err != nil {
