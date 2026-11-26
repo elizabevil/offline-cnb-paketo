@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	// ArtifactJSONVersion 是 artifact.json 的协议版本。
-	ArtifactJSONVersion = "1.0"
 	// PackagingVersionV1 是旧的每模块 tgz 方案。
 	PackagingVersionV1 = "v1"
 	// PackagingVersionV2 是构建组 + artifact.json 方案。
@@ -70,25 +68,6 @@ type ModuleProcess struct {
 	Command string `json:"command"`
 }
 
-// ArtifactJSON 是 v2 s-mart 的 artifact.json。
-type ArtifactJSON struct {
-	Version      string                    `json:"version"`
-	Runtime      ArtifactRuntime           `json:"runtime"`
-	AppArtifacts map[string]ArtifactModule `json:"app_artifacts"`
-}
-
-// ArtifactRuntime 描述应用的运行时基础镜像和架构。
-type ArtifactRuntime struct {
-	BaseImageID  string `json:"base_image_id"`
-	Architecture string `json:"architecture"`
-}
-
-// ArtifactModule 描述一个模块使用的镜像包与进程入口。
-type ArtifactModule struct {
-	ImageTar        string              `json:"image_tar"`
-	ProcEntrypoints map[string][]string `json:"proc_entrypoints"`
-}
-
 var (
 	moduleNameRe  = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	processNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
@@ -121,17 +100,17 @@ func GenerateAppProcfile(modules []types.ModuleDescription) (string, error) {
 
 // BuildArtifactJSON 根据构建组生成 artifact.json。
 func BuildArtifactJSON(plan *BuildPlan) ([]byte, error) {
-	artifact := ArtifactJSON{
-		Version: ArtifactJSONVersion,
-		Runtime: ArtifactRuntime{
+	artifact := types.ArtifactJSON{
+		Version: types.ArtifactJSONVersion,
+		Runtime: types.ArtifactRuntime{
 			BaseImageID:  plan.BaseImageID,
 			Architecture: plan.Architecture,
 		},
-		AppArtifacts: map[string]ArtifactModule{},
+		AppArtifacts: map[string]types.ArtifactModule{},
 	}
 	for _, group := range plan.Groups {
 		for _, moduleName := range group.ModuleNames {
-			artifact.AppArtifacts[moduleName] = ArtifactModule{
+			artifact.AppArtifacts[moduleName] = types.ArtifactModule{
 				ImageTar:        group.OutputImageTarName,
 				ProcEntrypoints: map[string][]string{},
 			}

@@ -52,7 +52,7 @@ func TestBuildArtifactJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var artifact ArtifactJSON
+	var artifact types.ArtifactJSON
 	if err := json.Unmarshal(data, &artifact); err != nil {
 		t.Fatal(err)
 	}
