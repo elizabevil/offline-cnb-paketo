@@ -3,35 +3,97 @@ package executors
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"bksmartpacker/pkg/container"
 	"bksmartpacker/pkg/log"
 )
 
 const (
-	sidecarReadyTimeout = 60 * time.Second
 	sidecarPollInterval = 200 * time.Millisecond
+	runtimeVolumePrefix = "cnb-runtime-"
+	sidecarRuntimeMount = "/cnb/runtime"
 )
 
-// sidecarArgs 构造 managed runtime sidecar 的启动参数。
-// 镜像约定：entrypoint 在 /cnb/work/run/<backend>.sock 提供运行时服务。
-func (e *ContainerExecutor) sidecarArgs(name string) []string {
+// sidecarSpec 是 sidecar 的结构化启动定义。
+// 命令参数只在 args() 边界生成，业务代码不直接拼 []string。
+type sidecarSpec struct {
+	Name       string
+	Image      string
+	Network    string
+	Mounts     []sidecarMount
+	Env        []sidecarEnv
+	Privileged bool
+}
+
+type sidecarMount struct {
+	Type     string
+	Source   string
+	Target   string
+	ReadOnly bool
+}
+
+type sidecarEnv struct {
+	Name  container.EnvKey
+	Value string
+}
+
+func (m sidecarMount) spec() string {
+	if m.Type == "volume" {
+		return volumeMountSpec(m.Source, m.Target)
+	}
+	return bindMountSpec(m.Source, m.Target, m.ReadOnly)
+}
+
+func (s sidecarSpec) args() []string {
 	a := newArgBuilder("run", "-d", "--rm")
-	a.option("--name", name)
-	a.flag("--privileged")
-	a.bindMount(e.workspace.Host, e.workspace.Container, false)
-	if e.runtime.Cache.Enabled() {
-		a.bindMount(e.runtime.Cache.HostPath, e.runtime.Cache.ContainerPath, false)
+	a.option("--name", s.Name)
+	if s.Privileged {
+		a.flag("--privileged")
 	}
-	if e.runtime.Network != "" {
-		a.option("--network", e.runtime.Network)
+	for _, mount := range s.Mounts {
+		a.add("--mount", mount.spec())
 	}
-	a.add(e.runtime.RuntimeImage)
+	for _, env := range s.Env {
+		a.env(env.Name, env.Value)
+	}
+	if s.Network != "" {
+		a.option("--network", s.Network)
+	}
+	a.add(s.Image)
 	return a.args()
+}
+
+// sidecarSpec 只描述 sidecar 需要什么，不关心命令如何拼。
+func (e *ContainerExecutor) sidecarSpec(name string) sidecarSpec {
+	mounts := []sidecarMount{
+		{Type: "bind", Source: e.workspace.Host, Target: e.workspace.Container},
+	}
+	if e.runtime.Cache.Enabled() {
+		mounts = append(mounts, sidecarMount{
+			Type:   "bind",
+			Source: e.runtime.Cache.HostPath,
+			Target: e.runtime.Cache.ContainerPath,
+		})
+	}
+	mounts = append(mounts, sidecarMount{
+		Type:   "volume",
+		Source: runtimeVolumeName(e.runtime.Backend),
+		Target: sidecarRuntimeMount,
+	})
+	return sidecarSpec{
+		Name:       name,
+		Image:      e.runtime.RuntimeImage,
+		Network:    e.runtime.Network,
+		Mounts:     mounts,
+		Env:        []sidecarEnv{{Name: container.EnvRuntimeCache, Value: sidecarRuntimeMount}},
+		Privileged: true,
+	}
 }
 
 func (e *ContainerExecutor) startSidecar(ctx context.Context) error {
@@ -39,7 +101,10 @@ func (e *ContainerExecutor) startSidecar(ctx context.Context) error {
 		return fmt.Errorf("managed driver requires CNB_RUNTIME_IMAGE when no runtime socket is provided")
 	}
 	name := buildContainerName(e.plan.AppCode, "runtime")
-	args := e.sidecarArgs(name)
+	if err := e.ensureRuntimeVolume(ctx); err != nil {
+		return err
+	}
+	args := e.sidecarSpec(name).args()
 	log.Info("start runtime sidecar", "args", args)
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
@@ -50,29 +115,79 @@ func (e *ContainerExecutor) startSidecar(ctx context.Context) error {
 	e.sidecarName = name
 	e.sidecarStarted = true
 	if err := e.waitSocket(ctx); err != nil {
+		e.sidecarLogs(ctx, name)
 		e.stopSidecar()
 		return err
 	}
 	return nil
 }
 
+func runtimeVolumeName(backend container.Backend) string {
+	return runtimeVolumePrefix + string(backend)
+}
+
+func (e *ContainerExecutor) ensureRuntimeVolume(ctx context.Context) error {
+	name := runtimeVolumeName(e.runtime.Backend)
+	inspect := exec.CommandContext(ctx, e.runtime.Binary, "volume", "inspect", name)
+	inspect.Stdout = io.Discard
+	inspect.Stderr = io.Discard
+	if inspect.Run() == nil {
+		return nil
+	}
+	create := exec.CommandContext(ctx, e.runtime.Binary, "volume", "create", name)
+	create.Stdout = io.Discard
+	create.Stderr = os.Stderr
+	if err := create.Run(); err != nil {
+		return errors.Wrapf(err, "failed to create runtime volume %s", name)
+	}
+	return nil
+}
+
 func (e *ContainerExecutor) waitSocket(ctx context.Context) error {
-	timer := time.NewTimer(sidecarReadyTimeout)
+	timeout := e.runtime.SidecarTimeout
+	if timeout <= 0 {
+		timeout = container.DefaultSidecarTimeout
+	}
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	ticker := time.NewTicker(sidecarPollInterval)
 	defer ticker.Stop()
 	for {
-		if _, err := os.Stat(e.runtime.Socket); err == nil {
+		if _, err := os.Stat(e.runtime.Socket); err == nil && e.runtimeHealthy(ctx) {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "waiting for managed runtime socket")
 		case <-timer.C:
-			return fmt.Errorf("managed runtime socket %s not ready after %s", e.runtime.Socket, sidecarReadyTimeout)
+			return fmt.Errorf("managed runtime socket %s not ready after %s", e.runtime.Socket, timeout)
 		case <-ticker.C:
 		}
 	}
+}
+
+func (e *ContainerExecutor) runtimeHealthy(parent context.Context) bool {
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+	defer cancel()
+	var args []string
+	if e.runtime.Backend == container.BackendDocker {
+		args = []string{"-H", "unix://" + e.runtime.Socket, "info"}
+	} else {
+		args = []string{"--url", "unix://" + e.runtime.Socket, "info"}
+	}
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
+func (e *ContainerExecutor) sidecarLogs(_ context.Context, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, "logs", "--tail", "50", name)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	_ = cmd.Run()
 }
 
 func (e *ContainerExecutor) stopSidecar() {

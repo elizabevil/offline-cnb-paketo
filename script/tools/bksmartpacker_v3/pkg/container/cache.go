@@ -21,21 +21,8 @@ type Cache struct {
 // Enabled 返回是否启用文件缓存。
 func (c Cache) Enabled() bool { return c.HostPath != "" }
 
-// MountArgs 返回缓存目录的 runtime 挂载参数。
-func (c Cache) MountArgs() []string {
-	if !c.Enabled() {
-		return nil
-	}
-	return []string{
-		"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", c.HostPath, c.ContainerPath),
-	}
-}
-
-func resolveCache() (Cache, error) {
-	raw := strings.TrimSpace(os.Getenv("CNB_CACHE_DIR"))
-	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("BKS_CACHE_DIR"))
-	}
+func resolveCache(value string) (Cache, error) {
+	raw := strings.TrimSpace(value)
 	if raw == "" {
 		return Cache{}, nil
 	}

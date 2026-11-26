@@ -1,8 +1,8 @@
 package executors
 
 import (
-	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -11,8 +11,16 @@ import (
 
 const (
 	// WorkspaceContainerRoot 是 builder 容器内固定的编排工作区。
+	//
+	// 布局：
+	//   /cnb/work/source  源码快照
+	//   /cnb/work/platform 平台变量
+	//   /cnb/work/layers  layer 输出
+	//   /cnb/work/run     run image/socket
+	//   /cnb/work/out     s-mart 组装目录
+	//   /cnb/work/tmp     临时文件
 	WorkspaceContainerRoot = "/cnb/work"
-	// WorkspacePlatformMount 是 lifecycle 固定的 platform 目录。
+	// WorkspacePlatformMount 是 lifecycle 固定的 platform 挂载点，不能改成 workspace 子路径。
 	WorkspacePlatformMount = "/platform"
 
 	sourceDirName   = "source"
@@ -92,7 +100,7 @@ func (w *Workspace) SourcePath() string { return filepath.Join(w.SourceDir(), so
 
 // SourceContainerPath 是 builder 容器内源码 tar。
 func (w *Workspace) SourceContainerPath() string {
-	return pathJoin(w.Container, sourceDirName, sourceArchiveName)
+	return path.Join(w.Container, sourceDirName, sourceArchiveName)
 }
 
 // PlatformDir 是宿主机 platform 目录。
@@ -106,7 +114,7 @@ func (w *Workspace) LayersDir() string { return filepath.Join(w.Host, layersDirN
 
 // LayerContainerPath 是指定 layer archive 的容器路径。
 func (w *Workspace) LayerContainerPath(name string) string {
-	return pathJoin(w.Container, layersDirName, name)
+	return path.Join(w.Container, layersDirName, name)
 }
 
 // RunDir 是宿主机运行中间目录。
@@ -117,7 +125,7 @@ func (w *Workspace) RunImagePath() string { return filepath.Join(w.RunDir(), run
 
 // RunImageContainerPath 是容器内 run image archive。
 func (w *Workspace) RunImageContainerPath() string {
-	return pathJoin(w.Container, runDirName, runImageName)
+	return path.Join(w.Container, runDirName, runImageName)
 }
 
 // OutDir 是 s-mart 组装目录。
@@ -128,14 +136,10 @@ func (w *Workspace) TmpDir() string { return filepath.Join(w.Host, tmpDirName) }
 
 // MountArgs 返回根挂载参数。
 func (w *Workspace) MountArgs() []string {
-	return []string{"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", w.Host, w.Container)}
+	return bindMountArgs(w.Host, w.Container, false)
 }
 
 // PlatformMountArgs 返回 lifecycle platform 挂载参数。
 func (w *Workspace) PlatformMountArgs() []string {
-	return []string{"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,readonly", w.PlatformDir(), w.PlatformContainerPath())}
-}
-
-func pathJoin(parts ...string) string {
-	return strings.Join(parts, "/")
+	return bindMountArgs(w.PlatformDir(), w.PlatformContainerPath(), true)
 }

@@ -33,11 +33,23 @@ func (b *argBuilder) env(key, value string) {
 }
 
 func (b *argBuilder) bindMount(source, target string, readOnly bool) {
+	b.add("--mount", bindMountSpec(source, target, readOnly))
+}
+
+func bindMountSpec(source, target string, readOnly bool) string {
 	parts := []string{"type=bind", "source=" + source, "target=" + target}
 	if readOnly {
 		parts = append(parts, "readonly")
 	}
-	b.add("--mount", strings.Join(parts, ","))
+	return strings.Join(parts, ",")
+}
+
+func volumeMountSpec(source, target string) string {
+	return strings.Join([]string{"type=volume", "source=" + source, "target=" + target}, ",")
+}
+
+func bindMountArgs(source, target string, readOnly bool) []string {
+	return []string{"--mount", bindMountSpec(source, target, readOnly)}
 }
 
 func (b *argBuilder) args() []string {

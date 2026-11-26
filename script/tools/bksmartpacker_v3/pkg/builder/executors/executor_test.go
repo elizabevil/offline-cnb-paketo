@@ -2,6 +2,7 @@ package executors
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -115,7 +116,7 @@ func TestBuildContainerName(t *testing.T) {
 	}
 }
 
-func TestSidecarArgs(t *testing.T) {
+func TestSidecarSpec(t *testing.T) {
 	ws, err := NewWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -125,19 +126,50 @@ func TestSidecarArgs(t *testing.T) {
 		plan:      plan.BuildPlan{AppCode: "app"},
 		workspace: ws,
 		runtime: container.Config{
+			Backend:      container.BackendPodman,
 			RuntimeImage: "runtime-pind:test",
 			Cache:        container.Cache{HostPath: "/tmp/cache", ContainerPath: "/layers/cache"},
 			Network:      "host",
 		},
 	}
-	args := e.sidecarArgs("sidecar")
-	if !slices.Contains(args, "runtime-pind:test") || !slices.Contains(args, "sidecar") {
+	spec := e.sidecarSpec("sidecar")
+	if spec.Name != "sidecar" || spec.Image != "runtime-pind:test" || !spec.Privileged {
+		t.Fatalf("sidecar spec = %#v", spec)
+	}
+	if len(spec.Env) != 1 || spec.Env[0].Name != container.EnvRuntimeCache || spec.Env[0].Value != "/cnb/runtime" {
+		t.Fatalf("sidecar env = %#v", spec.Env)
+	}
+	hasWorkspace, hasVolume := false, false
+	for _, mount := range spec.Mounts {
+		if mount.Type == "bind" && mount.Source == ws.Host && mount.Target == ws.Container {
+			hasWorkspace = true
+		}
+		if mount.Type == "volume" && mount.Source == "cnb-runtime-podman" && mount.Target == "/cnb/runtime" {
+			hasVolume = true
+		}
+	}
+	if !hasWorkspace || !hasVolume {
+		t.Fatalf("sidecar mounts = %#v", spec.Mounts)
+	}
+	args := spec.args()
+	if !slices.Contains(args, "runtime-pind:test") || !slices.Contains(args, "--privileged") {
 		t.Fatalf("sidecar args = %#v", args)
 	}
-	if !slices.Contains(args, "type=bind,source="+ws.Host+",target=/cnb/work") {
-		t.Fatalf("workspace mount missing: %#v", args)
+}
+
+func TestRuntimeHealthy(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "runtime-health.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if !slices.Contains(args, "--privileged") {
-		t.Fatalf("privileged missing: %#v", args)
+	e := &ContainerExecutor{runtime: container.Config{Binary: script, Socket: "/tmp/any.sock"}}
+	if !e.runtimeHealthy(context.Background()) {
+		t.Fatal("healthy runtime should pass")
+	}
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if e.runtimeHealthy(context.Background()) {
+		t.Fatal("failed runtime should not be healthy")
 	}
 }

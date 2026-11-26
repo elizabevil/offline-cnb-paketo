@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,6 +67,10 @@ func (e *ContainerExecutor) execute(ctx context.Context) error {
 		return err
 	}
 	defer e.stopSidecar()
+	if e.runtime.Driver == container.DriverManaged {
+		cacheBefore := e.snapshotRuntimeCache()
+		defer e.reportRuntimeCache(cacheBefore)
+	}
 	if err := e.prepareRunImage(ctx); err != nil {
 		return errors.Wrap(err, "failed to prepare run image")
 	}
@@ -207,25 +212,26 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput) error {
 	return err
 }
 
+// buildArgs 只从这里产生容器路径；业务代码不拼接宿主机路径。
 func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	a := newArgBuilder("run", "--rm")
 	if in.RunName != "" {
 		a.option("--name", in.RunName)
 	}
-	a.env("REQUIRED_BUILDPACKS", in.RequiredBuildpacks)
-	a.env("OUTPUT_IMAGE", in.OutputImage)
-	a.env("CNB_RUN_IMAGE", fakeRunnerImage(e.runtime.Platform))
-	a.env("SOURCE_GET_URL", "file://"+e.workspace.SourceContainerPath())
-	a.env("USE_DOCKER_DAEMON", "1")
-	a.env("CNB_PLATFORM_API", "0.11")
-	a.env("CNB_BUILDPACK_ALIASES", e.runtime.BuildpackAliases)
+	a.env(container.EnvRequiredBuildpacks, in.RequiredBuildpacks)
+	a.env(container.EnvOutputImage, in.OutputImage)
+	a.env(container.EnvRunImage, fakeRunnerImage(e.runtime.Platform))
+	a.env(container.EnvSourceGetURL, fileURL(e.workspace.SourceContainerPath()))
+	a.env(container.EnvUseDockerDaemon, "1")
+	a.env(container.EnvPlatformAPI, "0.11")
+	a.env(container.EnvCNBBuildpackAliases, e.runtime.BuildpackAliases)
 
 	// 缓存镜像：只在显式配置 cache registry 时启用，避免默认依赖外部仓库。
 	if in.CacheRegistry != "" {
-		cacheImage := strings.Join([]string{in.CacheRegistry, e.plan.AppCode, in.Name}, "/") + ":cnb-build-cache"
-		a.env("CACHE_IMAGE", cacheImage)
+		cacheImage := strings.Join([]string{in.CacheRegistry, e.plan.AppCode, in.Name}, "/") + cacheImageTag
+		a.env(container.EnvCacheImage, cacheImage)
 		if in.RegistryAuth != "" {
-			a.env("CNB_REGISTRY_AUTH", in.RegistryAuth)
+			a.env(container.EnvRegistryAuth, in.RegistryAuth)
 		}
 	}
 	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
@@ -235,25 +241,25 @@ func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	// 单次构建的所有内部路径统一在 /cnb/work 下。
 	a.bindMount(e.workspace.Host, e.workspace.Container, false)
 	// 容器运行时 socket：podman/pind 使用解析后的 rootful/rootless socket。
-	a.bindMount(e.runtime.Socket, "/var/run/docker.sock", false)
-	a.env("DOCKER_HOST", "unix:///var/run/docker.sock")
+	a.bindMount(e.runtime.Socket, container.DockerSocketContainerPath, false)
+	a.env(container.EnvDockerHost, container.DockerHostURL)
 	// lifecycle 的 platform 目录固定为 /platform。
 	a.bindMount(e.workspace.PlatformDir(), e.workspace.PlatformContainerPath(), true)
 	// 持久文件缓存独立于 workspace；用户显式挂载时不重复添加。
 	if e.runtime.Cache.Enabled() && !hasMountTarget(e.runtime.ExtraMounts, e.runtime.Cache.ContainerPath) {
 		a.bindMount(e.runtime.Cache.HostPath, e.runtime.Cache.ContainerPath, false)
-		a.env("CNB_CACHE_DIR", e.runtime.Cache.ContainerPath)
+		a.env(container.EnvCacheDir, e.runtime.Cache.ContainerPath)
 	}
 	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
 	if e.runtime.ExportMode == container.ExportDaemon {
-		a.env("CNB_EXPORT_MODE", string(container.ExportDaemon))
+		a.env(container.EnvCNBExportMode, string(container.ExportDaemon))
 	} else {
-		a.env("CNB_EXPORT_MODE", string(container.ExportLayout))
-		a.env("CNB_LAYER_ARCHIVE", e.workspace.LayerContainerPath(in.ArchiveName))
+		a.env(container.EnvCNBExportMode, string(container.ExportLayout))
+		a.env(container.EnvLayerArchive, e.workspace.LayerContainerPath(in.ArchiveName))
 	}
 	// run image 位于 workspace/run，随根挂载进入容器。
 	if e.runImageArchive != "" {
-		a.env("CNB_RUN_IMAGE_ARCHIVE", e.workspace.RunImageContainerPath())
+		a.env(container.EnvRunImageArchive, e.workspace.RunImageContainerPath())
 	}
 	// 网络模式：host 可访问宿主机内网镜像源。
 	if net := e.runtime.Network; net != "" {
@@ -264,7 +270,10 @@ func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	return a.args()
 }
 
-const containerCleanupTimeout = 30 * time.Second
+const (
+	containerCleanupTimeout = 30 * time.Second
+	cacheImageTag           = ":cnb-build-cache"
+)
 
 func buildContainerName(appCode, module string) string {
 	return strings.Join([]string{
@@ -280,6 +289,11 @@ func (e *ContainerExecutor) removeContainer(name string) {
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	_ = cmd.Run()
+}
+
+func fileURL(pathname string) string {
+	u := &url.URL{Scheme: "file", Path: pathname}
+	return u.String()
 }
 
 func hasMountTarget(mounts []string, target string) bool {
@@ -300,6 +314,9 @@ func (e *ContainerExecutor) ensureRuntime(ctx context.Context) error {
 	}
 	if _, err := os.Stat(e.runtime.Socket); err != nil {
 		return errors.Wrapf(err, "managed runtime socket %s is not ready; set CNB_RUNTIME_IMAGE to start a sidecar", e.runtime.Socket)
+	}
+	if !e.runtimeHealthy(ctx) {
+		return fmt.Errorf("managed runtime socket %s exists but is not healthy", e.runtime.Socket)
 	}
 	return nil
 }

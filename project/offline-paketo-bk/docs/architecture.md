@@ -218,3 +218,50 @@ just smart-runtime
 ```
 
 构建 runtime 镜像时不再访问 apt 或外网；只从 bundle 复制静态包。
+
+
+### managed runtime 缓存
+
+runtime sidecar 的 storage 不再放在 `/cnb/work/runtime`，而是使用 podman 命名卷：
+
+```text
+cnb-runtime-podman
+  → /cnb/runtime
+  → /cnb/runtime/podman/storage
+  → /cnb/runtime/podman/runroot
+```
+
+没有卷或 cache 时使用 `/tmp/cnb-runtime` 临时目录，不写入 `/cnb/work`，也不保证跨构建复用。
+
+
+### runtime storage 卷与清理
+
+managed sidecar 的 runtime storage 使用 podman 管理的命名卷：
+
+```text
+cnb-runtime-podman
+cnb-runtime-docker
+```
+
+挂载到 sidecar：
+
+```text
+/cnb/runtime
+```
+
+实际 storage：
+
+```text
+/cnb/runtime/podman/storage
+/cnb/runtime/podman/runroot
+```
+
+这样避免 rootless 宿主下 cache 目录属主变成 subuid 后无法管理。
+
+清理：
+
+```bash
+podman volume rm -f cnb-runtime-podman
+```
+
+卷默认跨构建保留；只有需要彻底重置 runtime cache 时才删除。

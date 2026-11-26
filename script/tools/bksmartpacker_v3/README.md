@@ -76,6 +76,7 @@ bksmartpacker \
 | `CNB_RUNTIME_WORKSPACE` | 宿主机 workspace 根；容器内固定 `/cnb/work`；未设置时使用临时目录 |
 | `CNB_RUNTIME_DRIVER` | `host`（默认）或 `managed`；managed 可用外部 socket 或自动启动 sidecar |
 | `CNB_RUNTIME_IMAGE` | managed sidecar 镜像；entrypoint 需在 `/cnb/work/run/` 提供运行时 socket |
+| `CNB_SIDECAR_TIMEOUT` | sidecar socket 就绪超时，默认 `60s`；`BKS_SIDECAR_TIMEOUT` 兼容 |
 | `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/podman 仅支持 `layout`，dind 要求 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
 | `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |
@@ -103,3 +104,48 @@ script/bin/bksmartpacker-linux-amd64 --inspect dist/s-mart.tar.gz --inspect-form
 
 - 架构说明：[ARCHITECTURE.md](ARCHITECTURE.md)
 - 上游来源：[NOTICE](NOTICE)
+
+
+### managed runtime storage
+
+managed sidecar 使用 podman volume 保存 runtime storage，默认卷名：
+
+```text
+cnb-runtime-podman
+cnb-runtime-docker
+```
+
+卷内路径：
+
+```text
+/cnb/runtime/podman/storage
+/cnb/runtime/podman/runroot
+```
+
+清理：
+
+```bash
+podman volume rm -f cnb-runtime-podman
+```
+
+不要直接删除 `podman volume inspect` 返回的 Mountpoint：rootless 下该目录可能属于 subuid，直接 `rm -rf` 会失败或破坏权限。
+
+
+### runtime cache 观测
+
+managed 构建结束会输出：
+
+```text
+msg="runtime cache" state=cold cache_hit=false before_images=0 after_images=0 reused_images=0
+```
+
+状态：
+
+```text
+cold    构建前没有 runtime 镜像
+hit     构建前镜像全部仍在
+partial 部分镜像仍在
+miss    构建前镜像已不存在
+```
+
+当前 layout 构建模式下 `after_images=0` 是正常现象：镜像层由 buildpack cache 管理，inner podman 主要提供 socket，不应把 buildpack cache 命中误判为 runtime image cache 命中。

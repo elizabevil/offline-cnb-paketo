@@ -165,5 +165,3 @@ sha256 = 'e95435d3ad37be41ec00a6b10ea5063563c9f8b485da47fbb1cbc21eb102464f'
 url = 'https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-arm64.tar.gz'
 size = 32260258
 sha256 = '8379c337701ec827bc86916478ba8953aca9992d0a08bc6b85a9de72e352f857'
-
-

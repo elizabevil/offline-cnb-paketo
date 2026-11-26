@@ -2,6 +2,7 @@ package container
 
 import (
 	"testing"
+	"time"
 )
 
 func TestParseRuntimeSelection(t *testing.T) {
@@ -52,45 +53,36 @@ func TestValidatePair(t *testing.T) {
 }
 
 func TestResolveExportMode(t *testing.T) {
-	t.Setenv("BKS_EXPORT_MODE", "")
-	if mode, err := resolveExportMode(BackendPodman, EnvironmentPind); err != nil || mode != ExportLayout {
+	if mode, err := resolveExportMode(BackendPodman, EnvironmentPind, ""); err != nil || mode != ExportLayout {
 		t.Fatalf("pind mode=%s err=%v", mode, err)
 	}
-	if mode, err := resolveExportMode(BackendDocker, EnvironmentDind); err != nil || mode != ExportDaemon {
+	if mode, err := resolveExportMode(BackendDocker, EnvironmentDind, ""); err != nil || mode != ExportDaemon {
 		t.Fatalf("dind mode=%s err=%v", mode, err)
 	}
-	t.Setenv("BKS_EXPORT_MODE", "daemon")
-	if _, err := resolveExportMode(BackendPodman, EnvironmentHost); err == nil {
+	if _, err := resolveExportMode(BackendPodman, EnvironmentHost, "daemon"); err == nil {
 		t.Fatal("podman daemon should fail")
 	}
 }
 
 func TestResolveSocketExplicit(t *testing.T) {
-	t.Setenv("BKS_DOCKER_SOCK", "/tmp/podman.sock")
-	if got := resolveSocket(BackendPodman, EnvironmentHost); got != "/tmp/podman.sock" {
+	if got := resolveSocket(BackendPodman, EnvironmentHost, "/tmp/podman.sock", ""); got != "/tmp/podman.sock" {
 		t.Fatalf("socket = %q", got)
 	}
 }
 
 func TestResolveCache(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("CNB_CACHE_DIR", dir)
-	cache, err := resolveCache()
+	cache, err := resolveCache(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cache.HostPath != dir || cache.ContainerPath != DefaultCacheContainerPath {
 		t.Fatalf("cache = %#v", cache)
 	}
-	if got := cache.MountArgs(); len(got) != 2 || got[0] != "--mount" {
-		t.Fatalf("mount args = %#v", got)
-	}
 }
 
 func TestResolveCacheDisabled(t *testing.T) {
-	t.Setenv("CNB_CACHE_DIR", "")
-	t.Setenv("BKS_CACHE_DIR", "")
-	cache, err := resolveCache()
+	cache, err := resolveCache("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,19 +92,59 @@ func TestResolveCacheDisabled(t *testing.T) {
 }
 
 func TestResolveDriver(t *testing.T) {
-	t.Setenv("CNB_RUNTIME_DRIVER", "")
-	t.Setenv("BKS_RUNTIME_DRIVER", "")
-	driver, err := resolveDriver()
+	driver, err := resolveDriver("")
 	if err != nil || driver != DriverHost {
 		t.Fatalf("driver=%s err=%v", driver, err)
 	}
-	t.Setenv("CNB_RUNTIME_DRIVER", "managed")
-	driver, err = resolveDriver()
+	driver, err = resolveDriver("managed")
 	if err != nil || driver != DriverManaged {
 		t.Fatalf("driver=%s err=%v", driver, err)
 	}
-	t.Setenv("CNB_RUNTIME_DRIVER", "bad")
-	if _, err := resolveDriver(); err == nil {
+	if _, err := resolveDriver("bad"); err == nil {
 		t.Fatal("expected invalid driver error")
+	}
+}
+
+func TestParseWithInjectedEnv(t *testing.T) {
+	cacheDir := t.TempDir()
+	env := map[string]string{
+		"BKS_RUNTIME":      "host-podman",
+		"CNB_CACHE_DIR":    cacheDir,
+		"BKS_PLATFORM":     "linux/amd64",
+		"BKS_NETWORK":      "host",
+		"BKS_EXTRA_MOUNTS": "--mount type=bind,source=/tmp,target=/tmp",
+	}
+	cfg, err := Parse(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Backend != BackendPodman || cfg.Environment != EnvironmentHost {
+		t.Fatalf("cfg = %#v", cfg)
+	}
+	if cfg.Cache.HostPath != cacheDir || cfg.Platform != "linux/amd64" || cfg.Network != "host" {
+		t.Fatalf("cfg = %#v", cfg)
+	}
+}
+
+func TestParseManagedRequiresWorkspace(t *testing.T) {
+	env := map[string]string{
+		"BKS_RUNTIME":        "pind",
+		"CNB_RUNTIME_DRIVER": "managed",
+		"BKS_CONTAINER_CLI":  "podman",
+	}
+	if _, err := Parse(func(key string) string { return env[key] }); err == nil {
+		t.Fatal("expected managed workspace error")
+	}
+}
+
+func TestResolveSidecarTimeout(t *testing.T) {
+	if timeout, err := resolveSidecarTimeout(""); err != nil || timeout != DefaultSidecarTimeout {
+		t.Fatalf("timeout=%s err=%v", timeout, err)
+	}
+	if timeout, err := resolveSidecarTimeout("90s"); err != nil || timeout != 90*time.Second {
+		t.Fatalf("timeout=%s err=%v", timeout, err)
+	}
+	if _, err := resolveSidecarTimeout("bad"); err == nil {
+		t.Fatal("expected invalid timeout error")
 	}
 }
