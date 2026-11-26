@@ -36,3 +36,15 @@ build:
 publish: build
     @{{ bin }} --file {{ _root }}/../project/assets.toml materials publish cnb >/dev/null
     @echo "  ✓ cnb 物料已发布"
+
+
+# lifecycle singleton 复现：非 root 应不触发，root-owned socket 应触发
+test-singleton:
+    @cd {{ _dir }}/tests/lifecycle-singleton && go run .
+    @cd {{ _dir }}/tests/lifecycle-singleton && go build -o /tmp/lifecycle-singleton .
+    @podman unshare /tmp/lifecycle-singleton
+
+
+# Podman 兼容 API 并发导出探测（需要 root/rootful podman）
+test-podman-export:
+    @sudo {{ _dir }}/tests/podman-export-probe.sh

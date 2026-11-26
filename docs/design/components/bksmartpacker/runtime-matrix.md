@@ -24,6 +24,8 @@
 | E | Podman | Dockerd | managed dind | **已验证** | 非 root builder + 可写 cache；root builder 会触发 lifecycle singleton |
 | F | Docker | Dockerd | managed dind | 未测 | 推测可行，需 Docker 外层 + privileged |
 | G | Docker | Dockerd | host dind | 未测 | 需要宿主机 Docker daemon |
+| H | Podman | Podman Docker API | cnb 原始复现：daemon export | **上游 issue 已确认；本机完整 cnb 未复现** | https://github.com/buildpacks/lifecycle/issues/1763；fake root-owned socket 触发 |
+| I | Podman | Podman Docker API | cnb 非 root 复现 | **已验证** | cnb mini app + podman daemon export 成功；非 root builder |
 
 ## 3. 推测说明
 
@@ -94,6 +96,9 @@ socket 客户端绑定有关。
 - builder user 对 workspace/cache 可写
 - inner docker socket 对 builder user 可访问
 
+该构建的 builder entrypoint 虽然是 `/cnb/tools/cnb lifecycle run`，
+但这是 **Dockerd** 路径，不等于 cnb 原始的 Podman Docker-compatible API 复现。
+两者共享 lifecycle singleton 机制，但不能互相替代验证。
 
 风险：
 
@@ -118,10 +123,194 @@ socket 客户端绑定有关。
 - inner Dockerd 网络/iptables 权限
 - 双 Docker 的 storage/network 隔离
 
+## 3.1 cnb 原始复现到底测什么
+
+本地复现器：
+
+```text
+script/tools/cnb/tests/lifecycle-singleton
+```
+
+它使用 lifecycle 的 `priv.DockerClient` 和一个 root-owned Unix socket，
+模拟的是一般 Docker-compatible API，不限定 dockerd。
+
+实际 cnb 场景是：
+
+```text
+Outer: Podman
+Inner: Podman Docker-compatible API
+阶段: exporter daemon
+条件: lifecycle 以 root 运行，socket 在容器内属于 root
+```
+
+不是：
+
+```text
+managed dind + dockerd
+```
+
+managed dind 的非 root 成功只能证明：
+
+```text
+lifecycle singleton 条件可以通过非 root + 非 root-owned socket 绕过
+```
+
+不能直接等同于：
+
+```text
+cnb + inner podman daemon export 已验证
+```
+
+cnb 测试目录中的复现器已执行：
+
+```text
+非 root:
+ImageSave error: <nil>
+
+podman unshare（root userns）:
+ImageSave error: ... singleton connection already in use
+```
+
+这验证了 singleton 的触发条件，但还没有经过完整
+cnb lifecycle + 真实 Podman Docker API + daemon exporter。
+
+## 3.2 cnb + Podman daemon export 实际测试
+
+测试入口：
+
+```text
+/cnb/tools/cnb lifecycle run
+```
+
+这是 builder 镜像的 entrypoint，不是 bksmartpacker 的模拟。
+
+### 非 root builder
+
+配置：
+
+```text
+Podman Docker-compatible socket
+CNB_EXPORT_MODE=daemon
+非 root + keep-id
+```
+
+结果：
+
+```text
+Saving bk_sops/pind-nonroot3:latest...
+*** Images (5e1b0f510d0e)
+```
+
+daemon export 成功，没有 singleton。
+
+### root builder
+
+同样配置下也成功，但本机 rootless podman socket 在 builder 内
+显示为非 root 属主，因此没有触发 singleton。
+
+所以：
+
+```text
+本机 root 测试不能证明 root-owned socket 场景
+```
+
+root-owned socket 场景仍由：
+
+```text
+script/tools/cnb/tests/lifecycle-singleton
+```
+
+单独复现。
+
+### rootful Podman 完整测试
+
+又用 rootful Podman socket 跑了：
+
+```text
+rootful podman system service
+root builder
+root-owned socket
+cnb lifecycle run
+CNB_EXPORT_MODE=daemon
+```
+
+结果：
+
+```text
+Saving bk_sops/rootful-root3:latest...
+*** Images (f30395cbd0a7)
+```
+
+**没有复现 singleton**。
+
+### CMDB SaaS 完整复测
+
+使用：
+
+```text
+rootful Podman
+root-owned socket
+root builder
+cnb lifecycle run
+CMDB SaaS release-amd64
+CNB_EXPORT_MODE=daemon
+DOCKER_API_VERSION=1.41
+```
+
+结果：
+
+```text
+Saving bk_cmdb_saas/web:rootful-api...
+*** Images (93af80d0d29c)
+```
+
+**仍然没有复现 singleton。**
+
+因此当前 cnb lifecycle 路径下，root-owned socket 条件还不足以单独触发。
+上游 issue #1763 已确认该问题存在，但本机完整 cnb 路径没有复现；需要继续
+定位 exporter 实际使用的 Docker 客户端路径。不能宣称“已复现”。
+
+上游 workaround：
+
+```text
+使用 exporter -layout，而不是 -daemon
+```
+
+参考：
+
+https://github.com/buildpacks/lifecycle/issues/1763
+
+## 3.3 Podman 兼容 API 直接导出探测
+
+脚本：
+
+```text
+script/tools/cnb/tests/podman-export-probe.sh
+```
+
+结果：
+
+```text
+by-tag size=17408
+by-id  size=17408
+并发 p1=0 size=17408
+并发 p2=0 size=17408
+```
+
+说明：
+
+```text
+Podman 服务端本身允许顺序/并发 image get
+singleton 不是 Podman API 的限制
+```
+
+singleton 来自 lifecycle 的 `priv.DockerClient` 客户端单连接实现。
+
 ## 4. 当前结论
 
 - host podman、outer podman + inner podman 已验证
-- outer podman + inner dockerd 已验证（非 root builder）
+- outer podman + inner dockerd 已验证（非 root builder），但这是 dind 路径
+- cnb 原始 Podman Docker-compatible API daemon export 仍未做非 root 验证
 - 外层 Docker 场景全部未测
 - 不能因为 sidecar 启动成功就认为完整 dind 构建成功
 

@@ -13,7 +13,7 @@
 ## 运行
 
 ```bash
-cd script/tests/lifecycle-singleton
+cd script/tools/cnb/tests/lifecycle-singleton
 go mod tidy          # 首次需要网络
 sudo go run .
 ```
