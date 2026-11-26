@@ -156,7 +156,7 @@ miss    构建前镜像已不存在
 
 ### runtime-dind
 
-`runtime-dind` 基于 `docker:27-dind`，entrypoint 启动 `dockerd` 并监听：
+`runtime-dind` 基于静态 Docker bundle + Debian base，entrypoint 启动 `dockerd` 并监听：
 
 ```text
 /cnb/work/run/docker.sock
@@ -184,3 +184,45 @@ CNB_DIND_IP_FORWARD=true
 just runtime-dind-bundle
 just smart-runtime-dind
 ```
+
+
+### runtime-pind arm64
+
+```bash
+BKS_PLATFORM=linux/arm64 just runtime-pind-bundle
+```
+
+arm64 使用本地 Debian arm64 base 和 `podman-linux-arm64` 静态包。
+
+
+### 下载代理
+
+`just podman-static` 会自动读取：
+
+```text
+CNB_DOWNLOAD_PROXY
+HTTPS_PROXY / https_proxy
+HTTP_PROXY / http_proxy
+```
+
+例如：
+
+```bash
+export https_proxy=http://192.168.10.1:10808
+just podman-static
+```
+
+`cnb materials lock/sync` 使用 Go 的 `ProxyFromEnvironment`，同样需要先导出
+`HTTPS_PROXY`/`HTTP_PROXY`。
+
+
+### 交叉构建目标架构
+
+交叉构建时 bksmartpacker 会注入：
+
+```text
+CNB_TARGET_OS
+CNB_TARGET_ARCH
+```
+
+buildpacks 使用它们选择目标运行时，而不是只依赖 `uname -m`。

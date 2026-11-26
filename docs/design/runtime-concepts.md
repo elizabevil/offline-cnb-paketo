@@ -230,3 +230,55 @@ runtime cache state=cold
 各组合的实测/推测结果见：
 
 [runtime-matrix.md](components/bksmartpacker/runtime-matrix.md)
+
+
+## 10. 多架构
+
+runtime-pind 已支持按目标平台构建：
+
+```bash
+BKS_PLATFORM=linux/arm64 just runtime-pind-bundle
+```
+
+使用：
+
+```text
+arm64 static podman
+arm64 Debian base
+```
+
+runtime-dind 也使用静态 Docker asset；amd64/arm64 都不依赖 Docker 基础镜像。
+
+
+## 11. dind 依赖清单
+
+必需：
+
+```text
+Debian base
+静态 Docker 物料：
+  dockerd
+  containerd
+  runc
+  docker
+  docker-proxy
+  docker-init
+  containerd-shim-runc-v2
+```
+
+当前默认 rootless 配置不需要 iptables：
+
+```text
+--bridge=none
+--iptables=false
+--ip-forward=false
+```
+
+如果启用 rootful bridge 网络，还需要：
+
+```text
+iptables/nftables
+iproute2
+```
+
+当前静态物料不包含这些额外系统包。

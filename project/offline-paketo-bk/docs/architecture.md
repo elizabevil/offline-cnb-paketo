@@ -270,7 +270,7 @@ podman volume rm -f cnb-runtime-podman
 
 ### runtime-dind
 
-runtime-dind 基于 `docker:27-dind`：
+runtime-dind 基于静态 Docker bundle + Debian base：
 
 ```text
 bundle/<platform>/images/runtime-dind.tar
@@ -300,3 +300,50 @@ BKS_BUILDER_USERNS=keep-id
 ```
 
 root builder 会触发 lifecycle 的 `singleton connection already in use`。
+
+
+### runtime-pind 多架构
+
+```bash
+BKS_PLATFORM=linux/arm64 just runtime-pind-bundle
+```
+
+产物：
+
+```text
+bundle/linux-arm64/images/runtime-pind.tar
+```
+
+runtime-dind 使用现有 `docker` 静态物料；amd64/arm64 镜像都已产出。
+
+完整 amd64 验证：
+
+```text
+CMDB SaaS
+static dockerd
+non-root builder
+daemon export
+33 MB s-mart
+sha256: eb2c3ac9b3da2be97e8581ac488422fc46d870928402ac6a35ae72e9232e71ab
+```
+
+默认 rootless 配置不需要 iptables；rootful bridge 网络才需要额外系统包。
+
+
+### arm64 dind 验证
+
+使用静态 Docker arm64 物料 + Debian arm64 base：
+
+```text
+CMDB release-arm64
+static dockerd arm64
+non-root builder
+```
+
+结果：
+
+```text
+BuildSMartPackage done
+31 MB
+sha256: 37bdf633f7032292cafc79fe38b3e4e119fe72d2cde58c470648b72545b07d6f
+```

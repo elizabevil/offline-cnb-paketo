@@ -43,6 +43,8 @@ const (
 	EnvSourceGetURL        EnvKey = "SOURCE_GET_URL"
 	EnvUseDockerDaemon     EnvKey = "USE_DOCKER_DAEMON"
 	EnvPlatformAPI         EnvKey = "CNB_PLATFORM_API"
+	EnvTargetOS            EnvKey = "CNB_TARGET_OS"
+	EnvTargetArch          EnvKey = "CNB_TARGET_ARCH"
 	EnvCNBBuildpackAliases EnvKey = "CNB_BUILDPACK_ALIASES"
 	EnvCacheImage          EnvKey = "CACHE_IMAGE"
 	EnvRegistryAuth        EnvKey = "CNB_REGISTRY_AUTH"

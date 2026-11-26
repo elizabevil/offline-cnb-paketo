@@ -21,11 +21,13 @@
 | B | Docker | Docker | host | 未测 | 本机无 Docker CLI/daemon |
 | C | Docker | Podman | managed pind | 未测 | 推测可行，取决于 Docker 是否允许 privileged sidecar |
 | D | Podman | Podman | managed pind | **已验证** | 当前 managed pind SOPS 构建通过 |
-| E | Podman | Dockerd | managed dind | **已验证** | 非 root builder + 可写 cache；root builder 会触发 lifecycle singleton |
+| E | Podman | Dockerd | managed dind | **已验证** | 静态 docker 物料；非 root builder + 可写 cache；CMDB 完整构建成功 |
 | F | Docker | Dockerd | managed dind | 未测 | 推测可行，需 Docker 外层 + privileged |
 | G | Docker | Dockerd | host dind | 未测 | 需要宿主机 Docker daemon |
 | H | Podman | Podman Docker API | cnb 原始复现：daemon export | **上游 issue 已确认；本机完整 cnb 未复现** | https://github.com/buildpacks/lifecycle/issues/1763；fake root-owned socket 触发 |
 | I | Podman | Podman Docker API | cnb 非 root 复现 | **已验证** | CMDB SaaS + podman daemon export 成功；非 root builder |
+| J | Podman | Podman | managed pind arm64 | **镜像已构建** | runtime-pind arm64 tar 已生成；qemu 下 sidecar 未能启动（libpod lock） |
+| K | Podman | Dockerd | managed dind arm64 | **已验证** | 静态 Docker arm64 asset + Debian arm64 base；CMDB arm64 完整构建成功 |
 
 ## 3. 推测说明
 
@@ -314,6 +316,117 @@ singleton 不是 Podman API 的限制
 ```
 
 singleton 来自 lifecycle 的 `priv.DockerClient` 客户端单连接实现。
+
+## 3.4 多架构
+
+已构建：
+
+```text
+bundle/linux-arm64/images/runtime-pind.tar
+```
+
+使用本地 arm64 Debian base：
+
+```text
+swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim-linuxarm64
+```
+
+静态 podman 使用：
+
+```text
+podman-linux-arm64.tar.gz
+```
+
+验证边界：
+
+```text
+arm64 镜像构建：通过
+qemu 下 arm64 pind sidecar 启动：失败（libpod lock）
+arm64 dind：静态 Docker arm64 asset，CMDB arm64 完整构建成功
+```
+
+因此：
+
+```text
+pind arm64：产物已生成，sidecar 运行未验证
+dind arm64：完整构建已验证
+```
+
+dind arm64 产物：
+
+```text
+/tmp/cnb-arm-dind-go/s-mart-airm.tar.gz
+31 MB
+sha256: 37bdf633f7032292cafc79fe38b3e4e119fe72d2cde58c470648b72545b07d6f
+```
+
+## 3.5 dind 静态依赖与完整验证
+
+runtime-dind 不依赖 `docker:27-dind` 镜像，使用现有 `docker` 物料：
+
+```text
+bundle/<platform>/binaries/docker/27.0.3/docker/
+  dockerd
+  containerd
+  runc
+  docker
+  docker-proxy
+  docker-init
+  containerd-shim-runc-v2
+```
+
+基础镜像：
+
+```text
+Debian trixie slim
+```
+
+完整验证：
+
+```text
+Outer Podman
+Inner static dockerd
+CMDB SaaS release-amd64
+non-root builder
+CNB_EXPORT_MODE=daemon
+```
+
+结果：
+
+```text
+Saving bk_cmdb_saas/web:3.14.8-alpha3.2...
+*** Images (10a3b7ec0e96)
+BuildSMartPackage done
+```
+
+产物：
+
+```text
+/tmp/cnb-dind-static-build/s-mart-dind.tar.gz
+33 MB
+sha256: eb2c3ac9b3da2be97e8581ac488422fc46d870928402ac6a35ae72e9232e71ab
+```
+
+当前无需额外依赖。
+
+### 可选依赖
+
+当前默认：
+
+```text
+--bridge=none
+--iptables=false
+--ip-forward=false
+```
+
+如果 rootful 环境需要 inner 容器桥接网络，才需要额外安装：
+
+```text
+iptables/nftables
+iproute2
+```
+
+这些不在当前静态 Docker 物料内。
 
 ## 4. 当前结论
 

@@ -242,6 +242,9 @@ func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
 	if pf := e.runtime.Platform; pf != "" {
 		a.option("--platform", pf)
+		osName, arch := splitPlatform(pf)
+		a.env(container.EnvTargetOS, osName)
+		a.env(container.EnvTargetArch, arch)
 	}
 	// 单次构建的所有内部路径统一在 /cnb/work 下。
 	a.bindMount(e.workspace.Host, e.workspace.Container, false)

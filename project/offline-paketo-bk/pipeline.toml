@@ -115,10 +115,12 @@ path = "docker/builder-base.dockerfile"
 
 [[spec.checks.dockerfiles]]
 path = "docker/runtime-dind.dockerfile"
+args = { BASE_IMAGE_TAG = "${spec.project.base}", BUNDLE_ARCH = "${spec.project.platform}", DOCKER_VERSION = "27.0.3" }
+contexts = { bundle = "${runtime.bundle}" }
 
 [[spec.checks.dockerfiles]]
 path = "docker/runtime-pind.dockerfile"
-args = { BASE_IMAGE_TAG = "offline-builder-base-bk:${derived.architecture}", BUNDLE_ARCH = "${spec.project.platform}", PODMAN_STATIC_VERSION = "6.2.1" }
+args = { BASE_IMAGE_TAG = "offline-builder-base-bk:${derived.architecture}", BUNDLE_ARCH = "${spec.project.platform}", PODMAN_STATIC_VERSION = "6.2.1", PODMAN_STATIC_ARCH = "${derived.architecture}" }
 contexts = { bundle = "${runtime.bundle}" }
 
 [[spec.checks.dockerfiles]]
