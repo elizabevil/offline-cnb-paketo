@@ -16,3 +16,14 @@ import 'test/justfile'
 
 _default:
     @just --list
+
+
+# offline-paketo-bk 测试入口
+test-bk-quick *args:
+    @just --justfile project/offline-paketo-bk/justfile test-quick {{args}}
+
+test-bk-export-modes *args:
+    @just --justfile project/offline-paketo-bk/justfile test-export-modes {{args}}
+
+test-bk-runtime-matrix *args:
+    @just --justfile project/offline-paketo-bk/justfile test-runtime-matrix {{args}}
