@@ -91,10 +91,24 @@ run = [
   "--build-context", "buildpacks=${runtime.repo}/buildpacks/paketo", ".",
 ]
 
+[[spec.stages]]
+name        = "runtime-pind"
+description = "从离线 bundle 加载 managed pind sidecar 镜像"
+workdir     = "."
+run = [
+  "sh", "-c", "set -eu; img=\"${runtime.bundle}/${spec.project.platform}/images/runtime-pind.tar\"; test -f \"$img\" || { echo \"missing runtime-pind bundle: $img\"; exit 1; }; (cd \"$(dirname \"$img\")\" && sha256sum -c runtime-pind.tar.sha256); podman load -i \"$img\"",
+]
+
+
 # ── 静态检查：Dockerfile 的 COPY 源 ──
 
 [[spec.checks.dockerfiles]]
 path = "docker/builder-base.dockerfile"
+
+[[spec.checks.dockerfiles]]
+path = "docker/runtime-pind.dockerfile"
+args = { BASE_IMAGE_TAG = "offline-builder-base-bk:${derived.architecture}", BUNDLE_ARCH = "${spec.project.platform}", PODMAN_STATIC_VERSION = "6.2.1" }
+contexts = { bundle = "${runtime.bundle}" }
 
 [[spec.checks.dockerfiles]]
 path = "docker/builder-build.dockerfile"

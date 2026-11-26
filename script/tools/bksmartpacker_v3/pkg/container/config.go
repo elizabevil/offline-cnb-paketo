@@ -90,19 +90,11 @@ type Config struct {
 	BuildpackAliases string
 	Cache            Cache
 	Workspace        string
+	RuntimeImage     string
 }
 
 // IsPodman 返回是否使用 Podman 后端。
 func (c Config) IsPodman() bool { return c.Backend == BackendPodman }
-
-// SaveArgs 生成镜像导出参数。
-func (c Config) SaveArgs(dest, image string) []string {
-	args := []string{"image", "save"}
-	if c.IsPodman() {
-		args = append(args, "--format", "oci-archive")
-	}
-	return append(args, "-o", dest, image)
-}
 
 // ResolveFromEnv 从环境变量解析运行时配置。
 //
@@ -238,6 +230,7 @@ func newConfig(backend Backend, environment Environment, explicitBinary string, 
 		BuildpackAliases: buildpackAliases(),
 		Cache:            cache,
 		Workspace:        workspace,
+		RuntimeImage:     strings.TrimSpace(firstNonEmpty(os.Getenv("CNB_RUNTIME_IMAGE"), os.Getenv("BKS_RUNTIME_IMAGE"))),
 	}, nil
 }
 

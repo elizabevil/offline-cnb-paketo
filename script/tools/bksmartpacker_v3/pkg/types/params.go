@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 // Params 是 bksmartpacker 的构建参数。
 type Params struct {
 	// Src 源码路径
@@ -26,4 +28,6 @@ type Params struct {
 	Architecture string `json:"architecture,omitempty"`
 	// AllowPartial 允许生成只含部分模块的调试包（不可部署）
 	AllowPartial bool `json:"allowPartial,omitempty"`
+	// BuildTimeout 单次构建总超时
+	BuildTimeout time.Duration `json:"buildTimeout,omitempty"`
 }

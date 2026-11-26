@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"bksmartpacker/pkg/buildpack"
 )
@@ -25,6 +26,8 @@ type BuildPlan struct {
 	BaseImageID string `json:"baseImageId"`
 	// Architecture 目标镜像架构
 	Architecture string `json:"architecture"`
+	// BuildTimeout 单次构建总超时
+	BuildTimeout time.Duration `json:"buildTimeout,omitempty"`
 	// ModuleProcesses 模块名 -> 进程列表
 	ModuleProcesses map[string][]ModuleProcess `json:"moduleProcesses,omitempty"`
 

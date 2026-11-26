@@ -1,25 +1,8 @@
 package container
 
 import (
-	"reflect"
 	"testing"
 )
-
-func TestSaveArgsPodman(t *testing.T) {
-	got := (Config{Backend: BackendPodman}).SaveArgs("/tmp/web.tgz", "bk/web:1")
-	want := []string{"image", "save", "--format", "oci-archive", "-o", "/tmp/web.tgz", "bk/web:1"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("podman 参数错误: %v", got)
-	}
-}
-
-func TestSaveArgsDocker(t *testing.T) {
-	got := (Config{Backend: BackendDocker}).SaveArgs("/tmp/web.tgz", "bk/web:1")
-	want := []string{"image", "save", "-o", "/tmp/web.tgz", "bk/web:1"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("docker 参数错误: %v", got)
-	}
-}
 
 func TestParseRuntimeSelection(t *testing.T) {
 	cases := []struct {

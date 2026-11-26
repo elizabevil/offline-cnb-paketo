@@ -31,7 +31,7 @@ func BuildArtifactJSON(plan *BuildPlan) ([]byte, error) {
 			return nil, fmt.Errorf("module %s is not assigned to any build group", moduleName)
 		}
 		for _, process := range processes {
-			entry.ProcEntrypoints[process.Name] = []string{moduleName + "-" + process.Name}
+			entry.ProcEntrypoints[process.Name] = []string{"/cnb/process/" + moduleName + "-" + process.Name}
 		}
 		artifact.AppArtifacts[moduleName] = entry
 	}

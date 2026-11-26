@@ -61,6 +61,7 @@ bksmartpacker \
 | `--env KEY=VALUE` | 运行时覆盖，可重复；优先级最高 |
 | `--module <name>` | 只构建指定模块，可重复；空表示全部；部分包不可部署 |
 | `--allow-partial` | 允许 `--module` 生成部分调试包 |
+| `--timeout` | 单次构建总超时，默认 `2h` |
 | `--inspect <pkg>` | 只检查已有包，不构建 |
 | `--inspect-format` | `text` 或 `json`，默认 `text` |
 
@@ -73,7 +74,8 @@ bksmartpacker \
 | `BKS_DOCKER_SOCK` | 宿主机运行时 socket；podman 自动选择 rootful `/run/podman/podman.sock` 或 rootless socket |
 | `CNB_CACHE_DIR` | 宿主机文件缓存目录，挂载到 `/layers/cache`；`BKS_CACHE_DIR` 为兼容别名 |
 | `CNB_RUNTIME_WORKSPACE` | 宿主机 workspace 根；容器内固定 `/cnb/work`；未设置时使用临时目录 |
-| `CNB_RUNTIME_DRIVER` | `host`（默认）或 `managed`；managed 目前要求外部 sidecar socket 已就绪 |
+| `CNB_RUNTIME_DRIVER` | `host`（默认）或 `managed`；managed 可用外部 socket 或自动启动 sidecar |
+| `CNB_RUNTIME_IMAGE` | managed sidecar 镜像；entrypoint 需在 `/cnb/work/run/` 提供运行时 socket |
 | `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/podman 仅支持 `layout`，dind 要求 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
 | `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |

@@ -57,6 +57,7 @@ func newBuildPlan(in Input) BuildPlan {
 		PackagingVersion: packagingVersion,
 		BaseImageID:      baseImageID,
 		Architecture:     params.Architecture,
+		BuildTimeout:     params.BuildTimeout,
 		ModuleProcesses:  map[string][]ModuleProcess{},
 	}
 }

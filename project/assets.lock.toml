@@ -1,7 +1,7 @@
 schema = 1
 
 [manifest]
-sha256 = 'cd741cb6393cec301284716e976630d5d0373a51d47fa9155c04f4286eccf62d'
+sha256 = '5ba5b0469bacc04c5882ef323feec57cae1059b2702e9186b0cd6391f4553ae7'
 
 [[locked]]
 id = 'lifecycle'
@@ -149,3 +149,21 @@ sha256 = 'bd05d6ad4a7d42838dddda9d38156525348d71b88c699d134e489c0a8db8043d'
 url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'
 size = 4477649
 sha256 = 'bd05d6ad4a7d42838dddda9d38156525348d71b88c699d134e489c0a8db8043d'
+
+[[locked]]
+id = 'podman-static'
+version = '6.2.1'
+multi_arch = true
+
+[locked.platform]
+[locked.platform.linux-amd64]
+url = 'https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-amd64.tar.gz'
+size = 35490537
+sha256 = 'e95435d3ad37be41ec00a6b10ea5063563c9f8b485da47fbb1cbc21eb102464f'
+
+[locked.platform.linux-arm64]
+url = 'https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-arm64.tar.gz'
+size = 32260258
+sha256 = '8379c337701ec827bc86916478ba8953aca9992d0a08bc6b85a9de72e352f857'
+
+

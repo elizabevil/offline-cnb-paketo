@@ -9,7 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -28,17 +30,19 @@ type ContainerExecutor struct {
 	cnbBuilderImage string
 	runImageArchive string
 	workspace       *Workspace
+	sidecarName     string
+	sidecarStarted  bool
 }
 
 // NewContainerExecutor 使用已解析的运行时配置创建执行器。
-func NewContainerExecutor(plan plan.BuildPlan, runtimeCfg container.Config) (*ContainerExecutor, error) {
+func NewContainerExecutor(buildPlan plan.BuildPlan, runtimeCfg container.Config) (*ContainerExecutor, error) {
 	builderImage := DefaultCNBBuilderImage
-	if plan.BuilderImage != "" {
-		builderImage = plan.BuilderImage
+	if buildPlan.BuilderImage != "" {
+		builderImage = buildPlan.BuilderImage
 	}
 	log.Info("container runtime", "driver", runtimeCfg.Driver, "backend", runtimeCfg.Backend, "environment", runtimeCfg.Environment, "binary", runtimeCfg.Binary, "socket", runtimeCfg.Socket, "export", runtimeCfg.ExportMode)
 	return &ContainerExecutor{
-		plan:            plan,
+		plan:            buildPlan,
 		runtime:         runtimeCfg,
 		cnbBuilderImage: builderImage,
 		runImageArchive: runtimeCfg.RunImageArchive,
@@ -46,7 +50,11 @@ func NewContainerExecutor(plan plan.BuildPlan, runtimeCfg container.Config) (*Co
 }
 
 // Execute 使用选中的容器运行时执行构建计划。
-func (e *ContainerExecutor) Execute() error {
+func (e *ContainerExecutor) Execute(ctx context.Context) error {
+	return e.execute(ctx)
+}
+
+func (e *ContainerExecutor) execute(ctx context.Context) error {
 	workspace, err := NewWorkspace(e.runtime.Workspace)
 	if err != nil {
 		return err
@@ -54,11 +62,10 @@ func (e *ContainerExecutor) Execute() error {
 	e.workspace = workspace
 	defer func() { _ = workspace.Close() }()
 
-	// TODO: add timeout?
-	ctx := context.Background()
-	if err := e.ensureRuntime(); err != nil {
+	if err := e.ensureRuntime(ctx); err != nil {
 		return err
 	}
+	defer e.stopSidecar()
 	if err := e.prepareRunImage(ctx); err != nil {
 		return errors.Wrap(err, "failed to prepare run image")
 	}
@@ -110,12 +117,7 @@ func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	args := []string{"import", "-c", "ENV HOME=/app", "-c", "WORKDIR /app"}
-	if pf := e.runtime.Platform; pf != "" {
-		osName, arch := splitPlatform(pf)
-		args = append(args, "--os", osName, "--arch", arch)
-	}
-	args = append(args, "-", fakeRunnerImage(e.runtime.Platform))
+	args := imageImportArgs(e.runtime.Platform, fakeRunnerImage(e.runtime.Platform))
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdin = f
 	cmd.Stdout = os.Stdout
@@ -125,6 +127,7 @@ func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
 
 type buildInput struct {
 	Name               string
+	RunName            string
 	Src                string
 	Procfile           string
 	RequiredBuildpacks string
@@ -190,68 +193,93 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput) error {
 		return errors.Wrap(err, "failed to write platform env")
 	}
 
+	in.RunName = buildContainerName(e.plan.AppCode, in.Name)
 	args := e.buildArgs(in)
 	args = append(args, e.cnbBuilderImage)
 	log.Info("执行云原生构建", "args", args)
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err = cmd.Run()
+	if err != nil || ctx.Err() != nil {
+		e.removeContainer(in.RunName)
+	}
+	return err
 }
 
 func (e *ContainerExecutor) buildArgs(in buildInput) []string {
-	args := []string{
-		"run", "--rm",
-		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", in.RequiredBuildpacks),
-		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", in.OutputImage),
-		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage(e.runtime.Platform)),
-		"-e", "SOURCE_GET_URL=file://" + e.workspace.SourceContainerPath(),
-		"-e", "USE_DOCKER_DAEMON=1",
-		"-e", "CNB_PLATFORM_API=0.11",
-		"-e", "CNB_BUILDPACK_ALIASES=" + e.runtime.BuildpackAliases,
+	a := newArgBuilder("run", "--rm")
+	if in.RunName != "" {
+		a.option("--name", in.RunName)
 	}
+	a.env("REQUIRED_BUILDPACKS", in.RequiredBuildpacks)
+	a.env("OUTPUT_IMAGE", in.OutputImage)
+	a.env("CNB_RUN_IMAGE", fakeRunnerImage(e.runtime.Platform))
+	a.env("SOURCE_GET_URL", "file://"+e.workspace.SourceContainerPath())
+	a.env("USE_DOCKER_DAEMON", "1")
+	a.env("CNB_PLATFORM_API", "0.11")
+	a.env("CNB_BUILDPACK_ALIASES", e.runtime.BuildpackAliases)
+
 	// 缓存镜像：只在显式配置 cache registry 时启用，避免默认依赖外部仓库。
 	if in.CacheRegistry != "" {
-		cacheImage := fmt.Sprintf("%s/%s/%s:cnb-build-cache", in.CacheRegistry, e.plan.AppCode, in.Name)
-		args = append(args, "-e", fmt.Sprintf("CACHE_IMAGE=%s", cacheImage))
+		cacheImage := strings.Join([]string{in.CacheRegistry, e.plan.AppCode, in.Name}, "/") + ":cnb-build-cache"
+		a.env("CACHE_IMAGE", cacheImage)
 		if in.RegistryAuth != "" {
-			args = append(args, "-e", fmt.Sprintf("CNB_REGISTRY_AUTH=%s", in.RegistryAuth))
+			a.env("CNB_REGISTRY_AUTH", in.RegistryAuth)
 		}
 	}
 	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
 	if pf := e.runtime.Platform; pf != "" {
-		args = append(args, "--platform", pf)
+		a.option("--platform", pf)
 	}
 	// 单次构建的所有内部路径统一在 /cnb/work 下。
-	args = append(args, e.workspace.MountArgs()...)
+	a.bindMount(e.workspace.Host, e.workspace.Container, false)
 	// 容器运行时 socket：podman/pind 使用解析后的 rootful/rootless socket。
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", e.runtime.Socket))
-	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
+	a.bindMount(e.runtime.Socket, "/var/run/docker.sock", false)
+	a.env("DOCKER_HOST", "unix:///var/run/docker.sock")
 	// lifecycle 的 platform 目录固定为 /platform。
-	args = append(args, e.workspace.PlatformMountArgs()...)
+	a.bindMount(e.workspace.PlatformDir(), e.workspace.PlatformContainerPath(), true)
 	// 持久文件缓存独立于 workspace；用户显式挂载时不重复添加。
 	if e.runtime.Cache.Enabled() && !hasMountTarget(e.runtime.ExtraMounts, e.runtime.Cache.ContainerPath) {
-		args = append(args, e.runtime.Cache.MountArgs()...)
-		args = append(args, "-e", "CNB_CACHE_DIR="+e.runtime.Cache.ContainerPath)
+		a.bindMount(e.runtime.Cache.HostPath, e.runtime.Cache.ContainerPath, false)
+		a.env("CNB_CACHE_DIR", e.runtime.Cache.ContainerPath)
 	}
 	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
 	if e.runtime.ExportMode == container.ExportDaemon {
-		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
+		a.env("CNB_EXPORT_MODE", string(container.ExportDaemon))
 	} else {
-		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
-		args = append(args, "-e", "CNB_LAYER_ARCHIVE="+e.workspace.LayerContainerPath(in.ArchiveName))
+		a.env("CNB_EXPORT_MODE", string(container.ExportLayout))
+		a.env("CNB_LAYER_ARCHIVE", e.workspace.LayerContainerPath(in.ArchiveName))
 	}
 	// run image 位于 workspace/run，随根挂载进入容器。
 	if e.runImageArchive != "" {
-		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE="+e.workspace.RunImageContainerPath())
+		a.env("CNB_RUN_IMAGE_ARCHIVE", e.workspace.RunImageContainerPath())
 	}
 	// 网络模式：host 可访问宿主机内网镜像源。
 	if net := e.runtime.Network; net != "" {
-		args = append(args, "--network", net)
+		a.option("--network", net)
 	}
 	// 额外挂载已由容器配置解析，原样传给运行时。
-	args = append(args, e.runtime.ExtraMounts...)
-	return args
+	a.add(e.runtime.ExtraMounts...)
+	return a.args()
+}
+
+const containerCleanupTimeout = 30 * time.Second
+
+func buildContainerName(appCode, module string) string {
+	return strings.Join([]string{
+		"cnb-build", appCode, module,
+		strconv.FormatInt(time.Now().UnixNano(), 36),
+	}, "-")
+}
+
+func (e *ContainerExecutor) removeContainer(name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), containerCleanupTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, "rm", "-f", name)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	_ = cmd.Run()
 }
 
 func hasMountTarget(mounts []string, target string) bool {
@@ -263,12 +291,15 @@ func hasMountTarget(mounts []string, target string) bool {
 	return false
 }
 
-func (e *ContainerExecutor) ensureRuntime() error {
+func (e *ContainerExecutor) ensureRuntime(ctx context.Context) error {
 	if e.runtime.Driver != container.DriverManaged {
 		return nil
 	}
+	if e.runtime.RuntimeImage != "" {
+		return e.startSidecar(ctx)
+	}
 	if _, err := os.Stat(e.runtime.Socket); err != nil {
-		return errors.Wrapf(err, "managed runtime socket %s is not ready; start runtime sidecar first", e.runtime.Socket)
+		return errors.Wrapf(err, "managed runtime socket %s is not ready; set CNB_RUNTIME_IMAGE to start a sidecar", e.runtime.Socket)
 	}
 	return nil
 }
@@ -305,7 +336,7 @@ func (e *ContainerExecutor) exportArchive(ctx context.Context, archiveName, imag
 		}
 		return os.Remove(produced)
 	}
-	args := e.runtime.SaveArgs(filepath.Join(e.workspace.OutDir(), archiveName), image)
+	args := imageSaveArgs(e.runtime, filepath.Join(e.workspace.OutDir(), archiveName), image)
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -438,7 +469,8 @@ func tarDir(src, dest string) error {
 // exportFakeRunnerArchive 把 fake runner 导出为 docker-archive，供容器内使用。
 func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context) error {
 	path := e.workspace.RunImagePath()
-	cmd := exec.CommandContext(ctx, e.runtime.Binary, "image", "save", "-o", path, fakeRunnerImage(e.runtime.Platform))
+	args := dockerArchiveSaveArgs(path, fakeRunnerImage(e.runtime.Platform))
+	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

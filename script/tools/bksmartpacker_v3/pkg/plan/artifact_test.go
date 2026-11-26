@@ -33,7 +33,7 @@ func TestBuildArtifactJSON(t *testing.T) {
 	if artifact.AppArtifacts["pipeline"].ImageTar != "default.tar" {
 		t.Fatalf("unexpected image_tar: %+v", artifact.AppArtifacts["pipeline"])
 	}
-	if got := artifact.AppArtifacts["pipeline"].ProcEntrypoints["node-timeout"]; len(got) != 1 || got[0] != "pipeline-node-timeout" {
+	if got := artifact.AppArtifacts["pipeline"].ProcEntrypoints["node-timeout"]; len(got) != 1 || got[0] != "/cnb/process/pipeline-node-timeout" {
 		t.Fatalf("unexpected entrypoint: %v", got)
 	}
 }

@@ -75,9 +75,41 @@ bp_modules := env_var_or_default("BKS_MODULES", "")
 env_flags := if bp_env != "" { " --env " + replace(bp_env, " ", " --env ") } else { "" }
 module_flags := if bp_modules != "" { " --module " + replace(bp_modules, " ", " --module ") } else { "" }
 
-# 构建三个镜像（跳过打包阶段）
+# 构建 builder 镜像（跳过打包阶段）
 smart-builder *args:
     @{{_cnb}} pipeline run {{_profile}} --until builder {{args}}
+
+# 构建 builder，并从 bundle 加载 runtime-pind
+smart-runtime *args:
+    @{{_cnb}} pipeline run {{_profile}} --until runtime-pind {{args}}
+
+# 下载并校验静态 podman bundle（生产者步骤）
+podman-static:
+    @mkdir -p {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1
+    @test -f {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1/podman-linux-{{_arch}}.tar.gz || \
+        curl -fL --retry 2 -o {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1/podman-linux-{{_arch}}.tar.gz \
+        https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-{{_arch}}.tar.gz
+    @test -f {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1/podman-linux-{{_arch}}.tar.gz.sha256 || \
+        (cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum podman-linux-{{_arch}}.tar.gz > podman-linux-{{_arch}}.tar.gz.sha256)
+    @(cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum -c {{_dir}}/docker/podman-static-{{_arch}}.sha256 2>/dev/null || sha256sum -c {{_dir}}/docker/podman-static.sha256)
+
+# 产出 runtime-pind 离线镜像 tar（生产者步骤，需要静态 podman bundle）
+runtime-pind-bundle:
+    @test -f {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1/podman-linux-{{_arch}}.tar.gz || \
+        { echo "  ✗ 缺少静态 podman bundle，请先放入 bundle/{{_platform}}/binaries/podman-static/6.2.1/"; exit 1; }
+    @(cd {{_root}}/bundle/{{_platform}}/binaries/podman-static/6.2.1 && sha256sum -c podman-linux-{{_arch}}.tar.gz.sha256)
+    @mkdir -p {{_root}}/bundle/{{_platform}}/images
+    @podman build -f {{_dir}}/docker/runtime-pind.dockerfile \
+        --build-arg BASE_IMAGE_TAG=offline-builder-base-bk:{{_arch}} \
+        --build-arg BUNDLE_ARCH={{_platform}} \
+        --build-arg PODMAN_STATIC_VERSION=6.2.1 \
+        --build-context bundle={{_root}}/bundle \
+        -t offline-runtime-pind-bk:{{_arch}} {{_dir}}
+    @podman save --format oci-archive \
+        -o {{_root}}/bundle/{{_platform}}/images/runtime-pind.tar \
+        offline-runtime-pind-bk:{{_arch}}
+    @sha256sum {{_root}}/bundle/{{_platform}}/images/runtime-pind.tar > \
+        {{_root}}/bundle/{{_platform}}/images/runtime-pind.tar.sha256
 
 # 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:

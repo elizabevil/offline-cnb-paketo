@@ -246,3 +246,27 @@ url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/p
 [asset.platform.linux-arm64]
 kind = 'http'
 url = 'https://github.com/paketo-buildpacks/procfile/releases/download/v5.15.9/procfile-5.15.9.tgz'
+
+[[asset]]
+id = 'podman-static'
+version = '6.2.1'
+default = true
+multi_arch = true
+
+[asset.info]
+name = 'static podman and dependencies'
+homepage = 'https://github.com/mgoltzsche/podman-static'
+license = 'Apache-2.0'
+
+[asset.unpack]
+kind = 'bin'
+strip = 0
+dir = 'podman-static/{version}'
+expect = ['podman-linux-{arch}.tar.gz']
+
+[asset.platform]
+[asset.platform.linux-amd64]
+url = 'https://github.com/mgoltzsche/podman-static/releases/download/v{version}/podman-linux-amd64.tar.gz'
+
+[asset.platform.linux-arm64]
+url = 'https://github.com/mgoltzsche/podman-static/releases/download/v{version}/podman-linux-arm64.tar.gz'

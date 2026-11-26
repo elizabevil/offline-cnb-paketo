@@ -174,7 +174,7 @@ lifecycle 注入 buildpack
     "<module>": {
       "image_tar": "<group>.tar",
       "proc_entrypoints": {
-        "<process>": ["<module>-<process>"]
+        "<process>": ["/cnb/process/<module>-<process>"]
       }
     }
   }
@@ -186,6 +186,7 @@ lifecycle 注入 buildpack
 - 只包含 app_desc 中的模块
 - `image_tar` 必须存在于包内
 - `proc_entrypoints` 与 Procfile key 一致
+- 值使用绝对路径 `/cnb/process/<module>-<process>`，不依赖基础镜像 PATH
 - 部分包（`--module`）默认禁止，调试需 `--allow-partial`
 
 ## 七、包结构

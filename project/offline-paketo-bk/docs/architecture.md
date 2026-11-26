@@ -144,3 +144,77 @@ CNB_CACHE_DIR=/var/cache/bk just smart
 
 变更记录见 [`docs/archive/offline-paketo-bk-history.md`](../../../docs/archive/offline-paketo-bk-history.md)，
 pack 时代的流程见 [`docs/archive/bk-build-logic.md`](../../../docs/archive/bk-build-logic.md)。
+
+## 九、managed pind 离线 runtime
+
+builder 镜像不包含 daemon。managed pind 使用独立 sidecar 镜像：
+
+```text
+bundle/<platform>/images/runtime-pind.tar
+bundle/<platform>/images/runtime-pind.tar.sha256
+```
+
+### 生产 bundle
+
+```bash
+just runtime-pind-bundle
+```
+
+这会：
+
+1. 构建 `offline-runtime-pind-bk:<arch>`
+2. 导出 OCI archive 到 bundle
+3. 写入 sha256
+
+该步骤是离线包的生产者，可能使用 apt 网络。
+
+### 消费 bundle
+
+```bash
+RUNTIME=pind \
+BKS_RUNTIME_DRIVER=managed \
+CNB_RUNTIME_IMAGE=offline-runtime-pind-bk:<arch> \
+CNB_RUNTIME_WORKSPACE=/var/lib/cnb/run \
+bksmartpacker ...
+```
+
+pipeline 的 `runtime-pind` stage 只做：
+
+```text
+校验 sha256
+podman load -i bundle/<platform>/images/runtime-pind.tar
+```
+
+不会在消费端访问 apt 或网络。
+
+
+### runtime-pind 静态二进制
+
+runtime-pind 不再通过 apt 安装 podman，而是从 bundle 中的静态包构建：
+
+```text
+bundle/<platform>/binaries/podman-static/6.2.1/podman-linux-amd64.tar.gz
+```
+
+来源：
+
+```text
+https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-amd64.tar.gz
+```
+
+该包包含静态 podman、crun、runc、conmon、fuse-overlayfs、netavark、pasta 等依赖。
+
+生产：
+
+```bash
+just podman-static
+just runtime-pind-bundle
+```
+
+消费：
+
+```bash
+just smart-runtime
+```
+
+构建 runtime 镜像时不再访问 apt 或外网；只从 bundle 复制静态包。

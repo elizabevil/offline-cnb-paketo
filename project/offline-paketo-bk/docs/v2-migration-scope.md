@@ -94,7 +94,7 @@ pipeline-node-timeout: python manage.py node_timeout_process
     "default": {
       "image_tar": "default.tar",
       "proc_entrypoints": {
-        "web": ["default-web"],
+        "web": ["/cnb/process/default-web"],
         "beat": ["default-beat"]
       }
     },
@@ -102,7 +102,7 @@ pipeline-node-timeout: python manage.py node_timeout_process
       "image_tar": "default.tar",
       "proc_entrypoints": {
         "cworker": ["pipeline-cworker"],
-        "node-timeout": ["pipeline-node-timeout"]
+        "node-timeout": ["/cnb/process/pipeline-node-timeout"]
       }
     }
   }
@@ -112,7 +112,7 @@ pipeline-node-timeout: python manage.py node_timeout_process
 规则：
 
 - `image_tar`：同一构建组的模块指向同一个文件
-- `proc_entrypoints`：`<module>-<process>`
+- `proc_entrypoints`：`/cnb/process/<module>-<process>`
 - `runtime.base_image_id`：默认 `default`
 - `runtime.architecture`：`amd64` / `arm64`
 

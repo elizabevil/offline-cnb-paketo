@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/alecthomas/kong"
 
@@ -25,20 +26,21 @@ import (
 //   - --allow-partial 显式放行部分包；该产物不可部署。
 //   - --env/--env-file 合并顺序：app_desc < env-file < --env。
 type Options struct {
-	Src              string   `name:"src" help:"应用源码路径，需包含 app_desc.yaml"`
-	Dest             string   `name:"dest" default:"${defaultDest}" help:"s-mart 输出路径"`
-	BuilderImage     string   `name:"builder-image" default:"${defaultBuilderImage}" help:"cnb builder 镜像"`
-	CacheRegistry    string   `name:"cache-registry" help:"缓存镜像仓库，如 mirrors.tencent.com/bkapps"`
-	RegistryAuth     string   `name:"registry-auth" help:"镜像仓库凭证 JSON，如 {\"host\":\"Basic xxx\"}"`
-	Inspect          string   `name:"inspect" help:"只检查已有 s-mart 包，不构建"`
-	InspectFormat    string   `name:"inspect-format" default:"${defaultInspectFormat}" enum:"text,json" help:"检查输出格式"`
-	Envs             []string `name:"env" sep:"none" help:"构建容器环境变量 KEY=VALUE，可重复"`
-	EnvFiles         []string `name:"env-file" sep:"none" help:"dotenv 配置文件，可重复；后加载覆盖先加载"`
-	Modules          []string `name:"module" sep:"none" help:"只构建指定模块，可重复；部分包默认不可部署"`
-	PackagingVersion string   `name:"packaging-version" default:"${defaultPackagingVersion}" enum:"v1,v2" help:"打包方案：v1(旧) | v2(构建组+artifact)"`
-	BaseImageID      string   `name:"base-image-id" default:"${defaultBaseImageID}" help:"artifact.json 的 runtime.base_image_id，平台 base image 配置的 key"`
-	Architecture     string   `name:"architecture" help:"artifact.json 的 runtime.architecture，默认按目标平台推断"`
-	AllowPartial     bool     `name:"allow-partial" help:"允许 --module 生成部分调试包（不可部署）"`
+	Src              string        `name:"src" help:"应用源码路径，需包含 app_desc.yaml"`
+	Dest             string        `name:"dest" default:"${defaultDest}" help:"s-mart 输出路径"`
+	BuilderImage     string        `name:"builder-image" default:"${defaultBuilderImage}" help:"cnb builder 镜像"`
+	CacheRegistry    string        `name:"cache-registry" help:"缓存镜像仓库，如 mirrors.tencent.com/bkapps"`
+	RegistryAuth     string        `name:"registry-auth" help:"镜像仓库凭证 JSON，如 {\"host\":\"Basic xxx\"}"`
+	Inspect          string        `name:"inspect" help:"只检查已有 s-mart 包，不构建"`
+	InspectFormat    string        `name:"inspect-format" default:"${defaultInspectFormat}" enum:"text,json" help:"检查输出格式"`
+	Envs             []string      `name:"env" sep:"none" help:"构建容器环境变量 KEY=VALUE，可重复"`
+	EnvFiles         []string      `name:"env-file" sep:"none" help:"dotenv 配置文件，可重复；后加载覆盖先加载"`
+	Modules          []string      `name:"module" sep:"none" help:"只构建指定模块，可重复；部分包默认不可部署"`
+	PackagingVersion string        `name:"packaging-version" default:"${defaultPackagingVersion}" enum:"v1,v2" help:"打包方案：v1(旧) | v2(构建组+artifact)"`
+	BaseImageID      string        `name:"base-image-id" default:"${defaultBaseImageID}" help:"artifact.json 的 runtime.base_image_id，平台 base image 配置的 key"`
+	Architecture     string        `name:"architecture" help:"artifact.json 的 runtime.architecture，默认按目标平台推断"`
+	AllowPartial     bool          `name:"allow-partial" help:"允许 --module 生成部分调试包（不可部署）"`
+	Timeout          time.Duration `name:"timeout" default:"${defaultTimeout}" help:"单次构建总超时，如 90m、2h"`
 }
 
 func defaultOptions() Options {
@@ -57,6 +59,7 @@ func Parse(args []string) (Options, error) {
 			"defaultInspectFormat":    "text",
 			"defaultPackagingVersion": plan.PackagingVersionV2,
 			"defaultBaseImageID":      plan.DefaultBaseImageID,
+			"defaultTimeout":          plan.DefaultBuildTimeout.String(),
 		},
 	)
 	if err != nil {
@@ -78,6 +81,9 @@ func (o Options) Validate() error {
 	}
 	if o.Src == "" {
 		return fmt.Errorf("--src is required")
+	}
+	if o.Timeout <= 0 {
+		return fmt.Errorf("--timeout must be positive")
 	}
 	if len(o.Modules) > 0 && !o.AllowPartial {
 		return fmt.Errorf("--module generates a partial package which cannot be deployed; use --allow-partial for debug builds")
@@ -104,5 +110,6 @@ func (o Options) Params() (*types.Params, error) {
 		BaseImageID:      o.BaseImageID,
 		Architecture:     o.Architecture,
 		AllowPartial:     o.AllowPartial,
+		BuildTimeout:     o.Timeout,
 	}, nil
 }

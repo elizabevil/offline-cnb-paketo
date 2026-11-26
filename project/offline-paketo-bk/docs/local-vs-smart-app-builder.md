@@ -124,7 +124,7 @@ artifact.json：
       "image_tar": "default.tar",
       "proc_entrypoints": {
         "cworker": ["pipeline-cworker"],
-        "node-timeout": ["pipeline-node-timeout"]
+        "node-timeout": ["/cnb/process/pipeline-node-timeout"]
       }
     }
   }
@@ -135,6 +135,7 @@ artifact.json：
 
 - 进程名全局唯一
 - 平台按 `proc_entrypoints` 设置容器 command
+- 本地生成绝对路径 `/cnb/process/<module>-<process>`，避免依赖运行时 PATH
 - 不再直接执行裸 `node-timeout` / `cworker`
 
 ## 6. 产物

@@ -1,5 +1,7 @@
 package plan
 
+import "time"
+
 const (
 	// PackagingVersionV1 是旧的每模块 tgz 方案。
 	PackagingVersionV1 = "v1"
@@ -9,4 +11,6 @@ const (
 	DefaultBaseImageID = "default"
 	// ImageTarExt 是 v2 构建组镜像包的扩展名。
 	ImageTarExt = ".tar"
+	// DefaultBuildTimeout 是单次构建默认超时。
+	DefaultBuildTimeout = 2 * time.Hour
 )

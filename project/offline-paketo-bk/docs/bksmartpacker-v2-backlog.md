@@ -78,7 +78,7 @@ type ModuleBuildGroup struct {
   "app_artifacts": {
     "default": {
       "image_tar": "default.tar",
-      "proc_entrypoints": {"web": ["default-web"]}
+      "proc_entrypoints": {"web": ["/cnb/process/default-web"]}
     }
   }
 }

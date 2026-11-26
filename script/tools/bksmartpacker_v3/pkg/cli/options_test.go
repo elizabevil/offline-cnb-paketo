@@ -1,6 +1,9 @@
 package cli
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseCLIOptionsRepeatedAndDefaults(t *testing.T) {
 	opts, err := Parse([]string{
@@ -64,5 +67,15 @@ func TestCLIOptionsToParams(t *testing.T) {
 func TestParseCLIOptionsInvalidEnum(t *testing.T) {
 	if _, err := Parse([]string{"--src", ".", "--packaging-version", "v3"}); err == nil {
 		t.Fatal("expected enum error")
+	}
+}
+
+func TestParseCLIOptionsTimeout(t *testing.T) {
+	opts, err := Parse([]string{"--src", ".", "--timeout", "90m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Timeout != 90*time.Minute {
+		t.Fatalf("timeout = %s", opts.Timeout)
 	}
 }

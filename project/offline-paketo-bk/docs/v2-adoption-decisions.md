@@ -56,7 +56,7 @@ sourceDir + required buildpacks 相同
   "app_artifacts": {
     "module": {
       "image_tar": "group.tar",
-      "proc_entrypoints": {"process": ["module-process"]}
+      "proc_entrypoints": {"process": ["/cnb/process/module-process"]}
     }
   }
 }
