@@ -1,6 +1,6 @@
 package types
 
-// Params 自定义参数, 蓝盾传参风格, bool 值也是字符串
+// Params 是 bksmartpacker 的构建参数。
 type Params struct {
 	// Src 源码路径
 	Src string `json:"src"`

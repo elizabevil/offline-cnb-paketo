@@ -1,14 +1,14 @@
 module bksmartpacker
 
-go 1.26.0
+go 1.27.4
 
 require (
+	github.com/alecthomas/kong v1.17.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.53.0
-	github.com/spf13/pflag v1.1.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

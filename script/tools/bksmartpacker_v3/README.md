@@ -35,6 +35,8 @@ TARGET=linux-arm64 just --justfile script/tools/bksmartpacker_v3/justfile build
 
 ## 三、使用
 
+> `--help` / `-h` 由 Kong 生成；`--inspect` 与 `--src` 互斥。
+
 ```bash
 bksmartpacker \
   --src /path/to/app \
