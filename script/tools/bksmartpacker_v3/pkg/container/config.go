@@ -30,6 +30,16 @@ const (
 	EnvironmentDind Environment = "dind"
 )
 
+// Driver 是运行时驱动方式。
+type Driver string
+
+const (
+	// DriverHost 使用宿主机已有运行时。
+	DriverHost Driver = "host"
+	// DriverManaged 使用外部/managed 运行时端点。
+	DriverManaged Driver = "managed"
+)
+
 // ExportMode 是镜像导出方式。
 type ExportMode string
 
@@ -67,6 +77,7 @@ const (
 // Config 是执行器需要的全部运行时配置。
 // 环境变量只在本包解析，executors 不再读取 BKS_*。
 type Config struct {
+	Driver           Driver
 	Backend          Backend
 	Environment      Environment
 	Binary           string
@@ -77,6 +88,8 @@ type Config struct {
 	ExtraMounts      []string
 	RunImageArchive  string
 	BuildpackAliases string
+	Cache            Cache
+	Workspace        string
 }
 
 // IsPodman 返回是否使用 Podman 后端。
@@ -107,11 +120,15 @@ func ResolveFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	driver, err := resolveDriver()
+	if err != nil {
+		return Config{}, err
+	}
 	backend, err := resolveBackend(selection, strings.TrimSpace(os.Getenv("BKS_CONTAINER_CLI")))
 	if err != nil {
 		return Config{}, err
 	}
-	return newConfig(backend, selection.Environment, strings.TrimSpace(os.Getenv("BKS_CONTAINER_CLI")))
+	return newConfig(backend, selection.Environment, strings.TrimSpace(os.Getenv("BKS_CONTAINER_CLI")), driver)
 }
 
 // runtimeSelection 是 RUNTIME 解析出的环境与后端组合。
@@ -171,7 +188,7 @@ func backendFromBinary(binary string) (Backend, error) {
 	}
 }
 
-func newConfig(backend Backend, environment Environment, explicitBinary string) (Config, error) {
+func newConfig(backend Backend, environment Environment, explicitBinary string, driver Driver) (Config, error) {
 	if err := validatePair(backend, environment); err != nil {
 		return Config{}, err
 	}
@@ -190,18 +207,51 @@ func newConfig(backend Backend, environment Environment, explicitBinary string) 
 	if err != nil {
 		return Config{}, err
 	}
+	cache, err := resolveCache()
+	if err != nil {
+		return Config{}, err
+	}
+	workspace := strings.TrimSpace(firstNonEmpty(os.Getenv("CNB_RUNTIME_WORKSPACE"), os.Getenv("BKS_RUNTIME_WORKSPACE")))
+	socket := resolveSocket(backend, environment)
+	if driver == DriverManaged {
+		if workspace == "" {
+			return Config{}, fmt.Errorf("BKS_RUNTIME_DRIVER=managed requires CNB_RUNTIME_WORKSPACE")
+		}
+		if strings.TrimSpace(os.Getenv("BKS_DOCKER_SOCK")) == "" {
+			socket = filepath.Join(workspace, "run", "podman.sock")
+			if backend == BackendDocker {
+				socket = filepath.Join(workspace, "run", "docker.sock")
+			}
+		}
+	}
 	return Config{
+		Driver:           driver,
 		Backend:          backend,
 		Environment:      environment,
 		Binary:           path,
-		Socket:           resolveSocket(backend, environment),
+		Socket:           socket,
 		ExportMode:       exportMode,
 		Platform:         strings.TrimSpace(os.Getenv("BKS_PLATFORM")),
 		Network:          strings.TrimSpace(os.Getenv("BKS_NETWORK")),
 		ExtraMounts:      strings.Fields(os.Getenv("BKS_EXTRA_MOUNTS")),
 		RunImageArchive:  strings.TrimSpace(os.Getenv("BKS_RUN_IMAGE_ARCHIVE_FILE")),
 		BuildpackAliases: buildpackAliases(),
+		Cache:            cache,
+		Workspace:        workspace,
 	}, nil
+}
+
+func resolveDriver() (Driver, error) {
+	raw := strings.TrimSpace(firstNonEmpty(os.Getenv("CNB_RUNTIME_DRIVER"), os.Getenv("BKS_RUNTIME_DRIVER")))
+	if raw == "" {
+		return DriverHost, nil
+	}
+	switch d := Driver(strings.ToLower(raw)); d {
+	case DriverHost, DriverManaged:
+		return d, nil
+	default:
+		return "", fmt.Errorf("unsupported runtime driver %q: must be host or managed", raw)
+	}
 }
 
 func validatePair(backend Backend, environment Environment) error {
@@ -275,6 +325,15 @@ func podmanSocket() string {
 		}
 	}
 	return candidates[0]
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func buildpackAliases() string {

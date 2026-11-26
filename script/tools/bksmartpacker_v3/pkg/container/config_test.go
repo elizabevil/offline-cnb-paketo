@@ -88,3 +88,48 @@ func TestResolveSocketExplicit(t *testing.T) {
 		t.Fatalf("socket = %q", got)
 	}
 }
+
+func TestResolveCache(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CNB_CACHE_DIR", dir)
+	cache, err := resolveCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cache.HostPath != dir || cache.ContainerPath != DefaultCacheContainerPath {
+		t.Fatalf("cache = %#v", cache)
+	}
+	if got := cache.MountArgs(); len(got) != 2 || got[0] != "--mount" {
+		t.Fatalf("mount args = %#v", got)
+	}
+}
+
+func TestResolveCacheDisabled(t *testing.T) {
+	t.Setenv("CNB_CACHE_DIR", "")
+	t.Setenv("BKS_CACHE_DIR", "")
+	cache, err := resolveCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cache.Enabled() {
+		t.Fatalf("cache should be disabled: %#v", cache)
+	}
+}
+
+func TestResolveDriver(t *testing.T) {
+	t.Setenv("CNB_RUNTIME_DRIVER", "")
+	t.Setenv("BKS_RUNTIME_DRIVER", "")
+	driver, err := resolveDriver()
+	if err != nil || driver != DriverHost {
+		t.Fatalf("driver=%s err=%v", driver, err)
+	}
+	t.Setenv("CNB_RUNTIME_DRIVER", "managed")
+	driver, err = resolveDriver()
+	if err != nil || driver != DriverManaged {
+		t.Fatalf("driver=%s err=%v", driver, err)
+	}
+	t.Setenv("CNB_RUNTIME_DRIVER", "bad")
+	if _, err := resolveDriver(); err == nil {
+		t.Fatal("expected invalid driver error")
+	}
+}

@@ -71,6 +71,9 @@ bksmartpacker \
 | `BKS_RUNTIME` / `RUNTIME` | `pind`、`dind`、`host-podman`、`host-docker`；也兼容 `podman`、`docker` |
 | `BKS_CONTAINER_CLI` | 覆盖后端二进制；必须与 backend 匹配 |
 | `BKS_DOCKER_SOCK` | 宿主机运行时 socket；podman 自动选择 rootful `/run/podman/podman.sock` 或 rootless socket |
+| `CNB_CACHE_DIR` | 宿主机文件缓存目录，挂载到 `/layers/cache`；`BKS_CACHE_DIR` 为兼容别名 |
+| `CNB_RUNTIME_WORKSPACE` | 宿主机 workspace 根；容器内固定 `/cnb/work`；未设置时使用临时目录 |
+| `CNB_RUNTIME_DRIVER` | `host`（默认）或 `managed`；managed 目前要求外部 sidecar socket 已就绪 |
 | `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/podman 仅支持 `layout`，dind 要求 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
 | `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |

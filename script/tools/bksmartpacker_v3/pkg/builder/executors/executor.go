@@ -27,6 +27,7 @@ type ContainerExecutor struct {
 	runtime         container.Config
 	cnbBuilderImage string
 	runImageArchive string
+	workspace       *Workspace
 }
 
 // NewContainerExecutor 使用已解析的运行时配置创建执行器。
@@ -35,7 +36,7 @@ func NewContainerExecutor(plan plan.BuildPlan, runtimeCfg container.Config) (*Co
 	if plan.BuilderImage != "" {
 		builderImage = plan.BuilderImage
 	}
-	log.Info("container runtime", "backend", runtimeCfg.Backend, "environment", runtimeCfg.Environment, "binary", runtimeCfg.Binary, "socket", runtimeCfg.Socket, "export", runtimeCfg.ExportMode)
+	log.Info("container runtime", "driver", runtimeCfg.Driver, "backend", runtimeCfg.Backend, "environment", runtimeCfg.Environment, "binary", runtimeCfg.Binary, "socket", runtimeCfg.Socket, "export", runtimeCfg.ExportMode)
 	return &ContainerExecutor{
 		plan:            plan,
 		runtime:         runtimeCfg,
@@ -46,46 +47,42 @@ func NewContainerExecutor(plan plan.BuildPlan, runtimeCfg container.Config) (*Co
 
 // Execute 使用选中的容器运行时执行构建计划。
 func (e *ContainerExecutor) Execute() error {
-	// 生成临时目录, 用于存放输出的镜像层
-	workspace, err := os.MkdirTemp("", "workspace")
+	workspace, err := NewWorkspace(e.runtime.Workspace)
 	if err != nil {
 		return err
 	}
+	e.workspace = workspace
+	defer func() { _ = workspace.Close() }()
 
 	// TODO: add timeout?
 	ctx := context.Background()
-	if err := e.prepareFakeRunner(ctx); err != nil {
-		return errors.Wrap(err, "failed to build fake runner")
-	}
-	if err := e.exportFakeRunnerArchive(ctx, workspace); err != nil {
-		return errors.Wrap(err, "failed to export fake runner")
-	}
-
-	layerDir := filepath.Join(workspace, "layers")
-	if err := os.MkdirAll(layerDir, 0o755); err != nil {
+	if err := e.ensureRuntime(); err != nil {
 		return err
+	}
+	if err := e.prepareRunImage(ctx); err != nil {
+		return errors.Wrap(err, "failed to prepare run image")
 	}
 
 	if e.plan.PackagingVersion == plan.PackagingVersionV2 {
 		for _, group := range e.plan.Groups {
-			if err := e.buildGroup(ctx, group, layerDir); err != nil {
+			if err := e.buildGroup(ctx, group); err != nil {
 				return errors.Wrapf(err, "failed to build group<%s>", group.ModuleName)
 			}
-			if err := e.exportGroupImage(ctx, workspace, group); err != nil {
+			if err := e.exportGroupImage(ctx, group); err != nil {
 				return errors.Wrapf(err, "failed to export image of group<%s>", group.ModuleName)
 			}
 		}
-		return e.buildSMartPackageV2(ctx, workspace)
+		return e.buildSMartPackageV2(ctx)
 	}
 	for _, step := range e.plan.Steps {
-		if err := e.buildStep(ctx, step, layerDir); err != nil {
+		if err := e.buildStep(ctx, step); err != nil {
 			return errors.Wrapf(err, "failed to build module<%s>", step.ModuleName)
 		}
-		if err := e.exportImageLayer(ctx, workspace, step); err != nil {
+		if err := e.exportImageLayer(ctx, step); err != nil {
 			return errors.Wrapf(err, "failed to export image of module<%s>", step.ModuleName)
 		}
 	}
-	return e.buildSMartPackage(ctx, workspace)
+	return e.buildSMartPackage(ctx)
 }
 
 func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
@@ -138,7 +135,7 @@ type buildInput struct {
 	Envs               map[string]string
 }
 
-func (e *ContainerExecutor) buildStep(ctx context.Context, step *plan.ModuleBuildStep, layerDir string) error {
+func (e *ContainerExecutor) buildStep(ctx context.Context, step *plan.ModuleBuildStep) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               step.ModuleName,
 		Src:                step.Src,
@@ -149,10 +146,10 @@ func (e *ContainerExecutor) buildStep(ctx context.Context, step *plan.ModuleBuil
 		CacheRegistry:      step.CacheRegistry,
 		RegistryAuth:       step.RegistryAuth,
 		Envs:               step.Envs,
-	}, layerDir)
+	})
 }
 
-func (e *ContainerExecutor) buildGroup(ctx context.Context, group *plan.ModuleBuildGroup, layerDir string) error {
+func (e *ContainerExecutor) buildGroup(ctx context.Context, group *plan.ModuleBuildGroup) error {
 	return e.runBuild(ctx, buildInput{
 		Name:               group.ModuleName,
 		Src:                group.Src,
@@ -163,44 +160,37 @@ func (e *ContainerExecutor) buildGroup(ctx context.Context, group *plan.ModuleBu
 		CacheRegistry:      group.CacheRegistry,
 		RegistryAuth:       group.RegistryAuth,
 		Envs:               group.Envs,
-	}, layerDir)
+	})
 }
 
 // runBuild 执行一次 builder 构建；v1 每模块调用一次，v2 每构建组调用一次。
-func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput, layerDir string) error {
+func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput) error {
 	info, err := os.Stat(in.Src)
 	if err != nil {
 		return errors.Wrap(err, "src is not found")
 	}
 
-	var tarballPath string
-	if !info.IsDir() {
-		tarballPath = in.Src
-	} else {
-		fh, err := os.CreateTemp("", "*.tgz")
-		if err != nil {
+	sourcePath := e.workspace.SourcePath()
+	if info.IsDir() {
+		if err := source.Build(in.Src, in.Procfile, sourcePath); err != nil {
 			return errors.Wrap(err, "failed to archive src")
 		}
-		_ = os.Remove(fh.Name())
-		if err := source.Build(in.Src, in.Procfile, fh.Name()); err != nil {
-			return errors.Wrap(err, "failed to archive src")
-		}
-		tarballPath = fh.Name()
+	} else if err := utils.Copy(in.Src, sourcePath); err != nil {
+		return errors.Wrap(err, "failed to copy source archive")
 	}
 
-	platformDir, err := os.MkdirTemp("", "platform")
-	if err != nil {
-		return errors.Wrap(err, "failed to create platform dir")
+	platformDir := e.workspace.PlatformDir()
+	if err := os.RemoveAll(platformDir); err != nil {
+		return errors.Wrap(err, "failed to reset platform dir")
 	}
-	defer func() { _ = os.RemoveAll(platformDir) }()
-	if err := os.Chmod(platformDir, 0o755); err != nil {
-		return errors.Wrap(err, "failed to chmod platform dir")
+	if err := os.MkdirAll(platformDir, 0o755); err != nil {
+		return errors.Wrap(err, "failed to create platform dir")
 	}
 	if err := env.WritePlatform(platformDir, in.Envs); err != nil {
 		return errors.Wrap(err, "failed to write platform env")
 	}
 
-	args := e.buildArgs(in, layerDir, platformDir, tarballPath)
+	args := e.buildArgs(in)
 	args = append(args, e.cnbBuilderImage)
 	log.Info("执行云原生构建", "args", args)
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
@@ -209,13 +199,13 @@ func (e *ContainerExecutor) runBuild(ctx context.Context, in buildInput, layerDi
 	return cmd.Run()
 }
 
-func (e *ContainerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarballPath string) []string {
+func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	args := []string{
 		"run", "--rm",
 		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", in.RequiredBuildpacks),
 		"-e", fmt.Sprintf("OUTPUT_IMAGE=%s", in.OutputImage),
 		"-e", fmt.Sprintf("CNB_RUN_IMAGE=%s", fakeRunnerImage(e.runtime.Platform)),
-		"-e", "SOURCE_GET_URL=file:///tmp/source.tgz",
+		"-e", "SOURCE_GET_URL=file://" + e.workspace.SourceContainerPath(),
 		"-e", "USE_DOCKER_DAEMON=1",
 		"-e", "CNB_PLATFORM_API=0.11",
 		"-e", "CNB_BUILDPACK_ALIASES=" + e.runtime.BuildpackAliases,
@@ -232,25 +222,28 @@ func (e *ContainerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarb
 	if pf := e.runtime.Platform; pf != "" {
 		args = append(args, "--platform", pf)
 	}
+	// 单次构建的所有内部路径统一在 /cnb/work 下。
+	args = append(args, e.workspace.MountArgs()...)
 	// 容器运行时 socket：podman/pind 使用解析后的 rootful/rootless socket。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/var/run/docker.sock", e.runtime.Socket))
 	args = append(args, "-e", "DOCKER_HOST=unix:///var/run/docker.sock")
-	// 业务 env 走 /platform/env；lifecycle 只放行白名单环境变量，不能依赖 -e。
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/platform,readonly", platformDir))
-	// 源码以只读 tar 挂入容器，避免修改宿主源码目录。
-	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
+	// lifecycle 的 platform 目录固定为 /platform。
+	args = append(args, e.workspace.PlatformMountArgs()...)
+	// 持久文件缓存独立于 workspace；用户显式挂载时不重复添加。
+	if e.runtime.Cache.Enabled() && !hasMountTarget(e.runtime.ExtraMounts, e.runtime.Cache.ContainerPath) {
+		args = append(args, e.runtime.Cache.MountArgs()...)
+		args = append(args, "-e", "CNB_CACHE_DIR="+e.runtime.Cache.ContainerPath)
+	}
 	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
 	if e.runtime.ExportMode == container.ExportDaemon {
 		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
 	} else {
 		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-layer", layerDir))
-		args = append(args, "-e", fmt.Sprintf("CNB_LAYER_ARCHIVE=/cnb-layer/%s", in.ArchiveName))
+		args = append(args, "-e", "CNB_LAYER_ARCHIVE="+e.workspace.LayerContainerPath(in.ArchiveName))
 	}
-	// run image 以 docker-archive 形式挂入，避免容器内再访问 daemon。
-	if archive := e.runImageArchive; archive != "" {
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/cnb-run/run-image.tar,readonly", archive))
-		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE=/cnb-run/run-image.tar")
+	// run image 位于 workspace/run，随根挂载进入容器。
+	if e.runImageArchive != "" {
+		args = append(args, "-e", "CNB_RUN_IMAGE_ARCHIVE="+e.workspace.RunImageContainerPath())
 	}
 	// 网络模式：host 可访问宿主机内网镜像源。
 	if net := e.runtime.Network; net != "" {
@@ -261,35 +254,73 @@ func (e *ContainerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarb
 	return args
 }
 
-func (e *ContainerExecutor) exportArchive(ctx context.Context, workspace, archiveName, image string) error {
-	layerDir := filepath.Join(workspace, "layers")
+func hasMountTarget(mounts []string, target string) bool {
+	for _, mount := range mounts {
+		if strings.Contains(mount, "target="+target) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *ContainerExecutor) ensureRuntime() error {
+	if e.runtime.Driver != container.DriverManaged {
+		return nil
+	}
+	if _, err := os.Stat(e.runtime.Socket); err != nil {
+		return errors.Wrapf(err, "managed runtime socket %s is not ready; start runtime sidecar first", e.runtime.Socket)
+	}
+	return nil
+}
+
+func (e *ContainerExecutor) prepareRunImage(ctx context.Context) error {
+	if e.runImageArchive != "" {
+		if e.runImageArchive != e.workspace.RunImagePath() {
+			if err := utils.Copy(e.runImageArchive, e.workspace.RunImagePath()); err != nil {
+				return errors.Wrap(err, "failed to copy run image archive")
+			}
+		}
+		e.runImageArchive = e.workspace.RunImagePath()
+		return nil
+	}
+	if err := e.prepareFakeRunner(ctx); err != nil {
+		return errors.Wrap(err, "failed to build fake runner")
+	}
+	if err := e.exportFakeRunnerArchive(ctx); err != nil {
+		return errors.Wrap(err, "failed to export fake runner")
+	}
+	return nil
+}
+
+func (e *ContainerExecutor) exportArchive(ctx context.Context, archiveName, image string) error {
+	layerDir := e.workspace.LayersDir()
 	if err := os.MkdirAll(layerDir, 0o755); err != nil {
 		return err
 	}
 	produced := filepath.Join(layerDir, archiveName)
 	if fi, err := os.Stat(produced); err == nil && fi.Size() > 0 {
 		fmt.Printf("using layer archive from cnb: %s\n", produced)
-		if err := utils.Copy(produced, filepath.Join(workspace, archiveName)); err != nil {
+		if err := utils.Copy(produced, filepath.Join(e.workspace.OutDir(), archiveName)); err != nil {
 			return err
 		}
 		return os.Remove(produced)
 	}
-	args := e.runtime.SaveArgs(filepath.Join(workspace, archiveName), image)
+	args := e.runtime.SaveArgs(filepath.Join(e.workspace.OutDir(), archiveName), image)
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func (e *ContainerExecutor) exportImageLayer(ctx context.Context, workspace string, step *plan.ModuleBuildStep) error {
-	return e.exportArchive(ctx, workspace, step.ModuleName+".tgz", step.OutputImage())
+func (e *ContainerExecutor) exportImageLayer(ctx context.Context, step *plan.ModuleBuildStep) error {
+	return e.exportArchive(ctx, step.ModuleName+".tgz", step.OutputImage())
 }
 
-func (e *ContainerExecutor) exportGroupImage(ctx context.Context, workspace string, group *plan.ModuleBuildGroup) error {
-	return e.exportArchive(ctx, workspace, group.OutputImageTarName, group.OutputImage())
+func (e *ContainerExecutor) exportGroupImage(ctx context.Context, group *plan.ModuleBuildGroup) error {
+	return e.exportArchive(ctx, group.OutputImageTarName, group.OutputImage())
 }
 
-func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace string) error {
+func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context) error {
 	if e.plan.Architecture == "" {
 		if pf := e.runtime.Platform; pf != "" {
 			_, arch := splitPlatform(pf)
@@ -298,16 +329,15 @@ func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace str
 			e.plan.Architecture = runtime.GOARCH
 		}
 	}
-	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
-	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
-	if err := os.WriteFile(filepath.Join(workspace, "app_desc.yaml"), []byte(e.plan.AppDescContent), 0o644); err != nil {
+	out := e.workspace.OutDir()
+	if err := os.WriteFile(filepath.Join(out, "app_desc.yaml"), []byte(e.plan.AppDescContent), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write app_desc.yaml")
 	}
-	if err := os.WriteFile(filepath.Join(workspace, ".Version"), []byte("cnb-image-layers"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(out, ".Version"), []byte("cnb-image-layers"), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write .Version")
 	}
 	if e.plan.LogoFileName != "" {
-		if err := utils.Copy(filepath.Join(e.plan.Src, e.plan.LogoFileName), filepath.Join(workspace, e.plan.LogoFileName)); err != nil {
+		if err := utils.Copy(filepath.Join(e.plan.Src, e.plan.LogoFileName), filepath.Join(out, e.plan.LogoFileName)); err != nil {
 			return errors.Wrapf(err, "failed to copy logo %s", e.plan.LogoFileName)
 		}
 	}
@@ -315,11 +345,11 @@ func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace str
 	if err != nil {
 		return errors.Wrap(err, "failed to build artifact.json")
 	}
-	if err := os.WriteFile(filepath.Join(workspace, "artifact.json"), artifact, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(out, "artifact.json"), artifact, 0o644); err != nil {
 		return errors.Wrap(err, "failed to write artifact.json")
 	}
 	for _, group := range e.plan.Groups {
-		p := filepath.Join(workspace, group.OutputImageTarName)
+		p := filepath.Join(out, group.OutputImageTarName)
 		if fi, err := os.Stat(p); err != nil || fi.Size() == 0 {
 			return errors.Errorf("image tar %s is missing or empty", group.OutputImageTarName)
 		}
@@ -327,28 +357,26 @@ func (e *ContainerExecutor) buildSMartPackageV2(_ context.Context, workspace str
 	if err := os.RemoveAll(e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to reset dest")
 	}
-	if err := utils.PackDirTarGz(workspace, e.plan.Dest); err != nil {
+	if err := utils.PackDirTarGz(out, e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to archive package")
 	}
 	return nil
 }
 
-func (e *ContainerExecutor) buildSMartPackage(_ context.Context, workspace string) error {
-	// 构建期中间产物，不进 s-mart
-	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
-	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
-	appDescPath := filepath.Join(workspace, "app_desc.yaml")
+func (e *ContainerExecutor) buildSMartPackage(_ context.Context) error {
+	out := e.workspace.OutDir()
+	appDescPath := filepath.Join(out, "app_desc.yaml")
 	if err := os.WriteFile(appDescPath, []byte(e.plan.AppDescContent), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write app_desc.yaml")
 	}
 
-	builderFlagPath := filepath.Join(workspace, ".Version")
+	builderFlagPath := filepath.Join(out, ".Version")
 	if err := os.WriteFile(builderFlagPath, []byte("cnb-image-layers"), 0o644); err != nil {
 		return errors.Wrap(err, "failed to write builder flag .Version")
 	}
 
 	if e.plan.LogoFileName != "" {
-		logoDestPath := filepath.Join(workspace, e.plan.LogoFileName)
+		logoDestPath := filepath.Join(out, e.plan.LogoFileName)
 		err := utils.Copy(filepath.Join(e.plan.Src, e.plan.LogoFileName), logoDestPath)
 		if err != nil {
 			return errors.Wrapf(err, "failed to copy src to %s", logoDestPath)
@@ -357,16 +385,15 @@ func (e *ContainerExecutor) buildSMartPackage(_ context.Context, workspace strin
 
 	artifactPath := filepath.Join(e.plan.Src, "artifact.json")
 	if _, err := os.Stat(artifactPath); err == nil {
-		if err := utils.Copy(artifactPath, filepath.Join(workspace, "artifact.json")); err != nil {
+		if err := utils.Copy(artifactPath, filepath.Join(out, "artifact.json")); err != nil {
 			return errors.Wrap(err, "failed to copy artifact.json")
 		}
 	}
 
-	// 打包 tarball：目标已存在时先删除，避免 "file already exists"
 	if err := os.RemoveAll(e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to reset dest")
 	}
-	if err := utils.PackDirTarGz(workspace, e.plan.Dest); err != nil {
+	if err := utils.PackDirTarGz(out, e.plan.Dest); err != nil {
 		return errors.Wrap(err, "failed to archive src")
 	}
 	return nil
@@ -409,8 +436,8 @@ func tarDir(src, dest string) error {
 }
 
 // exportFakeRunnerArchive 把 fake runner 导出为 docker-archive，供容器内使用。
-func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context, workspace string) error {
-	path := filepath.Join(workspace, "run-image.tar")
+func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context) error {
+	path := e.workspace.RunImagePath()
 	cmd := exec.CommandContext(ctx, e.runtime.Binary, "image", "save", "-o", path, fakeRunnerImage(e.runtime.Platform))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
