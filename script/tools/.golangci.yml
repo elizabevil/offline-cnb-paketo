@@ -56,6 +56,10 @@ linters:
       # 测试代码里构造夹具时的写入失败会由后续断言暴露，不单独检查
       - path: _test\.go
         linters: [errcheck]
+      # 测试代码沿用 Ginkgo/Gomega 的点导入与下划线夹具名，保持可读性
+      - path: _test\.go
+        linters: [revive]
+        text: "dot-imports|var-naming"
 
 issues:
   # Report every finding: the defaults silently cap repeated issues per linter.

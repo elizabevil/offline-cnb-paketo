@@ -18,8 +18,11 @@ import (
 	"bksmartpacker/pkg/utils"
 )
 
+const exportModeDaemon = "daemon"
+
 var dockerExecPath string
 
+// DockerExecutor 使用 docker/podman 执行构建计划。
 type DockerExecutor struct {
 	plan            builder.BuildPlan
 	dockerExecPath  string
@@ -36,12 +39,12 @@ func NewDockerExecutor(plan builder.BuildPlan) (*DockerExecutor, error) {
 			if c == "" {
 				continue
 			}
-			if p, err := exec.LookPath(c); err == nil {
+			p, err := exec.LookPath(c)
+			if err == nil {
 				dockerExecPath = p
 				break
-			} else {
-				lastErr = err
 			}
+			lastErr = err
 		}
 		if dockerExecPath == "" {
 			return nil, errors.Wrap(lastErr, "failed to lookup docker/podman")
@@ -110,7 +113,7 @@ func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	keep := filepath.Join(dir, "keep")
 	if err := os.WriteFile(keep, []byte{}, 0o644); err != nil {
@@ -125,7 +128,7 @@ func (e *DockerExecutor) prepareFakeRunner(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	args := []string{"import", "-c", "ENV HOME=/app", "-c", "WORKDIR /app"}
 	if pf := targetPlatform(); pf != "" {
@@ -206,7 +209,7 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 	if err != nil {
 		return errors.Wrap(err, "failed to create platform dir")
 	}
-	defer os.RemoveAll(platformDir)
+	defer func() { _ = os.RemoveAll(platformDir) }()
 	if err := os.Chmod(platformDir, 0o755); err != nil {
 		return errors.Wrap(err, "failed to chmod platform dir")
 	}
@@ -214,6 +217,16 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 		return errors.Wrap(err, "failed to write platform env")
 	}
 
+	args := e.buildArgs(in, layerDir, platformDir, tarballPath)
+	args = append(args, e.cnbBuilderImage)
+	log.Info("执行云原生构建: ", args)
+	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (e *DockerExecutor) buildArgs(in buildInput, layerDir, platformDir, tarballPath string) []string {
 	args := []string{
 		"run", "--rm",
 		"-e", fmt.Sprintf("REQUIRED_BUILDPACKS=%s", in.RequiredBuildpacks),
@@ -248,7 +261,7 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 	// 源码以只读 tar 挂入容器，避免修改宿主源码目录。
 	args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=/tmp/source.tgz", tarballPath))
 	// layout 是 podman 下的默认导出方式；daemon 仅适用于真 dockerd。
-	if exportMode() == "daemon" {
+	if exportMode() == exportModeDaemon {
 		args = append(args, "-e", "CNB_EXPORT_MODE=daemon")
 	} else {
 		args = append(args, "-e", "CNB_EXPORT_MODE=layout")
@@ -265,15 +278,10 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 		args = append(args, "--network", net)
 	}
 	// 额外挂载：BKS_EXTRA_MOUNTS 以空格分隔，原样传给运行时。
-	for _, extra := range strings.Fields(os.Getenv("BKS_EXTRA_MOUNTS")) {
+	for extra := range strings.FieldsSeq(os.Getenv("BKS_EXTRA_MOUNTS")) {
 		args = append(args, extra)
 	}
-	args = append(args, e.cnbBuilderImage)
-	log.Info("执行云原生构建: ", args)
-	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return args
 }
 
 func (e *DockerExecutor) exportArchive(ctx context.Context, workspace, archiveName, image string) error {
@@ -304,7 +312,7 @@ func (e *DockerExecutor) exportGroupImage(ctx context.Context, workspace string,
 	return e.exportArchive(ctx, workspace, group.OutputImageTarName, group.OutputImage())
 }
 
-func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace string) error {
+func (e *DockerExecutor) buildSMartPackageV2(_ context.Context, workspace string) error {
 	if e.plan.Architecture == "" {
 		if pf := targetPlatform(); pf != "" {
 			_, arch := splitPlatform(pf)
@@ -348,7 +356,7 @@ func (e *DockerExecutor) buildSMartPackageV2(ctx context.Context, workspace stri
 	return nil
 }
 
-func (e *DockerExecutor) buildSMartPackage(ctx context.Context, workspace string) error {
+func (e *DockerExecutor) buildSMartPackage(_ context.Context, workspace string) error {
 	// 构建期中间产物，不进 s-mart
 	_ = os.Remove(filepath.Join(workspace, "run-image.tar"))
 	_ = os.RemoveAll(filepath.Join(workspace, "layers"))
@@ -393,10 +401,10 @@ func tarDir(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	tw := tar.NewWriter(out)
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -417,7 +425,7 @@ func tarDir(src, dest string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		_, err = io.Copy(tw, f)
 		return err
 	})
@@ -462,7 +470,7 @@ func saveArgs(runtime, dest, image string) []string {
 
 // exportMode 返回导出模式（BKS_EXPORT_MODE，默认 layout）。
 func exportMode() string {
-	if mode := os.Getenv("BKS_EXPORT_MODE"); mode == "daemon" {
+	if mode := os.Getenv("BKS_EXPORT_MODE"); mode == exportModeDaemon {
 		return "daemon"
 	}
 	return "layout"

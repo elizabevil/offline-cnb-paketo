@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,90 +76,97 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 		Architecture:     params.Architecture,
 		ModuleProcesses:  map[string][]ModuleProcess{},
 	}
+	if err := prepareSteps(appDesc, params, packagingVersion, &plan); err != nil {
+		return nil, err
+	}
+
+	if packagingVersion == PackagingVersionV2 {
+		if err := buildGroups(appDesc.Modules, &plan); err != nil {
+			return nil, err
+		}
+	}
+
+	return &plan, nil
+}
+
+// prepareSteps 为每个模块生成 v1 Step，并记录模块进程。
+func prepareSteps(appDesc types.ApplicationDescription, params *types.Params, packagingVersion string, plan *BuildPlan) error {
 	for _, moduleDesc := range appDesc.Modules {
 		procfile := ""
 		if packagingVersion == PackagingVersionV1 {
 			var err error
 			procfile, err = generateProcfile(moduleDesc)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
-
 		envs, err := mergeModuleEnvs(moduleDesc.Spec.Configuration.Env, params.EnvFiles, params.Envs)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
 		step := ModuleBuildStep{
-			AppCode:    appDesc.AppInfo.Code,
-			ModuleName: moduleDesc.Name,
-			Version:    appDesc.AppVersion,
-			Src:        filepath.Join(params.Src, moduleDesc.SourceDir),
-			Procfile:   procfile,
-			Buildpacks: generateModuleBuildpacks(params.Src, &moduleDesc),
-			Envs:       envs,
-
+			AppCode:       appDesc.AppInfo.Code,
+			ModuleName:    moduleDesc.Name,
+			Version:       appDesc.AppVersion,
+			Src:           filepath.Join(params.Src, moduleDesc.SourceDir),
+			Procfile:      procfile,
+			Buildpacks:    generateModuleBuildpacks(params.Src, &moduleDesc),
+			Envs:          envs,
 			CacheRegistry: params.CacheRegistry,
 			RegistryAuth:  params.RegistryAuth,
 		}
-
 		plan.Steps = append(plan.Steps, &step)
 		plan.ModuleProcesses[moduleDesc.Name] = lo.Map(moduleDesc.Spec.Processes, func(p types.Process, _ int) ModuleProcess {
 			return ModuleProcess{Name: p.Name, Command: p.ProcCommand}
 		})
 	}
+	return nil
+}
 
-	// v2: 按 sourceDir + buildpacks 分组，组内只构建一次；
-	// v1: 保留每模块独立构建，Steps 即构建单元。
-	if packagingVersion == PackagingVersionV2 {
-		appProcfile, err := GenerateAppProcfile(appDesc.Modules)
-		if err != nil {
-			return nil, err
-		}
-		groups := map[string]*ModuleBuildGroup{}
-		order := make([]string, 0)
-		for i, moduleDesc := range appDesc.Modules {
-			step := plan.Steps[i]
-			keyParts := []string{moduleDesc.SourceDir}
-			for _, bp := range step.Buildpacks {
-				keyParts = append(keyParts, bp.Type, bp.Name, bp.Version)
-			}
-			key := strings.Join(keyParts, "|")
-			group, ok := groups[key]
-			if !ok {
-				group = &ModuleBuildGroup{
-					AppCode:       plan.AppCode,
-					ModuleName:    moduleDesc.Name,
-					ModuleNames:   []string{moduleDesc.Name},
-					Version:       step.Version,
-					SourceDir:     moduleDesc.SourceDir,
-					Src:           step.Src,
-					Procfile:      appProcfile,
-					Buildpacks:    step.Buildpacks,
-					Envs:          map[string]string{},
-					CacheRegistry: step.CacheRegistry,
-					RegistryAuth:  step.RegistryAuth,
-				}
-				groups[key] = group
-				order = append(order, key)
-			} else {
-				group.ModuleNames = append(group.ModuleNames, moduleDesc.Name)
-			}
-			// 组内 env 取并集，后出现的模块覆盖同名键；
-			// 运行期差异仍以各模块 app_desc 为准，不影响镜像共享。
-			for k, v := range step.Envs {
-				group.Envs[k] = v
-			}
-		}
-		for _, key := range order {
-			group := groups[key]
-			group.OutputImageTarName = group.ModuleName + ".tar"
-			plan.Groups = append(plan.Groups, group)
-		}
+// buildGroups 按 sourceDir + buildpacks 合并模块，生成 v2 构建组。
+func buildGroups(modules []types.ModuleDescription, plan *BuildPlan) error {
+	appProcfile, err := GenerateAppProcfile(modules)
+	if err != nil {
+		return err
 	}
-
-	return &plan, nil
+	groups := map[string]*ModuleBuildGroup{}
+	order := make([]string, 0)
+	for i, moduleDesc := range modules {
+		step := plan.Steps[i]
+		keyParts := []string{moduleDesc.SourceDir}
+		for _, bp := range step.Buildpacks {
+			keyParts = append(keyParts, bp.Type, bp.Name, bp.Version)
+		}
+		key := strings.Join(keyParts, "|")
+		group, ok := groups[key]
+		if !ok {
+			group = &ModuleBuildGroup{
+				AppCode:       plan.AppCode,
+				ModuleName:    moduleDesc.Name,
+				ModuleNames:   []string{moduleDesc.Name},
+				Version:       step.Version,
+				SourceDir:     moduleDesc.SourceDir,
+				Src:           step.Src,
+				Procfile:      appProcfile,
+				Buildpacks:    step.Buildpacks,
+				Envs:          map[string]string{},
+				CacheRegistry: step.CacheRegistry,
+				RegistryAuth:  step.RegistryAuth,
+			}
+			groups[key] = group
+			order = append(order, key)
+		} else {
+			group.ModuleNames = append(group.ModuleNames, moduleDesc.Name)
+		}
+		// 组内 env 取并集，后出现的模块覆盖同名键。
+		maps.Copy(group.Envs, step.Envs)
+	}
+	for _, key := range order {
+		group := groups[key]
+		group.OutputImageTarName = group.ModuleName + ".tar"
+		plan.Groups = append(plan.Groups, group)
+	}
+	return nil
 }
 
 // BuildPlan 构建计划
@@ -245,10 +253,10 @@ func generateProcfile(moduleDesc types.ModuleDescription) (string, error) {
 
 // generateModuleBuildpacks 生成构建时需要的 buildpacks.
 // srcPath 是应用源码路径, 通过 filepath.Join(srcPath, moduleDesc.SourceDir) 可以获取模块的源码路径, 从而探测是否依赖 Apt buildpack
-func generateModuleBuildpacks(srcPath string, moduleDesc *types.ModuleDescription) []Buildpack {
+func generateModuleBuildpacks(_ string, moduleDesc *types.ModuleDescription) []Buildpack {
 	// app_desc.yaml 中配置了 spec.build.buildpacks
 	if len(moduleDesc.Spec.Build.Buildpacks) > 0 {
-		return lo.Map(moduleDesc.Spec.Build.Buildpacks, func(item types.Buildpack, index int) Buildpack {
+		return lo.Map(moduleDesc.Spec.Build.Buildpacks, func(item types.Buildpack, _ int) Buildpack {
 			return Buildpack{
 				Name:    item.Name,
 				Version: item.Version,
@@ -288,9 +296,7 @@ func mergeModuleEnvs(declared []types.AppEnvVar, envFiles []string, extra []stri
 		if err != nil {
 			return nil, err
 		}
-		for k, v := range values {
-			out[k] = v
-		}
+		maps.Copy(out, values)
 	}
 	for _, kv := range extra {
 		k, v, ok := strings.Cut(kv, "=")

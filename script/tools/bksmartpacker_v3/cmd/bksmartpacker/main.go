@@ -1,3 +1,4 @@
+// Package main 提供 bksmartpacker 命令行入口。
 package main
 
 import (
@@ -105,6 +106,10 @@ func loadBuildParams() *types.Params {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	runtime.GOMAXPROCS(4)
 	defer func() {
 		if err := recover(); err != nil {
@@ -114,37 +119,39 @@ func main() {
 	flag.Parse()
 	if *help {
 		flag.PrintDefaults()
-		os.Exit(0)
+		return 0
 	}
 	if *inspectPkg != "" {
 		if err := runInspect(*inspectPkg, *inspectFormat); err != nil {
 			log.Error(err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 	if *src == "" {
 		log.Error(errors.New("src 不能为空"))
 		flag.PrintDefaults()
-		os.Exit(1)
+		return 1
 	}
-
-	execute()
+	if err := execute(); err != nil {
+		log.Error(err)
+		return 1
+	}
+	return 0
 }
 
-func execute() {
+func execute() error {
 	// 输入参数解析到对象
 	paramData := loadBuildParams()
 	log.Info(fmt.Sprintf("\nparamData: %#v", paramData))
 
 	// 业务逻辑
 	log.Info("start BuildSMartPackage")
-	err := cmd.BuildSMartPackage(paramData)
-	if err != nil {
-		log.Error(errors.Wrap(err, "failed to build smart package"))
-		os.Exit(1)
+	if err := cmd.BuildSMartPackage(paramData); err != nil {
+		return errors.Wrap(err, "failed to build smart package")
 	}
 	log.Info("BuildSMartPackage done")
+	return nil
 }
 
 // runInspect 输出 s-mart 包的结构摘要。

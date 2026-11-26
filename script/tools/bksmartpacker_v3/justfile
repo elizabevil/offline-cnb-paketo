@@ -31,3 +31,11 @@ build:
         -ldflags "-extldflags '-static' -s -w" \
         -o {{bin}} ./cmd/bksmartpacker
     @test -x {{bin}} && echo "  ✓ {{bin}}"
+
+# Go 静态检查（复用 script/tools/.golangci.yml）
+lint:
+    @cd {{justfile_directory()}} && \
+      GOCACHE={{justfile_directory()}}/../../../.cache/go-build \
+      GOMODCACHE={{justfile_directory()}}/../../../.cache/gomod \
+      GOLANGCI_LINT_CACHE={{justfile_directory()}}/../../../.cache/golangci \
+      golangci-lint run --config ../.golangci.yml ./...

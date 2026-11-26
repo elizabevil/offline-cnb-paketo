@@ -64,12 +64,12 @@ func Inspect(pkgPath string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return Report{}, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
@@ -126,7 +126,7 @@ func inspectLayer(name string, data []byte) (Layer, error) {
 		if err != nil {
 			return layer, fmt.Errorf("%s: gzip: %w", name, err)
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		r = gz
 		layer.Compressed = true
 	}

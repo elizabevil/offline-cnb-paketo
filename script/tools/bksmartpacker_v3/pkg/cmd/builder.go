@@ -8,6 +8,7 @@ import (
 	"bksmartpacker/pkg/types"
 )
 
+// Executor 是构建计划执行器。
 type Executor interface {
 	Execute() error
 }

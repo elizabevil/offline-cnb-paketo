@@ -10,7 +10,7 @@ import (
 	"bksmartpacker/pkg/types"
 )
 
-var app_desc = `specVersion: 3
+var appDescYAML = `specVersion: 3
 appVersion: 0.0.1
 app:
   bkAppCode: "test-app"
@@ -30,7 +30,7 @@ modules:
           procCommand: python -c 'import time;[print(i) or time.sleep(1) for i in range(10)]'
 `
 
-var app_desc_with_build = `specVersion: 3
+var appDescWithBuildYAML = `specVersion: 3
 appVersion: 0.0.1
 app:
   bkAppCode: "test-app"
@@ -69,7 +69,7 @@ var _ = Describe("Test prepare", func() {
 			var appDesc types.ApplicationDescription
 			BeforeEach(func() {
 				appDescPath := filepath.Join(tmpAppPath, "app_desc.yaml")
-				Expect(os.WriteFile(appDescPath, []byte(app_desc), 0o644)).To(BeNil())
+				Expect(os.WriteFile(appDescPath, []byte(appDescYAML), 0o644)).To(BeNil())
 
 				appDesc, _, _ = loadAppDesc(tmpAppPath)
 			})
@@ -95,7 +95,7 @@ var _ = Describe("Test prepare", func() {
 			var appDesc types.ApplicationDescription
 			BeforeEach(func() {
 				appDescPath := filepath.Join(tmpAppPath, "app_desc.yaml")
-				Expect(os.WriteFile(appDescPath, []byte(app_desc_with_build), 0o644)).To(BeNil())
+				Expect(os.WriteFile(appDescPath, []byte(appDescWithBuildYAML), 0o644)).To(BeNil())
 
 				appDesc, _, _ = loadAppDesc(tmpAppPath)
 			})

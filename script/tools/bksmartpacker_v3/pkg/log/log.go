@@ -9,7 +9,7 @@ import (
 var lock = new(sync.Mutex)
 
 // Info 日志
-func Info(v ...interface{}) {
+func Info(v ...any) {
 	lock.Lock()
 	log.Print("##[info]")
 	log.Println(v...)
@@ -17,7 +17,7 @@ func Info(v ...interface{}) {
 }
 
 // Warn 日志
-func Warn(v ...interface{}) {
+func Warn(v ...any) {
 	lock.Lock()
 	log.Print("##[warning]")
 	log.Println(v...)
@@ -25,7 +25,7 @@ func Warn(v ...interface{}) {
 }
 
 // Error 日志
-func Error(v ...interface{}) {
+func Error(v ...any) {
 	lock.Lock()
 	log.Print("##[error]")
 	log.Println(v...)
@@ -33,7 +33,7 @@ func Error(v ...interface{}) {
 }
 
 // Debug 日志
-func Debug(v ...interface{}) {
+func Debug(v ...any) {
 	lock.Lock()
 	log.Print("##[debug]")
 	log.Println(v...)
@@ -41,7 +41,7 @@ func Debug(v ...interface{}) {
 }
 
 // Command 日志
-func Command(v ...interface{}) {
+func Command(v ...any) {
 	lock.Lock()
 	log.Print("##[command]")
 	log.Println(v...)
@@ -49,7 +49,7 @@ func Command(v ...interface{}) {
 }
 
 // Group 分组日志开始
-func Group(v ...interface{}) {
+func Group(v ...any) {
 	lock.Lock()
 	fmt.Print("##[group]")
 	fmt.Println(v...)
@@ -57,7 +57,7 @@ func Group(v ...interface{}) {
 }
 
 // EndGroup 分组日志结束
-func EndGroup(v ...interface{}) {
+func EndGroup(v ...any) {
 	lock.Lock()
 	log.Print("##[endgroup]")
 	log.Println(v...)

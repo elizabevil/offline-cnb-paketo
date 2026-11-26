@@ -14,6 +14,7 @@ import (
 // BuildpackTypeOCIEmbedded 表示 buildpack 已嵌入 builder 镜像。
 const BuildpackTypeOCIEmbedded = "oci-embedded"
 
+// ModuleBuildStep 是一个模块的 v1 构建单元。
 type ModuleBuildStep struct {
 	AppCode    string `json:"appCode"`
 	ModuleName string `json:"module_name"`
@@ -72,7 +73,7 @@ func BuildSourceTarball(src, procfileContent string, destPath string) error {
 		return errors.Wrap(err, "failed to archive src")
 	}
 
-	err = tarball.Archive(lo.Map(entries, func(item os.DirEntry, index int) string {
+	err = tarball.Archive(lo.Map(entries, func(item os.DirEntry, _ int) string {
 		return filepath.Join(src, item.Name())
 	}), destPath)
 	if err != nil {

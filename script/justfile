@@ -164,3 +164,4 @@ lint:
       GOMODCACHE={{_script}}/../.cache/gomod \
       GOLANGCI_LINT_CACHE={{_script}}/../.cache/golangci \
       golangci-lint run --config ../.golangci.yml ./...
+    @just --justfile {{_script}}/tools/bksmartpacker_v3/justfile lint

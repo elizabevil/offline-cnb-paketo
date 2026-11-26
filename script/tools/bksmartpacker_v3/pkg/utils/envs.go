@@ -12,7 +12,7 @@ import (
 
 // CopyEnvsFile 复制 EnvsOverride 目录下的所有文件到工作目录的 Envs 目录
 func CopyEnvsFile(workspace string, envsOverride string) error {
-	os.Mkdir(filepath.Join(workspace, "Envs"), os.ModePerm)
+	_ = os.Mkdir(filepath.Join(workspace, "Envs"), os.ModePerm)
 	files, err := os.ReadDir(envsOverride)
 	if err != nil {
 		return err
@@ -27,14 +27,14 @@ func CopyEnvsFile(workspace string, envsOverride string) error {
 
 // GenerateEnvs 渲染 AppDesc 中声明的环境变量
 func GenerateEnvs(workspace string, appDesc types.ApplicationDescription) error {
-	os.Mkdir(filepath.Join(workspace, "Envs"), os.ModePerm)
+	_ = os.Mkdir(filepath.Join(workspace, "Envs"), os.ModePerm)
 	for _, moduleDesc := range appDesc.Modules {
 		var builder strings.Builder
 		for _, item := range moduleDesc.Spec.Configuration.Env {
 			if intValue, err := strconv.Atoi(item.Value); err == nil {
-				builder.WriteString(fmt.Sprintf("%s=%d\n", item.Name, intValue))
+				fmt.Fprintf(&builder, "%s=%d\n", item.Name, intValue)
 			} else {
-				builder.WriteString(fmt.Sprintf("%s=\"%s\"\n", item.Name, doubleQuoteEscape(item.Value)))
+				fmt.Fprintf(&builder, "%s=\"%s\"\n", item.Name, doubleQuoteEscape(item.Value))
 			}
 		}
 		if err := os.WriteFile(filepath.Join(workspace, "Envs", moduleDesc.Name+".env"), []byte(builder.String()), 0777); err != nil {
@@ -55,7 +55,7 @@ func doubleQuoteEscape(line string) string {
 		if c == '\r' {
 			toReplace = `\r`
 		}
-		line = strings.Replace(line, string(c), toReplace, -1)
+		line = strings.ReplaceAll(line, string(c), toReplace)
 	}
 	return line
 }

@@ -41,12 +41,13 @@ func PackDirTarGz(srcDir, dest string) error {
 		hdr.Uname, hdr.Gname = "", ""
 		hdr.ModTime = time.Unix(0, 0)
 		hdr.AccessTime, hdr.ChangeTime = time.Time{}, time.Time{}
-		if info.IsDir() {
+		switch {
+		case info.IsDir():
 			hdr.Name += "/"
 			hdr.Mode = 0o755
-		} else if info.Mode()&0o111 != 0 {
+		case info.Mode()&0o111 != 0:
 			hdr.Mode = 0o755
-		} else {
+		default:
 			hdr.Mode = 0o644
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
