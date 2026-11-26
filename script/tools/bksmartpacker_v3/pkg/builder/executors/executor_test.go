@@ -173,3 +173,12 @@ func TestRuntimeHealthy(t *testing.T) {
 		t.Fatal("failed runtime should not be healthy")
 	}
 }
+
+func TestPlatformNormalization(t *testing.T) {
+	if got := containerPlatform("linux-amd64"); got != "linux/amd64" {
+		t.Fatalf("containerPlatform = %q", got)
+	}
+	if osName, arch := splitPlatform("linux-arm64"); osName != "linux" || arch != "arm64" {
+		t.Fatalf("splitPlatform = %s/%s", osName, arch)
+	}
+}

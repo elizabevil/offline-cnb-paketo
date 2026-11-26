@@ -241,7 +241,7 @@ func (e *ContainerExecutor) buildArgs(in buildInput) []string {
 	}
 	// 交叉构建时显式传平台，避免 qemu 下镜像架构不一致。
 	if pf := e.runtime.Platform; pf != "" {
-		a.option("--platform", pf)
+		a.option("--platform", containerPlatform(pf))
 		osName, arch := splitPlatform(pf)
 		a.env(container.EnvTargetOS, osName)
 		a.env(container.EnvTargetArch, arch)
@@ -554,8 +554,15 @@ func (e *ContainerExecutor) exportFakeRunnerArchive(ctx context.Context) error {
 }
 
 // splitPlatform 拆分 os/arch。
+func containerPlatform(platform string) string {
+	return strings.ReplaceAll(platform, "-", "/")
+}
+
 func splitPlatform(p string) (string, string) {
 	if osName, arch, ok := strings.Cut(p, "/"); ok {
+		return osName, arch
+	}
+	if osName, arch, ok := strings.Cut(p, "-"); ok {
 		return osName, arch
 	}
 	return "linux", p
