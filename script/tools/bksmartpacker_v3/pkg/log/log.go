@@ -1,65 +1,40 @@
 package log
 
 import (
-	"fmt"
-	"log"
-	"sync"
+	"log/slog"
+	"os"
+	"strings"
 )
 
-var lock = new(sync.Mutex)
-
-// Info 日志
-func Info(v ...any) {
-	lock.Lock()
-	log.Print("##[info]")
-	log.Println(v...)
-	lock.Unlock()
+// init 统一使用 slog 输出结构化文本日志。
+// BKS_LOG_LEVEL 支持 debug/info/warn/error，默认 info。
+func init() {
+	level := slog.LevelInfo
+	if v := strings.TrimSpace(os.Getenv("BKS_LOG_LEVEL")); v != "" {
+		if err := level.UnmarshalText([]byte(v)); err != nil {
+			level = slog.LevelInfo
+		}
+	}
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				a.Value = slog.StringValue(a.Value.Time().Format("2006-01-02 15:04:05"))
+			}
+			return a
+		},
+	})
+	slog.SetDefault(slog.New(handler))
 }
 
-// Warn 日志
-func Warn(v ...any) {
-	lock.Lock()
-	log.Print("##[warning]")
-	log.Println(v...)
-	lock.Unlock()
-}
+// Info 输出 info 日志。
+func Info(msg string, args ...any) { slog.Info(msg, args...) }
 
-// Error 日志
-func Error(v ...any) {
-	lock.Lock()
-	log.Print("##[error]")
-	log.Println(v...)
-	lock.Unlock()
-}
+// Warn 输出 warning 日志。
+func Warn(msg string, args ...any) { slog.Warn(msg, args...) }
 
-// Debug 日志
-func Debug(v ...any) {
-	lock.Lock()
-	log.Print("##[debug]")
-	log.Println(v...)
-	lock.Unlock()
-}
+// Error 输出 error 日志。
+func Error(msg string, args ...any) { slog.Error(msg, args...) }
 
-// Command 日志
-func Command(v ...any) {
-	lock.Lock()
-	log.Print("##[command]")
-	log.Println(v...)
-	lock.Unlock()
-}
-
-// Group 分组日志开始
-func Group(v ...any) {
-	lock.Lock()
-	fmt.Print("##[group]")
-	fmt.Println(v...)
-	lock.Unlock()
-}
-
-// EndGroup 分组日志结束
-func EndGroup(v ...any) {
-	lock.Lock()
-	log.Print("##[endgroup]")
-	log.Println(v...)
-	lock.Unlock()
-}
+// Debug 输出 debug 日志。
+func Debug(msg string, args ...any) { slog.Debug(msg, args...) }

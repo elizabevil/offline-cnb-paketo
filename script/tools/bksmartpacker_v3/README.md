@@ -74,6 +74,7 @@ bksmartpacker \
 | `BKS_EXTRA_MOUNTS` | 追加 `--mount` 参数 |
 | `BKS_NETWORK` | 传给 `docker run` 的网络模式 |
 | `BKS_BUILDPACK_ALIASES` | 覆盖 buildpack 别名 |
+| `BKS_LOG_LEVEL` | 日志级别：`debug`/`info`/`warn`/`error`，默认 `info` |
 
 ## 五、检查产物
 

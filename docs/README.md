@@ -49,6 +49,7 @@
 | [platform-env-injection.md](proposals/platform-env-injection.md) | 构建变量注入：platform env 目录方案 |
 | [runtime-provider-abstraction.md](proposals/runtime-provider-abstraction.md) | uv/fnm 可替换：运行时提供者抽象 |
 | [module-build-dedup.md](proposals/module-build-dedup.md) | 模块重复构建与产物去重（待办） |
+| [phase2-commit-map.md](proposals/phase2-commit-map.md) | Phase 2 提交整理映射（历史记录） |
 | [package-size-optimization.md](proposals/package-size-optimization.md) | 镜像包体积优化需求（目标 ≤200 MB） |
 
 ### archive（历史）

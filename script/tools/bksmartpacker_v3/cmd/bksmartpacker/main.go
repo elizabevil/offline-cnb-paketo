@@ -113,7 +113,7 @@ func run() int {
 	runtime.GOMAXPROCS(4)
 	defer func() {
 		if err := recover(); err != nil {
-			log.Error("panic: ", err)
+			log.Error("panic", "error", err)
 		}
 	}()
 	flag.Parse()
@@ -123,18 +123,18 @@ func run() int {
 	}
 	if *inspectPkg != "" {
 		if err := runInspect(*inspectPkg, *inspectFormat); err != nil {
-			log.Error(err)
+			log.Error("inspect failed", "error", err)
 			return 1
 		}
 		return 0
 	}
 	if *src == "" {
-		log.Error(errors.New("src 不能为空"))
+		log.Error("src is required")
 		flag.PrintDefaults()
 		return 1
 	}
 	if err := execute(); err != nil {
-		log.Error(err)
+		log.Error("build failed", "error", err)
 		return 1
 	}
 	return 0
@@ -143,7 +143,7 @@ func run() int {
 func execute() error {
 	// 输入参数解析到对象
 	paramData := loadBuildParams()
-	log.Info(fmt.Sprintf("\nparamData: %#v", paramData))
+	log.Info("build params", "params", paramData)
 
 	// 业务逻辑
 	log.Info("start BuildSMartPackage")

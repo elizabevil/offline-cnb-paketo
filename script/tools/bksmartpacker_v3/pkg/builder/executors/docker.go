@@ -219,7 +219,7 @@ func (e *DockerExecutor) runBuild(ctx context.Context, in buildInput, layerDir s
 
 	args := e.buildArgs(in, layerDir, platformDir, tarballPath)
 	args = append(args, e.cnbBuilderImage)
-	log.Info("执行云原生构建: ", args)
+	log.Info("执行云原生构建", "args", args)
 	cmd := exec.CommandContext(ctx, e.dockerExecPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -47,9 +47,9 @@ func PrepareBuildPlan(params *types.Params) (*BuildPlan, error) {
 
 	logoFileName := utils.DetectLogoFile(params.Src)
 	if logoFileName == "" {
-		log.Warn("请在 app_desc.yaml 同级的目录下添加 logo.png 文件")
+		log.Warn("缺少 logo 文件", "expect", "app_desc.yaml 同级 logo.png")
 	} else {
-		log.Info("检测到 logo 文件: ", logoFileName)
+		log.Info("检测到 logo 文件", "file", logoFileName)
 	}
 
 	packagingVersion := params.PackagingVersion
