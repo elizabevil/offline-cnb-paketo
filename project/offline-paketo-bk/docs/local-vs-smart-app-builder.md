@@ -1,132 +1,108 @@
-# 本地方案 vs 官方 smart-app-builder
+# 当前 bksmartpacker_v3 vs 官方 smart-app-builder
 
 > 对比对象：
-> - 本地：`script/tools/bksmartpacker_v3` + `offline-paketo-bk`
+> - 本地：`script/tools/bksmartpacker_v3`
 > - 官方：blueking-paas `builder-stack` 的 `smart-app-builder`
+>
+> 本文对应当前代码，而不是早期 D1/D6 阶段。
 
-## 1. 定位
+## 1. 结论
 
-| 项 | 本地 bksmartpacker | 官方 smart-app-builder |
+本地已经**吸收官方 v2 的核心语义**：
+
+- 构建组
+- 应用级 Procfile
+- `<module>-<process>` 命名空间
+- `artifact.json`
+- 一个构建组一个 image tar
+- 包体积约 138 MB
+
+仍然保留本地化差异：
+
+- 本地路径输入/输出，而不是 `SOURCE_GET_URL` / `DEST_PUT_URL`
+- 本地 `cnb lifecycle run`，而不是 `cnb-builder-shim`
+- fake run image，而不是真实 `CNB_RUN_IMAGE`
+- 本地缓存，而不是远程 `CACHE_REGISTRY`
+- buildpack 只支持内置 `oci-embedded`
+- 不实现完整的 pind/dind 编排，只支持运行时配置
+
+## 2. 当前实现快照
+
+```text
+输入：app_desc.yaml + 源码目录
+默认打包：v2
+构建单位：sourceDir + buildpacks 相同的模块组
+Procfile：<module>-<process>
+输出：每组一个 <group>.tar
+映射：artifact.json
+压缩：s-mart.tar.gz
+```
+
+SOPS 四模块实测：
+
+```text
+1 次 builder build
+1 个 image tar（default.tar）
+18 个 namespaced process
+138 MB
+```
+
+## 3. 入口与参数
+
+| 项 | 当前 bksmartpacker | 官方 smart-app-builder |
 |---|---|---|
-| 语言 | Go | Go |
-| 打包单位 | 模块 | 构建组 |
-| 产物 | `<module>.tgz`（OCI layout） | `<group>.tar`（docker save） |
-| Procfile | 每模块进程名 | v2 应用级 `<module>-<process>` |
-| artifact.json | 仅复制源码中已有文件 | 主动生成 |
-| 平台版本 | 兼容旧 CNB | v2 需 apiserver ≥1.7 |
-| 默认打包版本 | 无 v1/v2 概念 | v2（可切 v1） |
+| 源码 | `--src` 本地目录 | `SOURCE_GET_URL` |
+| 产物 | `--dest` 本地路径 | `DEST_PUT_URL` |
+| 打包版本 | `--packaging-version v1\|v2`，默认 v2 | `PACKAGING_VERSION`，默认 v2 |
+| builder 镜像 | `--builder-image` | `BUILDER_SHIM_IMAGE` |
+| run image | 固定 fake runner | `CNB_RUN_IMAGE` / `CNB_RUN_IMAGE_TAR` |
+| base image | `--base-image-id`，默认 default | `BASE_IMAGE_ID` |
+| 架构 | `--architecture`，默认按平台推断 | `ARCHITECTURE` |
+| 构建变量 | `--env-file` / `--env` | 固定环境 + 平台注入 |
+| 缓存 | `--cache-registry`，可选 | `CACHE_REGISTRY` |
+| 运行时 | `BKS_RUNTIME` / `RUNTIME` | `RUNTIME=pind\|dind` |
+| CLI | Kong 结构体 | 环境变量驱动 |
 
-## 2. 参数对比
+当前 CLI 由 `pkg/cli` 负责：
 
-### 本地 bksmartpacker
-
-| 参数/环境变量 | 作用 |
-|---|---|
-| `--src` | 应用源码目录 |
-| `--dest` | s-mart 输出路径 |
-| `--builder-image` | CNB builder 镜像 |
-| `--cache-registry` | 缓存仓库 |
-| `--registry-auth` | 仓库凭证 |
-| `--env-file` | dotenv 构建变量 |
-| `--env KEY=VALUE` | 运行时覆盖 |
-| `--module` | 只构建指定模块（调试） |
-| `--inspect` | 包结构检查 |
-| `BKS_CONTAINER_CLI` | podman/docker |
-| `BKS_NETWORK` | 构建容器网络 |
-| `BKS_EXTRA_MOUNTS` | 额外挂载 |
-
-### 官方 smart-app-builder
-
-| 参数/环境变量 | 作用 | 默认 |
-|---|---|---|
-| `SOURCE_GET_URL` | 源码位置（file/http） | 必填 |
-| `DEST_PUT_URL` | 产物上传位置 | 必填 |
-| `PACKAGING_VERSION` | v1/v2 | v2 |
-| `BUILDER_SHIM_IMAGE` | CNB builder 镜像 | `bk-builder-heroku-bionic:v1.0.2` |
-| `CNB_RUN_IMAGE` | run image | 配置 |
-| `CNB_RUN_IMAGE_TAR` | run image tar | 配置 |
-| `BASE_IMAGE_ID` | 运行时基础镜像 ID | `default` |
-| `ARCHITECTURE` | 目标架构 | `amd64` |
-| `BUILDPACK_TYPE` | `oci-embedded` / `tgz` | `oci-embedded` |
-| `CACHE_REGISTRY` | 缓存仓库 | 空 |
-| `REGISTRY_AUTH` | 仓库凭证 | 空 |
-| `RUNTIME` | `pind` / `dind` | `pind` |
-| `RUNTIME_WORKSPACE` | 工作目录 | `/podman/smart-app` |
-| `DAEMON_SOCK` | 容器 daemon socket | 配置 |
-
-额外固定环境：
-
-- `PYTHON_BUILDPACK_VERSION`
-- `PIP_VERSION`
-- `PIP_INDEX_URL`
-- `PIP_EXTRA_INDEX_URL`
-- `NODEJS_BUILDPACK_VERSION`
-- `NPM_REGISTRY`
-- `GO_BUILDPACK_VERSION`
-- `GO_BUCKET_URL`
-
-## 3. 构建逻辑对比
-
-### 本地
-
-```
-1. 解析 app_desc，校验 specVersion>=3
-2. 可选按 --module 过滤
-3. 每个模块：
-   - 生成该模块 Procfile
-   - 按语言选 paketo buildpacks
-   - 合并 app_desc/env-file/--env
-4. 每个模块单独 lifecycle build
-5. layout 导出
-6. 每个模块一个 <module>.tgz
-7. 组装 s-mart
+```text
+pkg/cli/options.go   Options / Parse / Validate / Params
+pkg/cli/inspect.go   s-mart 包检查输出
 ```
 
-特点：
+## 4. 构建单位
 
-- 模块是构建单位
-- 没有构建组
-- Procfile 只有本模块进程
-- 没有 artifact.json 生成
+### 当前
 
-### 官方 v2
-
-```
-1. 解析 app_desc
-2. 按 sourceDir + required buildpacks 分组
-3. 生成应用级 Procfile：
-   key = <module>-<process>
-4. 每个构建组只构建一次
-5. 保存一个 <group>.tar
-6. 生成 artifact.json：
-   - image_tar
-   - proc_entrypoints
-7. 组装 s-mart
+```text
+sourceDir + buildpacks 相同 → 一个构建组
+组内只构建一次
+组内模块共享同一个 image tar
 ```
 
-特点：
+代码位置：
 
-- 构建组是构建单位
-- 组内模块共享镜像
-- 进程名全局唯一
-- 平台通过 artifact.json 部署
-
-## 4. Procfile 与进程
-
-### 本地
-
-```yaml
-web: bin/start_web.sh
-beat: python manage.py celery beat -l info
+```text
+pkg/plan/new.go       生成 Steps
+pkg/plan/groups.go    构建组
+pkg/plan/procfile.go  应用级 Procfile
 ```
 
-所有模块都用自己的进程名，因此：
+### 官方
 
-- 同名 `web` 冲突
-- 平台可能按进程名直接执行
-- 缺少 `node-timeout` 时直接 `exec` 失败
+同样按构建组：
 
-### 官方 v2
+```text
+sourceDir + required buildpacks → 构建组
+一个构建组 → 一个镜像
+一个镜像 → 一个 <group>.tar
+```
+
+这一点已经对齐。
+
+## 5. Procfile 与进程
+
+当前生成：
 
 ```yaml
 default-web: bin/start_web.sh
@@ -138,37 +114,34 @@ pipeline-node-timeout: python manage.py node_timeout_process
 artifact.json：
 
 ```json
-"proc_entrypoints": {
-  "web": ["default-web"],
-  "cworker": ["pipeline-cworker"],
-  "node-timeout": ["pipeline-node-timeout"]
+{
+  "runtime": {
+    "base_image_id": "default",
+    "architecture": "amd64"
+  },
+  "app_artifacts": {
+    "pipeline": {
+      "image_tar": "default.tar",
+      "proc_entrypoints": {
+        "cworker": ["pipeline-cworker"],
+        "node-timeout": ["pipeline-node-timeout"]
+      }
+    }
+  }
 }
 ```
 
-平台用 `pipeline-node-timeout` 作为容器 command，不再直接使用 `node-timeout`。
+与官方一致：
 
-## 5. 产物结构
+- 进程名全局唯一
+- 平台按 `proc_entrypoints` 设置容器 command
+- 不再直接执行裸 `node-timeout` / `cworker`
 
-### 本地
+## 6. 产物
 
-```
-s-mart.tar.gz
-├── .Version
-├── app_desc.yaml
-├── logo.png
-├── default.tgz
-├── callback.tgz
-├── pipeline.tgz
-└── api.tgz
-```
+### 当前 v2
 
-- 每模块一个 OCI layout tar
-- 无 artifact.json 时平台按旧 CNB 处理
-- 包体积 549 MB（4 模块）
-
-### 官方 v2
-
-```
+```text
 s-mart.tar.gz
 ├── .Version
 ├── app_desc.yaml
@@ -177,111 +150,129 @@ s-mart.tar.gz
 └── default.tar
 ```
 
-- 一个构建组一个 image tar
-- 四模块共享 `default.tar`
-- 包体积约 136 MB
+### 当前 v1（兼容模式）
 
-## 6. 执行器差异
+```text
+s-mart.tar.gz
+├── .Version
+├── app_desc.yaml
+├── logo.png
+└── <module>.tgz
+```
 
-| 项 | 本地 | 官方 |
+v1 仅用于旧平台/旧产物验证，不再默认。
+
+### 包体积
+
+SOPS：
+
+```text
+v1 每模块 tgz：约 549 MB
+D1 去重实验：约 136 MB
+当前 v2：约 138 MB
+```
+
+当前 v2 不依赖 D1/D6 脚本。
+
+## 7. 执行器与运行时
+
+### 当前模型
+
+```text
+Backend:      docker | podman
+Environment:  host | pind | dind
+```
+
+组合规则：
+
+| Backend | Environment | 用途 |
 |---|---|---|
-| 容器运行时 | podman/docker CLI | pind/dind |
-| 构建入口 | 本地 `cnb lifecycle run` | cnb-builder-shim |
-| 导出 | OCI layout | docker save |
-| run image | `fake-cnb-runner` | 真实 `CNB_RUN_IMAGE` |
-| 平台 API | `CNB_PLATFORM_API=0.11` | 同 |
+| docker | host | 本地 docker |
+| podman | host | 本地 podman |
+| podman | pind | podman-in-docker 的 socket 预设 |
+| docker | dind | docker-in-docker |
+
+代码位置：
+
+```text
+pkg/container/config.go    环境变量解析、socket、export mode
+pkg/builder/executors/     fake runner、build、export、package
+```
+
+### 与官方差异
+
+| 项 | 当前 | 官方 |
+|---|---|---|
+| 构建入口 | `cnb lifecycle run` | `cnb-builder-shim` |
+| 导出 | OCI layout，必要时 daemon | docker save / daemon |
+| run image | `fake-cnb-runner`；可扩展自定义 run image | 真实 `CNB_RUN_IMAGE` |
+| 平台 API | `0.11` | 同 |
 | 缓存 | 本地目录 | `CACHE_REGISTRY` |
-| 镜像 tag | `bk_sops/<module>:version` | `docker.io/local/<module>:latest` |
+| 运行时 | host docker/podman；pind/dind 配置预设 | 完整 pind/dind 环境 |
+| 进程入口 | artifact.json | artifact.json |
 
-## 7. 平台处理差异
+说明：
 
-### 旧 CNB（无 artifact.json）
+- 当前 `pind` 只负责选择 podman 后端和 rootful socket，不负责启动嵌套 Podman。
+- 当前 `dind` 只负责 docker 后端和 daemon 导出，不负责启动 Docker daemon。
 
-```
-按模块找 <module>.tgz
-解析 manifest/index 的第一个镜像
-部署时 entrypoint = process type
-```
+## 8. 平台处理
 
-问题：
+### 当前 v2
 
-- 多镜像 tar 只取第一个
-- 同名进程冲突
-- 进程缺失时直接 `exec` 进程名
+平台要求 apiserver ≥ 1.7：
 
-### v2（有 artifact.json）
-
-```
-按模块读 image_tar
-按进程读 proc_entrypoints
+```text
+读 artifact.json
+按模块取 image_tar
+按进程取 proc_entrypoints
 容器 command = <module>-<process>
 ```
 
-优点：
+### 旧 CNB
 
-- 明确镜像来源
-- 明确进程入口
-- 不依赖 manifest 顺序
+```text
+按模块找 <module>.tgz
+读取 tar 中第一个 manifest
+进程名直接使用
+```
 
-## 8. 兼容性对比
+旧模式的问题：
 
-| 能力 | 本地当前 | 官方 v2 |
+- 多镜像 tar 只取第一个
+- 同名 `web` 冲突
+- 缺进程时直接 `exec` 失败
+
+当前默认 v2 已规避。
+
+## 9. 官方能力中未吸收的部分
+
+| 能力 | 当前状态 | 原因 |
 |---|---|---|
-| apiserver <1.7 | 可用 | 不可用 |
-| apiserver ≥1.7 | 可用但进程有坑 | 推荐 |
-| 多模块共享镜像 | D1/D6 手工 | 原生 |
-| 同名进程 | 冲突 | 解决 |
-| 包 ≤200MB | 需 D1 union | 原生 |
-| 构建一次 | 否 | 是 |
-| artifact 协议 | 无 | 有 |
+| `cnb-builder-shim` | 未使用 | 本地直接调用 lifecycle |
+| `SOURCE_GET_URL` / `DEST_PUT_URL` | 未使用 | 本地文件路径足够 |
+| 真实 `CNB_RUN_IMAGE` | 未使用 | 本地 fake runner 降低依赖 |
+| 完整 pind/dind | 未实现 | 只做运行时配置预设 |
+| `RUNTIME_WORKSPACE` | 未使用 | 本地 workspace 由 executor 管理 |
+| `BUILDPACK_TYPE` 多形态 | 仅内置 oci-embedded | 本地 buildpack 已嵌入 builder |
+| 远程缓存 registry | 可选，未作为主路径 | 离线优先 |
+| 多语言官方 buildpack 全集 | 只保留 Go/Node/Python | 当前业务范围 |
 
-## 9. 可复用与需替换
+## 10. 当前仍需注意
 
-### 可以复用
+1. **平台版本**：v2 需要 apiserver ≥ 1.7。
+2. **部分包**：`--module` 调试包不可部署，必须配合 `--allow-partial`。
+3. **架构**：`--architecture` 必须与实际镜像一致；默认按 `BKS_PLATFORM` 或宿主推断。
+4. **D1/D6**：仍保留历史脚本，但 v2 路径不再依赖。
+5. **pind**：当前是配置预设，不是完整嵌套运行时。
 
-- `app_desc` 解析
-- buildpacks 与 buildpack 变量
-- 本地 builder 镜像
-- offline 缓存
-- `--env-file` / `--env`
-- 包检查工具（需扩展）
+## 11. 一句话总结
 
-### 必须新增
-
-- 构建组
-- 应用级 Procfile
-- 每组一个 image tar
-- artifact.json 生成
-- v2 包结构
-- namespaced 进程验证
-
-### 可以废弃
-
-- D1 硬链接去重
-- D6 多镜像单 tgz
-- D1 union 脚本
-- 按模块 tgz
-
-## 10. 结论
-
-本地 bksmartpacker 是“模块级构建器”：
-
-```
-模块 → 镜像 → tgz
+```text
+当前 bksmartpacker_v3
+  = 本地 lifecycle 执行器
+  + 官方 v2 构建组/Procfile/artifact 语义
+  + 本地 docker/podman 运行时
 ```
 
-官方 smart-app-builder v2 是“构建组级构建器”：
-
-```
-构建组 → 镜像 → image tar
-        artifact.json 映射模块与进程
-```
-
-要满足当前平台和 200 MB 目标，应该：
-
-1. 保留本地 buildpacks 和执行器
-2. 引入构建组
-3. 引入应用级 Procfile
-4. 生成 artifact.json
-5. 输出每组一个 image tar
-6. 停止 D1/D6 方案
+在最关键的产物协议和进程模型上已经与官方 v2 对齐；剩下的差异主要是本地离线执行方式，而不是包格式。
