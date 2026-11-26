@@ -27,5 +27,10 @@ func PrepareBuildPlan(params *types.Params) (*plan.BuildPlan, error) {
 	} else {
 		log.Info("检测到 logo 文件", "file", logoFileName)
 	}
-	return plan.New(appDesc, rawAppDesc, logoFileName, params)
+	return plan.New(plan.Input{
+		AppDesc:      appDesc,
+		RawAppDesc:   rawAppDesc,
+		LogoFileName: logoFileName,
+		Params:       params,
+	})
 }

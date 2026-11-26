@@ -6,9 +6,9 @@
 
 ```
 cmd/bksmartpacker
-  ├── cli.go            Kong 结构体参数
-  └── main.go           入口、inspect 分支
+  └── main.go           仅入口与 run 流程
 
+pkg/cli                Kong 参数解析、校验、inspect 输出
 pkg/appdesc            app_desc 读取、校验、模块过滤
 pkg/buildpack          语言 → buildpack
 pkg/plan               BuildPlan/Step/Group、分组、Procfile、artifact.json

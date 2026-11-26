@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"bksmartpacker/pkg/types"
 )
 
-// cliOptions 是 bksmartpacker 的命令行参数。
+// Options 是 bksmartpacker 的命令行参数。
 //
 // 参数使用规则：
 //   - --src/--dest 是本地路径；远程 URL 不在当前版本支持范围。
@@ -24,7 +24,7 @@ import (
 //   - --module 仅用于调试；默认禁止生成部分包，因为平台会按 app_desc 校验全部模块。
 //   - --allow-partial 显式放行部分包；该产物不可部署。
 //   - --env/--env-file 合并顺序：app_desc < env-file < --env。
-type cliOptions struct {
+type Options struct {
 	Src              string   `name:"src" help:"应用源码路径，需包含 app_desc.yaml"`
 	Dest             string   `name:"dest" default:"${defaultDest}" help:"s-mart 输出路径"`
 	BuilderImage     string   `name:"builder-image" default:"${defaultBuilderImage}" help:"cnb builder 镜像"`
@@ -41,12 +41,13 @@ type cliOptions struct {
 	AllowPartial     bool     `name:"allow-partial" help:"允许 --module 生成部分调试包（不可部署）"`
 }
 
-func defaultCLIOptions() cliOptions {
-	return cliOptions{}
+func defaultOptions() Options {
+	return Options{}
 }
 
-func parseCLIOptions(args []string) (cliOptions, error) {
-	opts := defaultCLIOptions()
+// Parse 解析命令行参数，默认值由 Kong 填充。
+func Parse(args []string) (Options, error) {
+	opts := defaultOptions()
 	parser, err := kong.New(&opts,
 		kong.Name("bksmartpacker"),
 		kong.Description("离线 CNB s-mart 构建器"),
@@ -67,7 +68,8 @@ func parseCLIOptions(args []string) (cliOptions, error) {
 	return opts, nil
 }
 
-func (o cliOptions) validate() error {
+// Validate 校验跨字段规则。
+func (o Options) Validate() error {
 	if o.Inspect != "" {
 		if o.Src != "" {
 			return fmt.Errorf("--inspect and --src are mutually exclusive")
@@ -83,7 +85,8 @@ func (o cliOptions) validate() error {
 	return nil
 }
 
-func (o cliOptions) toParams() (*types.Params, error) {
+// Params 转换为构建参数，并规范化输出路径。
+func (o Options) Params() (*types.Params, error) {
 	dest, err := filepath.Abs(o.Dest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute dest path: %w", err)

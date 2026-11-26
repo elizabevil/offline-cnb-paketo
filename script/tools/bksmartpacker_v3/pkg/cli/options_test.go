@@ -1,9 +1,9 @@
-package main
+package cli
 
 import "testing"
 
 func TestParseCLIOptionsRepeatedAndDefaults(t *testing.T) {
-	opts, err := parseCLIOptions([]string{
+	opts, err := Parse([]string{
 		"--src", ".",
 		"--module", "default",
 		"--module", "pipeline",
@@ -31,28 +31,28 @@ func TestParseCLIOptionsRepeatedAndDefaults(t *testing.T) {
 func TestCLIOptionsValidate(t *testing.T) {
 	cases := []struct {
 		name string
-		opts cliOptions
+		opts Options
 	}{
 		{name: "src required"},
-		{name: "inspect and src", opts: cliOptions{Inspect: "pkg.tgz", Src: "."}},
-		{name: "module requires allow partial", opts: cliOptions{Src: ".", Modules: []string{"default"}}},
+		{name: "inspect and src", opts: Options{Inspect: "pkg.tgz", Src: "."}},
+		{name: "module requires allow partial", opts: Options{Src: ".", Modules: []string{"default"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.opts.validate(); err == nil {
+			if err := tc.opts.Validate(); err == nil {
 				t.Fatal("expected validation error")
 			}
 		})
 	}
-	valid := cliOptions{Inspect: "pkg.tgz", InspectFormat: "json"}
-	if err := valid.validate(); err != nil {
+	valid := Options{Inspect: "pkg.tgz", InspectFormat: "json"}
+	if err := valid.Validate(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestCLIOptionsToParams(t *testing.T) {
-	opts := cliOptions{Src: ".", Dest: "./out.tar.gz", PackagingVersion: "v2", BaseImageID: "default"}
-	params, err := opts.toParams()
+	opts := Options{Src: ".", Dest: "./out.tar.gz", PackagingVersion: "v2", BaseImageID: "default"}
+	params, err := opts.Params()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestCLIOptionsToParams(t *testing.T) {
 }
 
 func TestParseCLIOptionsInvalidEnum(t *testing.T) {
-	if _, err := parseCLIOptions([]string{"--src", ".", "--packaging-version", "v3"}); err == nil {
+	if _, err := Parse([]string{"--src", ".", "--packaging-version", "v3"}); err == nil {
 		t.Fatal("expected enum error")
 	}
 }

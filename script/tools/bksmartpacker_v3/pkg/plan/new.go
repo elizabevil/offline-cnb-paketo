@@ -11,24 +11,34 @@ import (
 	"bksmartpacker/pkg/types"
 )
 
-// New 根据 app_desc 与参数生成构建计划。
-func New(appDesc types.ApplicationDescription, rawAppDesc, logoFileName string, params *types.Params) (*BuildPlan, error) {
-	plan := newBuildPlan(appDesc, rawAppDesc, logoFileName, params)
+// Input 是构建计划生成的输入。
+type Input struct {
+	AppDesc      types.ApplicationDescription
+	RawAppDesc   string
+	LogoFileName string
+	Params       *types.Params
+}
+
+// New 根据输入生成构建计划。
+func New(in Input) (*BuildPlan, error) {
+	plan := newBuildPlan(in)
 	if plan.PackagingVersion != PackagingVersionV1 && plan.PackagingVersion != PackagingVersionV2 {
 		return nil, fmt.Errorf("invalid packaging version %q: must be v1 or v2", plan.PackagingVersion)
 	}
-	if err := prepareSteps(appDesc, params, &plan); err != nil {
+	if err := prepareSteps(in, &plan); err != nil {
 		return nil, err
 	}
 	if plan.PackagingVersion == PackagingVersionV2 {
-		if err := buildGroups(appDesc.Modules, &plan); err != nil {
+		if err := buildGroups(in.AppDesc.Modules, &plan); err != nil {
 			return nil, err
 		}
 	}
 	return &plan, nil
 }
 
-func newBuildPlan(appDesc types.ApplicationDescription, rawAppDesc, logoFileName string, params *types.Params) BuildPlan {
+func newBuildPlan(in Input) BuildPlan {
+	appDesc := in.AppDesc
+	params := in.Params
 	packagingVersion := params.PackagingVersion
 	if packagingVersion == "" {
 		packagingVersion = PackagingVersionV2
@@ -39,8 +49,8 @@ func newBuildPlan(appDesc types.ApplicationDescription, rawAppDesc, logoFileName
 	}
 	return BuildPlan{
 		AppCode:          appDesc.AppInfo.Code,
-		AppDescContent:   rawAppDesc,
-		LogoFileName:     logoFileName,
+		AppDescContent:   in.RawAppDesc,
+		LogoFileName:     in.LogoFileName,
 		Src:              params.Src,
 		Dest:             params.Dest,
 		BuilderImage:     params.BuilderImage,
@@ -51,7 +61,9 @@ func newBuildPlan(appDesc types.ApplicationDescription, rawAppDesc, logoFileName
 	}
 }
 
-func prepareSteps(appDesc types.ApplicationDescription, params *types.Params, p *BuildPlan) error {
+func prepareSteps(in Input, p *BuildPlan) error {
+	appDesc := in.AppDesc
+	params := in.Params
 	for _, moduleDesc := range appDesc.Modules {
 		procfile := ""
 		if p.PackagingVersion == PackagingVersionV1 {
