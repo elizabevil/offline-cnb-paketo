@@ -292,14 +292,17 @@ rootless 外层运行时默认：
 
 因此 inner 容器默认无桥接网络；rootful 场景可开启。
 
-outer podman + inner dockerd 的完整构建已验证，但 builder 必须使用非 root 用户：
+outer podman + inner dockerd 的 layout/daemon 完整构建均已验证。
+daemon 路径优先使用非 root builder：
 
 ```text
 BKS_BUILDER_USER=1000:1000
 BKS_BUILDER_USERNS=keep-id
 ```
 
-root builder 会触发 lifecycle 的 `singleton connection already in use`。
+root builder 在 root-owned socket 下可能触发 lifecycle 的
+`singleton connection already in use`。`dind + layout` 不经过 inner dockerd，
+可作为对照路径。
 
 
 ### runtime-pind 多架构

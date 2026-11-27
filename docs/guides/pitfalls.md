@@ -227,12 +227,33 @@ sha256 = ""                             # 发布后自动回填
 
 | | |
 |---|---|
-| 现象 | Podman Docker-compatible API + exporter `-daemon`，导出 base layers 时报 singleton |
-| 原因 | lifecycle `priv/docker.go` 复用一条预打开连接；root-owned socket 时进入单连接路径，第二个请求无法 dial |
+| 现象 | Docker/Podman Docker-compatible API + exporter `-daemon`，导出 base layers 时报 singleton |
+| 原因 | lifecycle `priv/shouldConnectSock` 对 root-owned unix socket 启用单连接；`connectSockOpt` 的 CAS 只允许一个在途请求，第二个请求报错 |
 | 修法 | ① Podman 优先 `layout`；② daemon 模式使用非 root builder + `keep-id`；③ 等 lifecycle #1763 修复 |
 | dind 备注 | dind 也允许显式 `layout`；默认仍是 daemon |
 | pind 备注 | pind 也支持 daemon，使用 Podman Docker-compatible API |
 | 注意 | Podman 服务端本身并发 `image get` 正常，问题在 lifecycle 客户端 |
+
+关键代码：
+
+```text
+shouldConnectSock: stat(socket).Uid == 0 → true
+connectSockOpt: inUse CAS → 只允许一条连接
+```
+
+所以 root-owned Docker socket 即使用非 root builder 也会进入 singleton 分支；
+必须让 socket 本身属于非 root（rootless Docker 或 socket proxy）。
+
+已观察到的差异：
+
+```text
+rootful Podman + CMDB 完整构建  → 未复现
+amd64 Docker host daemon       → 成功
+arm64 Docker host daemon       → 本次复现 singleton
+```
+
+因此不能把这次失败直接归为“此前 Podman 未复现”的同一结论；
+需要按 Docker arm64/qemu 路径单独跟踪。
 
 上游：
 

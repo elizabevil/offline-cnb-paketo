@@ -62,6 +62,18 @@ run image
 
 BK 最终只把应用层打进 s-mart。
 
+### sidecar
+
+sidecar 是 bksmartpacker 为一次构建额外启动的辅助容器，用来提供 inner runtime：
+
+```text
+pind: sidecar 内启动 podman system service
+dind: sidecar 内启动 dockerd
+```
+
+它不是 builder，也不运行 buildpacks。builder 与 sidecar 共享 `/cnb/work`，
+通过 `/cnb/work/run/*.sock` 连接。
+
 ## 3. outer / inner runtime
 
 ### outer runtime
@@ -151,7 +163,7 @@ exporter -daemon
 | 镜像位置 | 文件系统 OCI layout | inner runtime image store |
 | 是否需要 socket | 否 | 是 |
 | 是否需要 image save | 由 bksmartpacker 处理 layout | 需要 |
-| pind | 默认 | 不推荐 |
+| pind | 默认 | 支持（Podman Docker API） |
 | dind | 可用但无 inner image | 推荐 |
 | singleton 风险 | 无 | 有 |
 
@@ -165,7 +177,7 @@ exporter -daemon
 
 ```text
 lifecycle exporter -daemon
-Podman Docker-compatible API
+Docker 或 Podman Docker-compatible API
 socket 在容器内属于 root
 ```
 
@@ -189,8 +201,17 @@ lifecycle priv/docker.go 复用单条预打开连接
 --userns=keep-id
 ```
 
-可以让 socket 在容器内显示为非 root，从而避开
-`priv.shouldConnectSock()` 的 singleton 分支。
+只有在 socket 在 builder 内也显示为非 root 时才有效。
+对于宿主 rootful Docker 的 `/var/run/docker.sock`，socket 仍属于 root，
+仅切换 builder 用户不能绕过。
+
+真正的非 root 方案：
+
+```text
+rootless Docker
+非 root 用户的 Docker socket proxy
+sidecar 自己创建的非 root socket（pind/dind）
+```
 
 ## 7. 推荐选择
 
