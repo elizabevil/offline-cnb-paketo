@@ -27,3 +27,12 @@ test-bk-export-modes *args:
 
 test-bk-runtime-matrix *args:
     @just --justfile project/offline-paketo-bk/justfile test-runtime-matrix {{args}}
+
+test-bk-pind *args:
+    @just --justfile project/offline-paketo-bk/justfile test-pind {{args}}
+
+test-bk-dind *args:
+    @just --justfile project/offline-paketo-bk/justfile test-dind {{args}}
+
+test-bk-dind-daemon *args:
+    @just --justfile project/offline-paketo-bk/justfile test-dind-daemon {{args}}

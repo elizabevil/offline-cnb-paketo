@@ -29,6 +29,7 @@
 | [runtime-concepts.md](design/runtime-concepts.md) | **前置概念：layout/daemon、outer/inner runtime、pind/dind** |
 | [rootless-runtime-recommendation.md](design/rootless-runtime-recommendation.md) | **非 root 优先：host-podman / pind / dind / rootless Docker** |
 | [architecture.md](design/architecture.md) | **当前架构与两条案例流程**（含 mermaid 图） |
+| [runtime-architecture.md](design/runtime-architecture.md) | **runtime 角色、pind/dind、导出模式与非 root 流程** |
 | [constraints.md](design/constraints.md) | 基座约定：路径、平台命名、信任边界 |
 | [pipeline.md](design/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
 | [buildpack-components.md](design/buildpack-components.md) | buildpack 组件契约与规则 |

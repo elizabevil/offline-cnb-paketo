@@ -57,6 +57,8 @@ _target_arch := if _platform == "linux-arm64" { "arm64" } else { "amd64" }
 _runtime_base := if _platform == "linux-arm64" { "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim-linuxarm64" } else { "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/debian:trixie-slim" }
 _platform_flag := " --platform " + _platform
 smart_builder := env_var_or_default("BUILDER_IMAGE", "offline-builder-build-bk:" + _target_arch)
+builder_user := env_var_or_default("BKS_BUILDER_USER", "1000:1000")
+builder_userns := env_var_or_default("BKS_BUILDER_USERNS", "keep-id")
 # 运行时（Go/Node/Python SDK）禁止打进镜像，只能在这里挂载：
 #   CNB_RUNTIMES=/opt/cnb-runtimes just smart
 # 宿主机目录需按 <lang>/<version>/... 组织，容器内挂到 /cnb/runtimes
@@ -152,6 +154,18 @@ test-export-modes app="" platform="":
 test-runtime-matrix app="" platform="":
     @BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/matrix.sh
 
+# 推荐：pind + non-root builder + layout
+test-pind app="" platform="": smart-builder
+    @BKS_TEST_MODE=pind BKS_TEST_EXPORT=layout BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/managed.sh
+
+# 推荐：dind + non-root builder + layout
+test-dind app="" platform="": smart-builder
+    @BKS_TEST_MODE=dind BKS_TEST_EXPORT=layout BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/managed.sh
+
+# 推荐：dind + non-root builder + daemon
+test-dind-daemon app="" platform="": smart-builder
+    @BKS_TEST_MODE=dind BKS_TEST_EXPORT=daemon BKS_APP="{{app}}" BKS_PLATFORM="{{platform}}" {{_dir}}/tests/managed.sh
+
 # 编译 bksmartpacker（转发到工具自己的 justfile，避免重复 go build）
 smart-bps:
     @just --justfile {{_root}}/script/tools/bksmartpacker_v3/justfile build
@@ -169,7 +183,7 @@ smart src="{{_fx}}": smart-builder smart-bps
     @echo "  · 输出: {{_out}}/s-mart.tar.gz"
     @rm -f {{_out}}/s-mart.tar.gz
     @test -x {{_bps}} || { echo "  ✗ 缺少 bksmartpacker"; exit 1; }
-    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" BKS_BUILDER_USER="{{builder_user}}" BKS_BUILDER_USERNS="{{builder_userns}}" {{_bps}} --src {{src}} \
         {{env_file_flag}} {{env_flags}} {{module_flags}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tar.gz
@@ -187,7 +201,7 @@ pack-case src:
     @test -d "{{src}}" || { echo "  ✗ 目录不存在: {{src}}"; exit 1; }
     @mkdir -p {{_out}} {{cache_dir}}
     @rm -f {{_out}}/s-mart.tar.gz
-    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" {{_bps}} --src {{src}} \
+    @BKS_CONTAINER_CLI=podman BKS_NETWORK="{{network}}" BKS_DOCKER_SOCK="{{docker_sock}}" BKS_EXTRA_MOUNTS="{{mounts}}" BKS_BUILDER_USER="{{builder_user}}" BKS_BUILDER_USERNS="{{builder_userns}}" {{_bps}} --src {{src}} \
         {{env_file_flag}} {{env_flags}} {{module_flags}} \
         --builder-image "{{smart_builder}}" \
         --dest {{_out}}/s-mart.tar.gz
