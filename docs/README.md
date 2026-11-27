@@ -4,43 +4,42 @@
 
 | 目录 | 读者 | 内容 |
 |---|---|---|
-| [`design/`](design/) | 开发 | 架构、流程、取舍、为什么这样做 |
-| [`guides/`](guides/) | 使用者 / 运维 | 怎么跑、怎么验证、故障怎么查 |
-| [`ai/`](ai/) | AI 代理 / 协作者 | 代码约束、提交与合并规则、入口与自查 |
-| [`proposals/`](proposals/) | 设计者 | **未来**：待拍板决策、演进路线、未实现方案 |
-| [`archive/`](archive/) | 考古 | **历史**：已完成/废弃方案，只读 |
+| [`design/`](design) | 开发 | 架构、流程、取舍、为什么这样做 |
+| [`guides/`](guides) | 使用者 / 运维 | 怎么跑、怎么验证、故障怎么查 |
+| [`ai/`](ai) | AI 代理 / 协作者 | 代码约束、提交与合并规则、入口与自查 |
+| [`proposals/`](proposals) | 设计者 | **未来**：待拍板决策、演进路线、未实现方案 |
+| [`archive/`](archive) | 考古 | **历史**：已完成/废弃方案，只读 |
 
 ## 索引
 
-### 项目文档（需求 / 架构）
+### 项目文档（使用）
 
 | 文档 | 说明 |
 |---|---|
-| [offline-paketo](../project/offline-paketo/docs/architecture.md) | 纯 CNB 离线构建 |
-| [offline-paketo-bk](../project/offline-paketo-bk/docs/requirements.md) | 离线 + 缓存 + 只输出应用层 |
+| [offline-paketo-bk 使用](../project/offline-paketo-bk/docs/README.md) | 命令、环境变量、测试入口 |
 
-> 需求文档目前放在各子项目 `docs/` 下，因为需求与项目强绑定；
-> 本目录不重复维护，只做索引。
+> offline-paketo 与 offline-paketo-bk 的需求/架构/决策统一在
+> [design/projects/](design/projects/)；项目 `docs/` 只放使用说明。
 
 ### design（技术）
 
 | 文档 | 说明 |
 |---|---|
-| [runtime-concepts.md](design/runtime-concepts.md) | **前置概念：layout/daemon、outer/inner runtime、pind/dind** |
-| [rootless-runtime-recommendation.md](design/rootless-runtime-recommendation.md) | **非 root 优先：host-podman / pind / dind / rootless Docker** |
-| [architecture.md](design/architecture.md) | **当前架构与两条案例流程**（含 mermaid 图） |
-| [runtime-architecture.md](design/runtime-architecture.md) | **runtime 角色、pind/dind、导出模式与非 root 流程** |
-| [constraints.md](design/constraints.md) | 基座约定：路径、平台命名、信任边界 |
-| [pipeline.md](design/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
-| [buildpack-components.md](design/buildpack-components.md) | buildpack 组件契约与规则 |
-| [protocol-layers.md](design/protocol-layers.md) | 协议分层、包 API、删除清单、**命名约束** |
-| [build-chain.md](design/build-chain.md) | 从源码到 s-mart 的完整数据流 |
-| [scaffold.md](design/scaffold.md) | 脚手架：从参考项目生成新项目 |
-| [protocol/protocol-spec.md](design/protocol/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
-| [protocol/lifecycle-contract.md](design/protocol/lifecycle-contract.md) | lifecycle 契约与导出语义 |
-| [protocol/subproject-contract.md](design/protocol/subproject-contract.md) | 子项目 justfile 与目录契约 |
-| [materials/adding-materials.md](design/materials/adding-materials.md) | 物料声明、lock 与新增流程 |
-| [materials/materials-sync.md](design/materials/materials-sync.md) | 物料同步、校验与离线策略 |
+| [design/README.md](design/README.md) | **design 目录索引与职责划分** |
+| [runtime-concepts.md](design/runtime/concepts.md) | **运行时单一入口：概念、角色、拓扑、导出模式、singleton** |
+| [rootless-runtime-recommendation.md](design/runtime/rootless-recommendation.md) | **非 root 方案选择与命令** |
+| [architecture.md](design/base/architecture.md) | **当前架构与两条案例流程**（含 mermaid 图） |
+| [constraints.md](design/base/constraints.md) | 基座约定：路径、平台命名、信任边界 |
+| [pipeline.md](design/base/pipeline.md) | 一条流水线的完整链路（配置 → 计划 → 执行） |
+| [buildpack-components.md](design/components/buildpack-components.md) | buildpack 组件契约与规则 |
+| [protocol-layers.md](design/base/protocol-layers.md) | 协议分层、包 API、删除清单、**命名约束** |
+| [build-chain.md](design/projects/offline-paketo-bk/build-chain.md) | 从源码到 s-mart 的完整数据流 |
+| [scaffold.md](design/base/scaffold.md) | 脚手架：从参考项目生成新项目 |
+| [protocol/protocol-spec.md](design/base/protocol/protocol-spec.md) | spec/* 的 API 形状、未知字段、测试与检查清单 |
+| [protocol/lifecycle-contract.md](design/base/protocol/lifecycle-contract.md) | lifecycle 契约与导出语义 |
+| [protocol/subproject-contract.md](design/base/protocol/subproject-contract.md) | 子项目 justfile 与目录契约 |
+| [materials/adding-materials.md](design/base/materials/adding-materials.md) | 物料声明、lock 与新增流程 |
+| [materials/materials-sync.md](design/base/materials/materials-sync.md) | 物料同步、校验与离线策略 |
 | [components/bksmartpacker/fork.md](design/components/bksmartpacker/fork.md) | bksmartpacker fork 的维护与升级 |
 | [components/bksmartpacker/vs-upstream.md](design/components/bksmartpacker/vs-upstream.md) | bksmartpacker 与上游功能对比 |
 

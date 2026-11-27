@@ -3,7 +3,7 @@
 这里放**已完成或已废弃**的设计记录：当时的取舍、踩过的坑、迁移过程。
 
 - 只读，不再更新；命令与路径可能已失效
-- 需要当前做法时，看 [`docs/design/`](../design/) 或 [`docs/proposals/`](../proposals/)
+- 需要当前做法时，看 [`docs/design/`](../design) 或 [`docs/proposals/`](../proposals)
 
 | 文档 | 内容 |
 |---|---|

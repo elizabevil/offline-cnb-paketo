@@ -1,7 +1,7 @@
 # offline-paketo-bk：历史变更
 
 > **归档**：本项目从 pack 时代到当前实现的变更记录。
-> 当前实现见 [`project/offline-paketo-bk/docs/architecture.md`](../../project/offline-paketo-bk/docs/architecture.md)；
+> 当前实现见 [`offline-paketo-bk/architecture.md`](../design/projects/offline-paketo-bk/architecture.md)；
 > pack 时代的详细流程见 [`bk-build-logic.md`](bk-build-logic.md)。
 
 ## 已移除的实现

@@ -1,8 +1,32 @@
 # 架构与执行流程
 
-本文是**当前实现**的架构总览与两条案例，不描述历史方案。执行细节见 [pipeline.md](pipeline.md)，数据流与失败归属见 [build-chain.md](build-chain.md)。
+本文是**当前实现**的架构总览与两条案例，不描述历史方案。执行细节见 [pipeline.md](pipeline.md)，数据流与失败归属见 [build-chain.md](../projects/offline-paketo-bk/build-chain.md)。
 
-运行时概念（layout/daemon、outer/inner、pind/dind、singleton）见 [runtime-concepts.md](runtime-concepts.md)。
+运行时概念（layout/daemon、outer/inner、pind/dind、singleton）见 [runtime-concepts.md](../runtime/concepts.md)。
+
+## 0. 一页总览
+
+```mermaid
+flowchart LR
+    CFG["配置<br/>pipeline.toml"] --> CNB["cnb 工具<br/>plan / run / materials"]
+    ASSET["物料<br/>assets.toml → bundle/"] --> CNB
+    CNB --> OUTER["Outer runtime<br/>podman / docker"]
+    OUTER --> BUILDER["builder 容器<br/>lifecycle + buildpacks"]
+    OUTER --> SIDECAR["sidecar（可选）<br/>pind / dind"]
+    BUILDER --socket--> SIDECAR
+    BUILDER --> INNER["Inner runtime"]
+    INNER --> PROD["产物<br/>builder 镜像 或 s-mart.tar.gz"]
+```
+
+运行时拓扑：
+
+| 模式 | outer | inner | sidecar |
+|---|---|---|---|
+| host | 宿主机 | 宿主机 | 无 |
+| pind | 宿主机 | sidecar Podman | 有 |
+| dind | 宿主机 | sidecar Dockerd | 有 |
+
+非 root 方案选择见 [rootless-runtime-recommendation.md](../runtime/rootless-recommendation.md)。
 
 ## 1. 分层
 

@@ -1,7 +1,7 @@
 # offline-paketo：历史变更
 
 > **归档**：本项目早期实现与结构变更记录。
-> 当前实现见 [`project/offline-paketo/docs/architecture.md`](../../project/offline-paketo/docs/architecture.md)。
+> 当前实现见 [`project/offline-paketo/docs/architecture.md`](../design/projects/offline-paketo/architecture.md)。
 
 ## 已移除的实现
 

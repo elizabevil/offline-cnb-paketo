@@ -1,7 +1,7 @@
 # bksmartpacker_v3 架构
 
 面向维护者，说明一次 S-Mart 构建内部发生了什么。使用方式见 [README.md](README.md)，与官方工具的差异见
-[local-vs-smart-app-builder.md](../../../project/offline-paketo-bk/docs/local-vs-smart-app-builder.md)。
+[local-vs-smart-app-builder.md](../../../docs/design/components/bksmartpacker/local-vs-smart-app-builder.md)。
 
 ## 一、模块划分
 

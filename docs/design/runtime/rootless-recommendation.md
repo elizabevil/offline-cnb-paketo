@@ -2,6 +2,7 @@
 
 > 目标：测试与生产优先使用非 root 运行时和非 root builder。
 > 适用范围：bksmartpacker managed/host runtime。
+> 概念与拓扑见 [runtime-concepts.md](concepts.md)。
 
 ## 1. 结论
 

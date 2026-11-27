@@ -756,7 +756,7 @@ python3 script/tools/d1_union_package.py <s-mart.tar.gz>   --out bk-sops-d1-unio
 
 官方 smart-app-builder v2 用 artifact.json 解决同一问题，详见：
 
-[project/offline-paketo-bk/docs/smart-app-v2-analysis.md](../../project/offline-paketo-bk/docs/smart-app-v2-analysis.md)
+[smart-app-v2-analysis.md](../design/projects/offline-paketo-bk/smart-app-v2-analysis.md)
 
 核心结论：
 

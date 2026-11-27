@@ -1,8 +1,8 @@
 # offline-paketo 架构说明
 
 > 本文描述 `project/offline-paketo` 的**当前实现**。
-> 仓库级架构见 [`docs/design/architecture.md`](../../../docs/design/architecture.md)，
-> 执行细节见 [`docs/design/pipeline.md`](../../../docs/design/pipeline.md)。
+> 仓库级架构见 [`docs/design/architecture.md`](../../base/architecture.md)，
+> 执行细节见 [`docs/design/pipeline.md`](../../base/pipeline.md)。
 
 ## 一、定位
 
@@ -82,7 +82,7 @@ builder 的关键约定：
 
 ## 六、buildpack 与 order
 
-组件实现见 [`docs/design/buildpack-components.md`](../../../docs/design/buildpack-components.md)。
+组件实现见 [`docs/design/buildpack-components.md`](../../components/buildpack-components.md)。
 
 | meta buildpack | 组成 |
 |---|---|
@@ -104,4 +104,4 @@ builder 的关键约定：
 
 ## 八、历史
 
-早期实现与结构变更见 [`docs/archive/offline-paketo-history.md`](../../../docs/archive/offline-paketo-history.md)。
+早期实现与结构变更见 [`docs/archive/offline-paketo-history.md`](../../../archive/offline-paketo-history.md)。

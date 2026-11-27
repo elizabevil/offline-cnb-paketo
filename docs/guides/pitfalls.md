@@ -220,8 +220,8 @@ sha256 = ""                             # 发布后自动回填
 
 参考：
 
-- [runtime-matrix.md](../design/components/bksmartpacker/runtime-matrix.md)
-- [runtime-concepts.md](../design/runtime-concepts.md)
+- [runtime-matrix.md](runtime-tests/matrix.md)
+- [runtime-concepts.md](../design/runtime/concepts.md)
 
 ### 18. lifecycle `singleton connection already in use`
 

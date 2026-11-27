@@ -11,11 +11,11 @@
 | [go-build.md](go-build.md) | Go 规范与实战反模式、提交前自查 |
 | [package-layout.md](package-layout.md) | 包与目录分层 |
 | [pitfalls.md](../guides/pitfalls.md) | 19 条真实故障：现象 → 原因 → 修法 |
-| [subproject-contract.md](../design/protocol/subproject-contract.md) | 子项目 justfile 契约 |
-| [protocol-spec.md](../design/protocol/protocol-spec.md) | spec/* 的 API 形状与测试要求 |
-| [../design/architecture.md](../design/architecture.md) | 当前架构与两条案例流程 |
-| [../design/pipeline.md](../design/pipeline.md) | 路径链条与执行语义 |
-| [../design/protocol-layers.md](../design/protocol-layers.md) | 协议分层与命名约束 |
+| [subproject-contract.md](../design/base/protocol/subproject-contract.md) | 子项目 justfile 契约 |
+| [protocol-spec.md](../design/base/protocol/protocol-spec.md) | spec/* 的 API 形状与测试要求 |
+| [../design/architecture.md](../design/base/architecture.md) | 当前架构与两条案例流程 |
+| [../design/pipeline.md](../design/base/pipeline.md) | 路径链条与执行语义 |
+| [../design/protocol-layers.md](../design/base/protocol-layers.md) | 协议分层与命名约束 |
 
 ## 二、常用命令
 
@@ -42,7 +42,7 @@ golangci-lint run --config ../.golangci.yml ./...
 
 ## 三、不可违反的约束
 
-1. **配置即接口**：字段命名遵循 [protocol-layers.md](../design/protocol-layers.md) 第七章
+1. **配置即接口**：字段命名遵循 [protocol-layers.md](../design/base/protocol-layers.md) 第七章
    （表是名词、键是属性；禁用 `root`/`info`/`data` 这类泛词）。
 2. **路径双根**：项目内路径相对 `pipeline.toml` 目录；物料路径相对 `assets.toml` 目录；
    跨项目共享只用 `${runtime.repo}` / `${runtime.bundle}` 绝对占位符。

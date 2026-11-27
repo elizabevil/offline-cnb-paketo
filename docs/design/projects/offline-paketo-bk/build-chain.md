@@ -2,7 +2,7 @@
 
 > 适用：`project/offline-paketo-bk`（bksmartpacker 契约 + 自研 paketo 组件）。
 > 目的：把"谁负责什么、产物落在磁盘哪个位置"固定下来。
-> 执行步骤见 [pipeline.md](pipeline.md)，整体架构见 [architecture.md](architecture.md)。
+> 执行步骤见 [pipeline.md](../../base/pipeline.md)，整体架构见 [architecture.md](../../base/architecture.md)。
 
 ## 一、角色与职责
 

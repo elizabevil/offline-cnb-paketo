@@ -9,12 +9,13 @@
 
 ## 一、基线
 
-| 项 | 值 |
-|---|---|
-| 上游仓库 | `ssh://git@code.cwoa.net:43990/rd-fy22-canway-platform-products/bksmartpacker_v3.git` |
-| 基线提交 | `e2025de feat: 工具构建切换静态链接` |
-| 上游工作区附加改动 | `Makefile` 产物名加 `-ts4`（未提交） |
-| 对比范围 | 运行方式、导出、平台、打包、自检 |
+基线（仓库、提交、来源）见 [fork.md](fork.md)。
+
+对比范围：
+
+```text
+运行方式、导出、平台、打包、自检
+```
 
 ## 二、功能矩阵
 

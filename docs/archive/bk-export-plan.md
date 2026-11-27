@@ -1,6 +1,6 @@
 # BK 导出改造：提交计划
 
-> 状态：**提案/计划**。实验结论见 [`docs/archive/bk-export-layout.md`](../archive/bk-export-layout.md)。
+> 状态：**提案/计划**。实验结论见 [`docs/archive/bk-export-layout.md`](bk-export-layout.md)。
 
 ## 一、提交计划
 

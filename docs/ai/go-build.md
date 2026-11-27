@@ -5,7 +5,7 @@
 > 适用范围：团队所有 Go 项目
 > 强制工具：gofmt、go vet、golangci-lint
 
-> 协议解析见 [protocol-spec.md](../design/protocol/protocol-spec.md)，包分层见 [package-layout.md](package-layout.md)。
+> 协议解析见 [protocol-spec.md](../design/base/protocol/protocol-spec.md)，包分层见 [package-layout.md](package-layout.md)。
 
 ## 一、常量与字面量
 ### 1.1 禁止魔法字面量

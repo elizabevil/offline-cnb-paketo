@@ -6,8 +6,8 @@
 > [`pipeline.md` §1](pipeline.md#1-路径链条project--assets--bundle)。
 
 > 本文只描述**现在的**职责边界、布局与校验规则。
-> 待拍板决策与演进路线见 [`docs/archive/base-roadmap.md`](../archive/base-roadmap.md)。
-> 早期踩坑见 [`docs/guides/pitfalls.md`](../guides/pitfalls.md)。
+> 待拍板决策与演进路线见 [`docs/archive/base-roadmap.md`](../../archive/base-roadmap.md)。
+> 早期踩坑见 [`docs/guides/pitfalls.md`](../../guides/pitfalls.md)。
 
 > 目标：让两个子项目（offline-paketo / offline-paketo-bk）
 > 共享同一份"物料 + 编排 + 校验"能力，而不是各写一套版本号和下载脚本。

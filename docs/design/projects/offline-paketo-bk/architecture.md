@@ -1,8 +1,8 @@
 # offline-paketo-bk 架构说明
 
 > 本文描述 `project/offline-paketo-bk` 的**当前实现**。
-> 仓库级架构见 [`docs/design/architecture.md`](../../../docs/design/architecture.md)，
-运行时概念见 [`docs/design/runtime-concepts.md`](../../../docs/design/runtime-concepts.md)，
+> 仓库级架构见 [`architecture.md`](../../base/architecture.md)，
+运行时概念见 [`runtime-concepts.md`](../../runtime/concepts.md)，
 > 需求与验收见 [`requirements.md`](requirements.md)，
 > 与 offline-paketo 的差异见 [`delta-from-paketo.md`](delta-from-paketo.md)。
 
@@ -143,210 +143,13 @@ CNB_CACHE_DIR=/var/cache/bk just smart
 
 ## 八、历史
 
-变更记录见 [`docs/archive/offline-paketo-bk-history.md`](../../../docs/archive/offline-paketo-bk-history.md)，
-pack 时代的流程见 [`docs/archive/bk-build-logic.md`](../../../docs/archive/bk-build-logic.md)。
+变更记录见 [`offline-paketo-bk-history.md`](../../../archive/offline-paketo-bk-history.md)，
+pack 时代的流程见 [`bk-build-logic.md`](../../../archive/bk-build-logic.md)。
 
-## 九、managed pind 离线 runtime
 
-builder 镜像不包含 daemon。managed pind 使用独立 sidecar 镜像：
+## 九、运行时
 
-```text
-bundle/<platform>/images/runtime-pind.tar
-bundle/<platform>/images/runtime-pind.tar.sha256
-```
+本项目可选使用 managed pind/dind sidecar，其概念、拓扑、导出模式与非 root 方案统一见
+[`../../runtime/`](../../runtime/README.md)；测试矩阵见 [`../../../guides/runtime-tests/`](../../../guides/runtime-tests/README.md)。
 
-### 生产 bundle
-
-```bash
-just runtime-pind-bundle
-```
-
-这会：
-
-1. 构建 `offline-runtime-pind-bk:<arch>`
-2. 导出 OCI archive 到 bundle
-3. 写入 sha256
-
-该步骤是离线包的生产者，可能使用 apt 网络。
-
-### 消费 bundle
-
-```bash
-RUNTIME=pind \
-BKS_RUNTIME_DRIVER=managed \
-CNB_RUNTIME_IMAGE=offline-runtime-pind-bk:<arch> \
-CNB_RUNTIME_WORKSPACE=/var/lib/cnb/run \
-bksmartpacker ...
-```
-
-pipeline 的 `runtime-pind` stage 只做：
-
-```text
-校验 sha256
-podman load -i bundle/<platform>/images/runtime-pind.tar
-```
-
-不会在消费端访问 apt 或网络。
-
-
-### runtime-pind 静态二进制
-
-runtime-pind 不再通过 apt 安装 podman，而是从 bundle 中的静态包构建：
-
-```text
-bundle/<platform>/binaries/podman-static/6.2.1/podman-linux-amd64.tar.gz
-```
-
-来源：
-
-```text
-https://github.com/mgoltzsche/podman-static/releases/download/v6.2.1/podman-linux-amd64.tar.gz
-```
-
-该包包含静态 podman、crun、runc、conmon、fuse-overlayfs、netavark、pasta 等依赖。
-
-生产：
-
-```bash
-just podman-static
-just runtime-pind-bundle
-```
-
-消费：
-
-```bash
-just smart-runtime
-```
-
-构建 runtime 镜像时不再访问 apt 或外网；只从 bundle 复制静态包。
-
-
-### managed runtime 缓存
-
-runtime sidecar 的 storage 不再放在 `/cnb/work/runtime`，而是使用 podman 命名卷：
-
-```text
-cnb-runtime-podman
-  → /cnb/runtime
-  → /cnb/runtime/podman/storage
-  → /cnb/runtime/podman/runroot
-```
-
-没有卷或 cache 时使用 `/tmp/cnb-runtime` 临时目录，不写入 `/cnb/work`，也不保证跨构建复用。
-
-
-### runtime storage 卷与清理
-
-managed sidecar 的 runtime storage 使用 podman 管理的命名卷：
-
-```text
-cnb-runtime-podman
-cnb-runtime-docker
-```
-
-挂载到 sidecar：
-
-```text
-/cnb/runtime
-```
-
-实际 storage：
-
-```text
-/cnb/runtime/podman/storage
-/cnb/runtime/podman/runroot
-```
-
-这样避免 rootless 宿主下 cache 目录属主变成 subuid 后无法管理。
-
-清理：
-
-```bash
-podman volume rm -f cnb-runtime-podman
-```
-
-卷默认跨构建保留；只有需要彻底重置 runtime cache 时才删除。
-
-
-### runtime-dind
-
-runtime-dind 基于静态 Docker bundle + Debian base，Dockerfile 位于 `project/offline-paketo/docker/runtime/`：
-
-```text
-bundle/<platform>/images/runtime-dind.tar
-```
-
-入口启动 dockerd：
-
-```text
-/cnb/work/run/docker.sock
-```
-
-rootless 外层运行时默认：
-
-```text
---bridge=none
---iptables=false
---ip-forward=false
-```
-
-因此 inner 容器默认无桥接网络；rootful 场景可开启。
-
-outer podman + inner dockerd 的 layout/daemon 完整构建均已验证。
-daemon 路径优先使用非 root builder：
-
-```text
-BKS_BUILDER_USER=1000:1000
-BKS_BUILDER_USERNS=keep-id
-```
-
-root builder 在 root-owned socket 下可能触发 lifecycle 的
-`singleton connection already in use`。`dind + layout` 不经过 inner dockerd，
-可作为对照路径。
-
-
-### runtime-pind 多架构
-
-```bash
-BKS_PLATFORM=linux/arm64 just runtime-pind-bundle
-```
-
-产物：
-
-```text
-bundle/linux-arm64/images/runtime-pind.tar
-```
-
-runtime-dind 使用现有 `docker` 静态物料；amd64/arm64 镜像都已产出。
-
-完整 amd64 验证：
-
-```text
-CMDB SaaS
-static dockerd
-non-root builder
-daemon export
-33 MB s-mart
-sha256: eb2c3ac9b3da2be97e8581ac488422fc46d870928402ac6a35ae72e9232e71ab
-```
-
-默认 rootless 配置不需要 iptables；rootful bridge 网络才需要额外系统包。
-
-
-### arm64 dind 验证
-
-使用静态 Docker arm64 物料 + Debian arm64 base：
-
-```text
-CMDB release-arm64
-static dockerd arm64
-non-root builder
-```
-
-结果：
-
-```text
-BuildSMartPackage done
-31 MB
-sha256: 37bdf633f7032292cafc79fe38b3e4e119fe72d2cde58c470648b72545b07d6f
-```
+本节不重复运行时细节。

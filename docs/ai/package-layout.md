@@ -1,6 +1,6 @@
 # 包分层与合并原则
 
-> TOML 字段命名约束见 [protocol-layers.md](../design/protocol-layers.md#七命名约束)。
+> TOML 字段命名约束见 [protocol-layers.md](../design/base/protocol-layers.md#七命名约束)。
 
 适用于 `script/tools/cnb/internal`。目的是避免包越拆越碎、职责模糊。
 
@@ -16,7 +16,7 @@
 
 依赖方向只能自上而下：入口 → 执行 → 领域 → 基础设施 → 协议。
 **协议包不得依赖任何业务包**；业务包只能消费协议包的结构体，禁止二次解析。
-协议包开发规范见 [../pipeline/protocol-spec.md](../design/protocol/protocol-spec.md)。
+协议包开发规范见 [../pipeline/protocol-spec.md](../design/base/protocol/protocol-spec.md)。
 
 ## 二、什么时候该新建包
 
@@ -58,7 +58,7 @@
 
 ## 六、协议常量归属
 
-协议的解析器归属见 [协议分层](../design/protocol-layers.md)：每个协议只有一个解析器，统一放在 `internal/spec/*`。
+协议的解析器归属见 [协议分层](../design/base/protocol-layers.md)：每个协议只有一个解析器，统一放在 `internal/spec/*`。
 
 - 清单相关（平台、解包方式、段落名、默认文件名）→ `lock`
 - 计划相关（阶段类型）→ `profile`

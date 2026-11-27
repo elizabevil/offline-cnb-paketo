@@ -1,6 +1,6 @@
 # buildpack 拆分：进度与迁移记录（已完成）
 
-> 状态：**历史**。拆分已完成，设计见 [`docs/design/buildpack-components.md`](../design/buildpack-components.md)。
+> 状态：**历史**。拆分已完成，设计见 [`docs/design/buildpack-components.md`](../design/components/buildpack-components.md)。
 
 ## 一、进度
 

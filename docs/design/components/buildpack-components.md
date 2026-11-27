@@ -123,7 +123,7 @@ requires = [{ name = "node" }]
 
 ## Python 组件可配置项
 
-变量的单一来源是 [`buildpacks/paketo/variables.toml`](../../buildpacks/paketo/variables.toml)，
+变量的单一来源是 [`buildpacks/paketo/variables.toml`](../../../buildpacks/paketo/variables.toml)，
 新增或修改变量时只改那里，CI 会校验脚本引用与登记表一致。
 
 常用示例（应用描述文件里声明）：

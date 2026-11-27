@@ -1,7 +1,7 @@
 # BK 方案构建逻辑（归档）
 
 > **归档**：`pack builder create` 时代的构建逻辑，已不再执行。
-> 当前实现见 [`project/offline-paketo-bk/docs/architecture.md`](../../project/offline-paketo-bk/docs/architecture.md)。
+> 当前实现见 [`offline-paketo-bk/architecture.md`](../design/projects/offline-paketo-bk/architecture.md)。
 
 # BK 方案构建逻辑
 

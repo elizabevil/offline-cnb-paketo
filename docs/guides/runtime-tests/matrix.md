@@ -4,18 +4,8 @@
 
 ## 1. 术语
 
-| 术语 | 定义 |
-|---|---|
-| Outer | 宿主机上启动 builder/sidecar 的运行时 |
-| Inner | builder 通过 socket 连接的运行时 |
-| Builder | builder 容器内进程用户 |
-| sidecar | 单次构建启动的辅助容器，提供 inner runtime |
-| host-docker | outer/inner 都是宿主 Docker，无 sidecar |
-| host-podman | outer/inner 都是宿主 Podman，无 sidecar |
-| pind | inner 是 sidecar Podman |
-| dind | inner 是 sidecar Docker |
-
-`root` 指宿主机实际 UID。
+术语（Outer / Inner / Builder / sidecar / pind / dind）统一见
+[runtime-concepts.md](../../design/runtime/concepts.md)。本文只记录测试结果。
 
 ## 2. 模型
 
@@ -53,12 +43,16 @@ Managed 的 8 种组合：
 
 | 文档 | 内容 |
 |---|---|
-| [runtime-matrix-rootful.md](runtime-matrix-rootful.md) | Outer root = root |
-| [runtime-matrix-nonroot.md](runtime-matrix-nonroot.md) | Outer root = non-root |
+| [runtime-matrix-rootful.md](rootful.md) | Outer root = root |
+| [runtime-matrix-nonroot.md](nonroot.md) | Outer root = non-root |
 
 ## 4. 产物
 
-[runtime-artifacts.md](runtime-artifacts.md)
+测试产物与校验和在测试目录生成，不单独维护文档：
+
+```text
+.cache/tests/full/<platform>/SHA256SUMS
+```
 
 ## 5. 未完成
 

@@ -10,7 +10,7 @@ CNB（Cloud Native Buildpacks）/ Paketo 离线构建的实验与沉淀仓库。
 
 ```
 Learn-cnb-paketo/
-├── AGENTS.md                 # AI 代理入口（必读清单与约束）
+├── docs/ai/agents.md         # AI 代理入口（必读清单与约束）
 ├── justfile                  # 仓库根入口（任意目录可用）
 ├── project/                  # 子项目与共享物料
 │   ├── assets.toml           #   物料声明（路径以本文件目录为根）
@@ -42,7 +42,7 @@ Learn-cnb-paketo/
 
 ## 快速开始
 
-> AI 代理请先读 [AGENTS.md](AGENTS.md)。
+> AI 代理请先读 [docs/ai/agents.md](docs/ai/agents.md)。
 
 ```bash
 just                 # 列出全部配方
@@ -84,10 +84,10 @@ cp .env.example .env    # 写入 PROXY_URL
 
 文档：
 
-- [docs/design/architecture.md](docs/design/architecture.md) — **架构与两条案例流程**：工具 → 功能 → 效果
-- [docs/design/pipeline.md](docs/design/pipeline.md) — 流水线的执行细节
-- [docs/design/base.md](docs/design/base.md) — 设计、字段含义、踩坑清单
+- [docs/design/architecture.md](docs/design/base/architecture.md) — **架构与两条案例流程**：工具 → 功能 → 效果
+- [docs/design/pipeline.md](docs/design/base/pipeline.md) — 流水线的执行细节
+- [docs/design/README.md](docs/design/README.md) — 设计、字段含义、踩坑清单
 - [docs/guides/verify.md](docs/guides/verify.md) — **检验手册**：分层验收命令、期望输出、失败排查
 - [script/tools/cnb/README.md](script/tools/cnb/README.md) — 小工具的契约与「新增子命令」模板
-- [docs/design/scaffold.md](docs/design/scaffold.md) — **脚手架**：从参考项目生成新项目
+- [docs/design/scaffold.md](docs/design/base/scaffold.md) — **脚手架**：从参考项目生成新项目
 - [docs/guides/pitfalls.md](docs/guides/pitfalls.md) — 18 条真实故障：现象 → 原因 → 修法

@@ -1,8 +1,9 @@
-# 运行时前置概念：layout、daemon、pind/dind
+# 运行时：概念、架构与选择
 
-> 读者：第一次接触本地 CNB 构建 / BK s-mart 打包的人。
-> 目的：先统一概念，再看 [architecture.md](architecture.md) 和
-> [build-chain.md](build-chain.md)。
+> 本文是 runtime 的**单一入口**，覆盖概念、角色、拓扑、导出模式与踩坑。
+> 决策与命令见 [rootless-runtime-recommendation.md](rootless-recommendation.md)；
+> 测试矩阵见 [runtime-tests/matrix.md](../../guides/runtime-tests/matrix.md)；
+> 整体分层见 [architecture.md](../base/architecture.md)，数据流归属见 [build-chain.md](../projects/offline-paketo-bk/build-chain.md)。
 
 ## 1. 为什么需要这些概念
 
@@ -22,7 +23,7 @@
 - 把 buildpack cache 和 runtime image cache 混为一谈
 - 遇到 `singleton connection already in use` 时无法定位
 
-## 2. 三个镜像概念
+## 2. 镜像与 sidecar
 
 ### 2.1 builder 镜像
 
@@ -113,6 +114,50 @@ outer Podman + inner Podman  → 允许
 outer Podman + inner Dockerd → 允许
 outer Docker + inner Podman  → 允许
 ```
+
+### 角色与职责
+
+```text
+应用源码
+  ↓
+builder 容器
+  ├─ lifecycle
+  └─ buildpacks
+  ↓
+inner runtime
+  ↓
+s-mart
+```
+
+| 角色 | 职责 |
+|---|---|
+| Outer runtime | 启动 builder、sidecar，执行 image import/save |
+| Builder | 运行 lifecycle 和 buildpacks |
+| sidecar | 为本次构建提供 inner runtime；不是 builder |
+| Inner runtime | 接收并保存构建出的镜像 |
+
+### 数据流
+
+```text
+1. 解析 app_desc
+2. 生成 build plan
+3. outer runtime 启动 builder
+4. builder 连接 inner runtime
+5. lifecycle detect → build → analyze → export
+6. 导出 layout 或 daemon archive
+7. 打包 s-mart
+```
+
+### workspace 与 socket
+
+builder 与 sidecar 共享 `/cnb/work`：
+
+```text
+pind socket: /cnb/work/run/podman.sock
+dind socket: /cnb/work/run/docker.sock
+```
+
+Unix socket 路径必须短于 108 字符，超过会连接失败。
 
 ## 4. 导出模式
 
@@ -215,21 +260,23 @@ sidecar 自己创建的非 root socket（pind/dind）
 
 ## 7. 推荐选择
 
+非 root 优先，顺序：
+
 ```text
-pind:
-  layout
-  daemon（Podman Docker-compatible API）
+host-podman + non-root builder
+pind        + non-root builder
+dind        + non-root builder
+```
 
-dind:
-  默认 daemon
-  也可显式 layout（不经过 inner dockerd 的 image store）
-  + non-root builder（daemon 路径）
-  + keep-id（daemon 路径）
-  + 可写 workspace/cache
+选型规则、命令与硬性前提见 [rootless-runtime-recommendation.md](rootless-recommendation.md)。
 
-cnb + Podman daemon:
-  优先 layout
-  必须 daemon 时才承担 #1763 风险
+测试入口（默认非 root builder）：
+
+```bash
+just test-quick
+just test-pind
+just test-dind
+just test-dind-daemon
 ```
 
 ## 8. 缓存边界
@@ -252,7 +299,7 @@ runtime cache state=cold
 
 各组合的实测/推测结果见：
 
-[runtime-matrix.md](components/bksmartpacker/runtime-matrix.md)
+[runtime-matrix.md](../../guides/runtime-tests/matrix.md)
 
 
 ## 10. 多架构
