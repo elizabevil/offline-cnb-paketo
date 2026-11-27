@@ -736,7 +736,7 @@ dist/linux-amd64/bk-sops-d1-union-4modules.tar.gz
 生成脚本：
 
 ```bash
-python3 script/tools/d1_union_package.py <s-mart.tar.gz>   --out bk-sops-d1-union-4modules.tar.gz
+python3 docs/archive/scripts/d1_union_package.py <s-mart.tar.gz>   --out bk-sops-d1-union-4modules.tar.gz
 ```
 
 注意：同名进程（如 `web`）只能保留一个命令；当前 union 以 pipeline 为准。

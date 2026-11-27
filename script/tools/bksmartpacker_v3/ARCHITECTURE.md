@@ -84,18 +84,20 @@ Backend:      docker | podman
 Environment:  host | pind | dind
 ```
 
-| Backend | Environment | socket / export |
-|---|---|---|
-| docker | host | `/var/run/docker.sock`，layout/daemon |
-| podman | host | rootful/rootless socket，layout |
-| podman | pind | `/run/podman/podman.sock`，layout |
-| docker | dind | docker socket，daemon |
+| Environment | Backend | inner socket | 导出 |
+|---|---|---|---|
+| host | docker | 宿主 Docker socket | layout / daemon |
+| host | podman | 宿主 rootless/rootful socket | layout |
+| pind | podman | `/cnb/work/run/podman.sock` | layout / daemon |
+| dind | docker | `/cnb/work/run/docker.sock` | layout / daemon |
 
 说明：
 
-- `pind` 是 podman-in-docker 的**配置预设**，不负责启动嵌套 Podman。
-- `dind` 是 docker-in-docker 的**配置预设**，不负责启动 Docker daemon。
-- `BKS_DOCKER_SOCK` 可覆盖 socket。
+- `pind` / `dind` 由 managed driver 启动 sidecar（`CNB_RUNTIME_IMAGE`），
+  sidecar 与 builder 共享 `/cnb/work`，socket 位于 `/cnb/work/run/`。
+- `BKS_DOCKER_SOCK` 可覆盖 inner socket；host 模式默认用宿主 socket。
+- 完整拓扑、rootless/rootful 与非 root 方案见
+  `docs/design/runtime/`。
 
 ### 一次构建
 
@@ -154,8 +156,8 @@ lifecycle 注入 buildpack
 
 | 模式 | 容器内行为 | 宿主取回 | 适用 |
 |---|---|---|---|
-| layout | lifecycle 写 OCI layout | 直接读取层包 | podman / pind / 本地默认 |
-| daemon | lifecycle 写 docker daemon | `image save` | 真 dockerd / dind |
+| layout | lifecycle 写 OCI layout | 直接读取层包 | host-podman / pind / dind（显式） |
+| daemon | lifecycle 写 daemon | `image save` | host-docker / pind daemon / dind |
 
 `layout` 不依赖 daemon，是本地默认路径。
 

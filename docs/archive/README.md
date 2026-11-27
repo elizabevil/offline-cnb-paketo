@@ -13,3 +13,12 @@
 | [paketo-vs-heroku.md](paketo-vs-heroku.md) | Paketo 与 Heroku 上游对比（Heroku 已移除） |
 | [offline-paketo-history.md](offline-paketo-history.md) | offline-paketo 的旧实现与结构变更 |
 | [offline-paketo-bk-history.md](offline-paketo-bk-history.md) | offline-paketo-bk 的旧实现与导出方式演进 |
+
+## 历史脚本
+
+| 路径 | 说明 |
+|---|---|
+| [scripts/d1_union_package.py](scripts/d1_union_package.py) | D1 union 补层脚本（已被 v2 取代） |
+| [scripts/dedup_smart.py](scripts/dedup_smart.py) | D1 多 tag + 硬链接去重（已被 v2 取代） |
+| [scripts/d6_test_package.py](scripts/d6_test_package.py) | D6 多镜像 manifest 验证包（平台否决） |
+| [scripts/d6_thin_package.py](scripts/d6_thin_package.py) | D6 薄层测试包（平台否决） |

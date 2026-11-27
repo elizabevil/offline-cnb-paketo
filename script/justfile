@@ -69,7 +69,7 @@ check: _ensure_tools
     @echo "── go 静态检查 ──"
     @cd {{_script}}/tools/cnb && test -z "$(gofmt -l .)" && echo "  ✓ gofmt 无差异"
     @cd {{_script}}/tools/cnb && \
-      GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} vet ./... && echo "  ✓ go vet 通过"
+      {{_go}} vet ./... && echo "  ✓ go vet 通过"
     @echo "── 协议边界 ──"
     @cd {{_script}}/tools/cnb && \
       bad=$(grep -rn 'toml.Unmarshal' --include='*.go' internal \
@@ -119,7 +119,7 @@ check: _ensure_tools
 
     @echo "── go 单测 ──"
     @cd {{_script}}/tools/cnb && \
-      GOCACHE="${GOCACHE:-{{_script}}/../.cache/go-build}" {{_go}} test ./...
+      {{_go}} test ./...
     @if command -v shellcheck >/dev/null 2>&1; then \
       echo "── shellcheck ──"; \
       shellcheck -S warning {{_script}}/ci.sh {{_script}}/check-updates.sh && echo "  ✓ shellcheck 通过"; \
@@ -161,8 +161,5 @@ check-updates:
 # Go 静态检查（golangci-lint，配置见 script/tools/.golangci.yml）
 lint:
     @cd {{_script}}/tools/cnb && \
-      GOCACHE={{_script}}/../.cache/go-build \
-      GOMODCACHE={{_script}}/../.cache/gomod \
-      GOLANGCI_LINT_CACHE={{_script}}/../.cache/golangci \
       golangci-lint run --config ../.golangci.yml ./...
     @just --justfile {{_script}}/tools/bksmartpacker_v3/justfile lint

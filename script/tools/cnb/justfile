@@ -23,7 +23,6 @@ _default:
 build:
     @mkdir -p {{ _out }}
     @cd {{ _dir }} && \
-      GOCACHE="${GOCACHE:-{{ _root }}/../.cache/go-build}" \
       CGO_ENABLED=0 \
       GOOS=$(echo '{{ target }}' | cut -d- -f1) \
       GOARCH=$(echo '{{ target }}' | cut -d- -f2) \

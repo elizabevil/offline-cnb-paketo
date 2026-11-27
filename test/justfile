@@ -29,7 +29,7 @@ test-scripts:
 # Go 单测
 test-unit:
     @cd {{_test}}/../script/tools/cnb && \
-      GOCACHE={{_test}}/../.cache/go-build "$({{_test}}/../script/lib/go.sh)" test ./...
+      "$({{_test}}/../script/lib/go.sh)" test ./...
 
 # 全部契约测试
 test-contract: test-contract-get test-contract-validate test-contract-plan
