@@ -229,8 +229,9 @@ sha256 = ""                             # 发布后自动回填
 |---|---|
 | 现象 | Podman Docker-compatible API + exporter `-daemon`，导出 base layers 时报 singleton |
 | 原因 | lifecycle `priv/docker.go` 复用一条预打开连接；root-owned socket 时进入单连接路径，第二个请求无法 dial |
-| 修法 | ① Podman 使用 `layout` 导出；② 非 root builder + `keep-id` 让 socket 在容器内非 root；③ 等 lifecycle #1763 修复 |
+| 修法 | ① Podman 优先 `layout`；② daemon 模式使用非 root builder + `keep-id`；③ 等 lifecycle #1763 修复 |
 | dind 备注 | dind 也允许显式 `layout`；默认仍是 daemon |
+| pind 备注 | pind 也支持 daemon，使用 Podman Docker-compatible API |
 | 注意 | Podman 服务端本身并发 `image get` 正常，问题在 lifecycle 客户端 |
 
 上游：

@@ -80,7 +80,7 @@ bksmartpacker \
 | `BKS_BUILDER_USER` | builder 容器用户，dind 非 root 验证使用 `1000:1000` |
 | `BKS_BUILDER_USERNS` | builder user namespace，dind 非 root 验证使用 `keep-id` |
 | `CNB_SIDECAR_TIMEOUT` | sidecar socket 就绪超时，默认 `60s`；`BKS_SIDECAR_TIMEOUT` 兼容 |
-| `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind 仅支持 `layout`，dind 默认为 `daemon`，显式 `layout` 也可用 |
+| `BKS_EXPORT_MODE` | `layout` 或 `daemon`；pind/dind 都支持两种，dind 默认为 `daemon` |
 | `BKS_PLATFORM` | 目标平台，如 `linux/arm64` |
 | `BKS_RUN_IMAGE_ARCHIVE_FILE` | 以文件形式提供 run image |
 | `BKS_EXTRA_MOUNTS` | 追加 `--mount` 参数 |

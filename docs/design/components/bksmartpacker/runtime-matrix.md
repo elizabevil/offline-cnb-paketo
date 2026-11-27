@@ -471,13 +471,13 @@ iproute2
 | amd64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-layout-amd64.tar.gz` | 已生成 | 当前 host 路径 |
 | amd64 | host | docker | 宿主 docker | daemon | 合法 | `s-mart-host-daemon-amd64.tar.gz` | 已生成 | 宿主机 Docker daemon |
 | amd64 | pind | podman | sidecar podman | layout | 合法 | `s-mart-pind-layout-amd64.tar.gz` | 已生成 | inner Podman |
-| amd64 | pind | podman | sidecar podman | daemon | 不支持 | — | 未打包 | daemon 要求 Docker backend |
+| amd64 | pind | podman | sidecar podman | daemon | 合法 | `s-mart-pind-daemon-amd64.tar.gz` | 已生成 | Podman Docker-compatible API |
 | amd64 | dind | podman | sidecar docker | layout | 合法 | `s-mart-dind-layout-amd64.tar.gz` | 已生成 | layout 不经过 inner dockerd |
 | amd64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-daemon-amd64.tar.gz` | 已生成 | inner Docker daemon |
 | arm64 | host | podman | 宿主 podman | layout | 合法 | `s-mart-host-layout-arm64.tar.gz` | 已生成 | 当前 host 路径 |
 | arm64 | host | docker | 宿主 docker | daemon | 合法 | — | 未打包 | lifecycle singleton #1763 |
 | arm64 | pind | podman | sidecar podman | layout | 合法 | — | 未打包 | qemu-user robust lock |
-| arm64 | pind | podman | sidecar podman | daemon | 不支持且受限 | — | 未打包 | pind daemon 不支持，且 qemu lock 限制 |
+| arm64 | pind | podman | sidecar podman | daemon | 合法但受限 | — | 未打包 | qemu-user robust lock |
 | arm64 | dind | podman | sidecar docker | layout | 合法 | `s-mart-dind-layout-arm64.tar.gz` | 已生成 | layout 不经过 inner dockerd |
 | arm64 | dind | podman | sidecar docker | daemon | 合法 | `s-mart-dind-daemon-arm64.tar.gz` | 已生成 | inner Docker daemon |
 
@@ -488,6 +488,7 @@ iproute2
   s-mart-host-layout-amd64.tar.gz
   s-mart-host-daemon-amd64.tar.gz
   s-mart-pind-layout-amd64.tar.gz
+  s-mart-pind-daemon-amd64.tar.gz
   s-mart-dind-layout-amd64.tar.gz
   s-mart-dind-daemon-amd64.tar.gz
 
@@ -497,22 +498,21 @@ iproute2
   s-mart-dind-daemon-arm64.tar.gz
 ```
 
-共 8 个。
+共 9 个。
 
 ### 未生成原因汇总
 
 | 原因 | 影响组合 | 类型 |
 |---|---|---|
 | arm64 host daemon 触发 lifecycle singleton #1763 | arm64 host + daemon | 上游缺陷 |
-| pind 的 inner 是 Podman，不接受 daemon 导出 | pind + daemon × 2 | 设计不支持 |
-| qemu-user robust lock 限制 | arm64 pind layout | 验证环境限制 |
+| qemu-user robust lock 限制 | arm64 pind × 2 | 验证环境限制 |
 
 ### 配置约束
 
 `pkg/container/config.go`：
 
 ```text
-daemon + 非 Docker → error: BKS_EXPORT_MODE=daemon requires the docker backend
+daemon + 非 Docker → 仅 pind 例外（使用 Podman Docker-compatible API）
 ```
 
 `dind + layout` 现在被允许：
@@ -555,4 +555,3 @@ dind + daemon           → docker-archive，未压缩 layer.tar
 因此 `s-mart.tar.gz` 大小不能直接比较。统一比较前需要先转换成同一种格式
 （推荐 OCI layout）。
 
-| qemu-user robust lock 限制 | arm64 pind layout | 验证环境限制 |

@@ -397,7 +397,7 @@ func resolveExportMode(backend Backend, environment Environment, value string) (
 		case ExportLayout:
 			return ExportLayout, nil
 		case ExportDaemon:
-			if backend != BackendDocker {
+			if backend != BackendDocker && environment != EnvironmentPind {
 				return "", fmt.Errorf("BKS_EXPORT_MODE=daemon requires the docker backend, got %s", backend)
 			}
 			return ExportDaemon, nil

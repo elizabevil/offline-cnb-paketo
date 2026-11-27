@@ -57,9 +57,9 @@ func (b *argBuilder) args() []string {
 }
 
 // imageSaveArgs 生成镜像导出参数，供 save 和 fallback 复用。
-func imageSaveArgs(cfg container.RuntimeConfig, dest, image string) []string {
+func imageSaveArgs(cfg container.RuntimeConfig, mode container.ExportMode, dest, image string) []string {
 	b := newArgBuilder("image", "save")
-	if cfg.IsPodman() {
+	if cfg.IsPodman() && mode != container.ExportDaemon {
 		b.option("--format", "oci-archive")
 	}
 	b.option("-o", dest)

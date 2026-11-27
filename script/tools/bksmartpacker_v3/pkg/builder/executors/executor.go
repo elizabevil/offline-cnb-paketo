@@ -409,7 +409,7 @@ func (e *ContainerExecutor) exportArchive(ctx context.Context, archiveName, imag
 		return os.Remove(produced)
 	}
 	inner := newRuntimeCLI(e.runtime.Inner)
-	args := append(inner.connectionArgs(), imageSaveArgs(e.runtime.Inner, filepath.Join(e.workspace.OutDir(), archiveName), image)...)
+	args := append(inner.connectionArgs(), imageSaveArgs(e.runtime.Inner, e.runtime.ExportMode, filepath.Join(e.workspace.OutDir(), archiveName), image)...)
 	cmd := exec.CommandContext(ctx, e.runtime.Inner.Binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

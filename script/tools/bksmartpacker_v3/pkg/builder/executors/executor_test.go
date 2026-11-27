@@ -91,7 +91,7 @@ func TestArgBuilder(t *testing.T) {
 }
 
 func TestImageSaveArgs(t *testing.T) {
-	got := imageSaveArgs(container.RuntimeConfig{Backend: container.BackendPodman}, "/tmp/out.tar", "bk/app:1")
+	got := imageSaveArgs(container.RuntimeConfig{Backend: container.BackendPodman}, container.ExportLayout, "/tmp/out.tar", "bk/app:1")
 	want := []string{"image", "save", "--format", "oci-archive", "-o", "/tmp/out.tar", "bk/app:1"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("args = %#v, want %#v", got, want)

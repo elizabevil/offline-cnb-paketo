@@ -197,6 +197,7 @@ lifecycle priv/docker.go 复用单条预打开连接
 ```text
 pind:
   layout
+  daemon（Podman Docker-compatible API）
 
 dind:
   默认 daemon
