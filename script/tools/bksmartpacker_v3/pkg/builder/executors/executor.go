@@ -127,7 +127,7 @@ func (e *ContainerExecutor) prepareFakeRunner(ctx context.Context) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	args := imageImportArgs(e.runtime.Platform, fakeRunnerImage(e.runtime.Platform))
+	args := imageImportArgs(e.runtime.Outer, e.runtime.Platform, fakeRunnerImage(e.runtime.Platform))
 	cmd := exec.CommandContext(ctx, e.runtime.Outer.Binary, args...)
 	cmd.Stdin = f
 	cmd.Stdout = os.Stdout

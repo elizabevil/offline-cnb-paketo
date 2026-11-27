@@ -76,14 +76,18 @@ func dockerArchiveSaveArgs(dest, image string) []string {
 }
 
 // imageImportArgs 生成 fake runner 导入参数。
-func imageImportArgs(platform, image string) []string {
+func imageImportArgs(cfg container.RuntimeConfig, platform, image string) []string {
 	b := newArgBuilder("import")
 	b.option("-c", "ENV HOME=/app")
 	b.option("-c", "WORKDIR /app")
 	if platform != "" {
-		osName, arch := splitPlatform(platform)
-		b.option("--os", osName)
-		b.option("--arch", arch)
+		if cfg.IsPodman() {
+			osName, arch := splitPlatform(platform)
+			b.option("--os", osName)
+			b.option("--arch", arch)
+		} else {
+			b.option("--platform", containerPlatform(platform))
+		}
 	}
 	b.add("-", image)
 	return b.args()
